@@ -1,0 +1,102 @@
+{
+  "app": {
+    "title": "E-SP-Line2",
+    "subtitle": "Platform Adapter Management System"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "platforms": "Platforms",
+    "adapters": "Adapters",
+    "instances": "Instances",
+    "messages": "Messages",
+    "routes": "Routes",
+    "docs": "Documentation",
+    "settings": "Settings"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "confirm": "Confirm",
+    "back": "Back",
+    "actions": "Actions",
+    "status": "Status",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "overview": "System Overview",
+    "totalPlatforms": "Total Platforms",
+    "totalAdapters": "Total Adapters",
+    "totalInstances": "Total Instances",
+    "totalMessages": "Total Messages",
+    "recentActivity": "Recent Activity",
+    "systemStatus": "System Status"
+  },
+  "platforms": {
+    "title": "Platform Management",
+    "create": "Create Platform",
+    "code": "Platform Code",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "adapters": {
+    "title": "Adapter Management",
+    "create": "Create Adapter",
+    "platform": "Platform",
+    "version": "Version",
+    "runtime": "Runtime",
+    "start": "Start",
+    "stop": "Stop",
+    "running": "Running",
+    "stopped": "Stopped"
+  },
+  "instances": {
+    "title": "Instance Management",
+    "create": "Create Instance",
+    "adapter": "Adapter",
+    "config": "Configuration",
+    "status": "Status"
+  },
+  "messages": {
+    "title": "Message Management",
+    "platform": "Platform",
+    "instance": "Instance",
+    "sender": "Sender",
+    "content": "Content",
+    "timestamp": "Timestamp",
+    "ack": "Acknowledge"
+  },
+  "routes": {
+    "title": "Route Rules",
+    "create": "Create Rule",
+    "priority": "Priority",
+    "conditions": "Conditions",
+    "target": "Target",
+    "enabled": "Enabled"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "register": "Register",
+    "loginTitle": "Login to E-SP-Line2",
+    "registerTitle": "Register New Account"
+  },
+  "docs": {
+    "title": "Documentation",
+    "userGuide": "User Guide",
+    "apiDocs": "API Documentation",
+    "developerGuide": "Developer Guide"
+  }
+}
