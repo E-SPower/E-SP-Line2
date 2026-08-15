@@ -41,6 +41,7 @@ func GetTaobaoAdapterInfo() *AdapterInfo {
 				"cookie": map[string]interface{}{
 					"type":        "string",
 					"description": "Taobao login cookie",
+					"format":      "password",
 				},
 				"device_id": map[string]interface{}{
 					"type":        "string",
@@ -62,8 +63,8 @@ func GetTaobaoAdapterInfo() *AdapterInfo {
 		I18n: map[string]v3.I18nResource{
 			"zh-CN": {
 				DisplayName:  "淘宝消息适配器",
-				Description:  "支持淘宝平台消息收发",
-				InstallGuide: "1. 登录淘宝网页版\n2. 复制 Cookie\n3. 填入配置",
+				Description:  "支持淘宝平台消息收发，多开多账号，每个实例独立 Cookie 配置",
+				InstallGuide: "1. 登录淘宝网页版\n2. 复制 Cookie\n3. 在实例管理中创建多个实例（多开）\n4. 每个实例填写独立 Cookie",
 				ErrorMessages: map[string]string{
 					"cookie_expired":    "Cookie 已过期，请重新登录",
 					"connection_failed": "连接失败，请检查网络",
@@ -71,8 +72,8 @@ func GetTaobaoAdapterInfo() *AdapterInfo {
 			},
 			"en-US": {
 				DisplayName:  "Taobao Message Adapter",
-				Description:  "Supports Taobao platform message sending and receiving",
-				InstallGuide: "1. Login to Taobao web\n2. Copy Cookie\n3. Fill in configuration",
+				Description:  "Supports Taobao messaging with multiple accounts; each instance has its own Cookie",
+				InstallGuide: "1. Login to Taobao web\n2. Copy Cookie\n3. Create multiple instances in Instance Management (multi-instance)\n4. Fill in a separate Cookie per instance",
 				ErrorMessages: map[string]string{
 					"cookie_expired":    "Cookie expired, please login again",
 					"connection_failed": "Connection failed, please check network",
@@ -118,6 +119,7 @@ func GetXianyuAdapterInfo() *AdapterInfo {
 				"cookie": map[string]interface{}{
 					"type":        "string",
 					"description": "Xianyu login cookie",
+					"format":      "password",
 				},
 				"device_id": map[string]interface{}{
 					"type":        "string",
@@ -139,8 +141,8 @@ func GetXianyuAdapterInfo() *AdapterInfo {
 		I18n: map[string]v3.I18nResource{
 			"zh-CN": {
 				DisplayName:  "闲鱼消息适配器",
-				Description:  "支持闲鱼平台消息收发",
-				InstallGuide: "1. 登录闲鱼网页版\n2. 复制 Cookie\n3. 填入配置",
+				Description:  "支持闲鱼平台消息收发，多开多账号，每个实例独立 Cookie 配置",
+				InstallGuide: "1. 登录闲鱼网页版\n2. 复制 Cookie\n3. 在实例管理中创建多个实例（多开）\n4. 每个实例填写独立 Cookie",
 				ErrorMessages: map[string]string{
 					"cookie_expired":    "Cookie 已过期，请重新登录",
 					"connection_failed": "连接失败，请检查网络",
@@ -148,8 +150,8 @@ func GetXianyuAdapterInfo() *AdapterInfo {
 			},
 			"en-US": {
 				DisplayName:  "Xianyu Message Adapter",
-				Description:  "Supports Xianyu platform message sending and receiving",
-				InstallGuide: "1. Login to Xianyu web\n2. Copy Cookie\n3. Fill in configuration",
+				Description:  "Supports Xianyu messaging with multiple accounts; each instance has its own Cookie",
+				InstallGuide: "1. Login to Xianyu web\n2. Copy Cookie\n3. Create multiple instances in Instance Management (multi-instance)\n4. Fill in a separate Cookie per instance",
 				ErrorMessages: map[string]string{
 					"cookie_expired":    "Cookie expired, please login again",
 					"connection_failed": "Connection failed, please check network",

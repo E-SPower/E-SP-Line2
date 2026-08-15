@@ -1,0 +1,22 @@
+# XianYu (闲鱼) adapter for E-SP-Line2
+# Python runtime dependencies
+
+# Core HTTP / WS
+requests>=2.31.0
+websockets>=12.0
+
+# Logging
+loguru>=0.7.2
+
+# Sign JS execution (vendor/static/*.js)
+# 需同时安装 Node.js 18+ 运行时
+execjs>=1.5.1
+
+# Protobuf 消息解密 (vendor/utils/goofish_utils.py)
+blackboxprotobuf>=3.0.0
+
+# Optional: QR code login
+qrcode>=7.4.2
+
+# Optional: retry
+backoff>=2.2.1

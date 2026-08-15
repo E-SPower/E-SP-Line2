@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
@@ -11,6 +12,9 @@ import (
 type InstanceService struct {
 	repo        *repository.InstanceRepository
 	sessionRepo *repository.AdapterSessionRepository
+
+	// runner manages the Python adapter subprocess lifecycle (optional).
+	runner *PythonRunner
 }
 
 // NewInstanceService creates a new instance service
@@ -19,6 +23,27 @@ func NewInstanceService(repo *repository.InstanceRepository, sessionRepo *reposi
 		repo:        repo,
 		sessionRepo: sessionRepo,
 	}
+}
+
+// SetRunner attaches the Python process runner (used for WebUI start/stop).
+func (s *InstanceService) SetRunner(runner *PythonRunner) {
+	s.runner = runner
+}
+
+// Start starts the instance's Python adapter process (if a runner is attached).
+func (s *InstanceService) Start(id string) error {
+	if s.runner == nil {
+		return errors.New("python runner is not initialized")
+	}
+	return s.runner.Start(id)
+}
+
+// Stop stops the instance's Python adapter process.
+func (s *InstanceService) Stop(id string) error {
+	if s.runner == nil {
+		return errors.New("python runner is not initialized")
+	}
+	return s.runner.Stop(id)
 }
 
 // CreateInstanceRequest represents a create instance request

@@ -3,10 +3,14 @@ import { useEffect, useState } from 'react'
 export interface FieldConfig {
   key: string
   label: string
-  type?: 'text' | 'number' | 'select'
+  type?: 'text' | 'number' | 'select' | 'switch'
   required?: boolean
   placeholder?: string
   options?: { value: string; label: string }[]
+  helpText?: string
+  defaultValue?: any
+  /** Custom renderer, overrides the default input rendering for this field. */
+  render?: (value: any, setValue: (v: any) => void) => React.ReactNode
 }
 
 interface EntityModalProps {
@@ -18,6 +22,8 @@ interface EntityModalProps {
   error?: string | null
   onClose: () => void
   onSubmit: (values: Record<string, any>) => void
+  /** Notified whenever any field value changes. */
+  onValuesChange?: (values: Record<string, any>) => void
 }
 
 // Reusable create/edit modal that renders a form from a field config.
@@ -30,27 +36,63 @@ export default function EntityModal({
   error,
   onClose,
   onSubmit,
+  onValuesChange,
 }: EntityModalProps) {
   const [values, setValues] = useState<Record<string, any>>(
     () => (initialValues ? { ...initialValues } : {})
   )
 
   // Reset form values whenever the modal opens with new initial values.
+  // Apply field defaultValue for fields not present in initialValues.
   useEffect(() => {
     if (open) {
-      setValues(initialValues ? { ...initialValues } : {})
+      const base = initialValues ? { ...initialValues } : {}
+      fields.forEach((f) => {
+        if (f.defaultValue !== undefined && base[f.key] === undefined) {
+          base[f.key] = f.defaultValue
+        }
+      })
+      setValues(base)
     }
-  }, [open, initialValues])
+  }, [open, initialValues, fields])
 
   if (!open) return null
 
   const setField = (key: string, value: any) => {
-    setValues((prev) => ({ ...prev, [key]: value }))
+    setValues((prev) => {
+      const next = { ...prev, [key]: value }
+      if (onValuesChange) {
+        onValuesChange(next)
+      }
+      return next
+    })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit(values)
+  }
+
+  // Render a toggle switch for boolean fields.
+  const renderSwitch = (field: FieldConfig) => {
+    const checked = Boolean(values[field.key])
+    return (
+      <button
+        type="button"
+        onClick={() => setField(field.key, !checked)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          checked ? 'bg-green-500' : 'bg-gray-300'
+        }`}
+        role="switch"
+        aria-checked={checked}
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    )
   }
 
   return (
@@ -79,14 +121,25 @@ export default function EntityModal({
                   {field.label}
                   {field.required && <span className="text-red-500"> *</span>}
                 </label>
-                {field.type === 'select' ? (
+                {field.render ? (
+                  field.render(values[field.key], (v) => setField(field.key, v))
+                ) : field.type === 'switch' ? (
+                  <div className="flex items-center space-x-3">
+                    {renderSwitch(field)}
+                    <span className="text-sm text-gray-700">
+                      {values[field.key] ? '是' : '否'}
+                    </span>
+                  </div>
+                ) : field.type === 'select' ? (
                   <select
                     value={values[field.key] ?? ''}
                     onChange={(e) => setField(field.key, e.target.value)}
                     required={field.required}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">--</option>
+                    <option value="" disabled>
+                      {field.placeholder || '--'}
+                    </option>
                     {field.options?.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
@@ -109,6 +162,9 @@ export default function EntityModal({
                     required={field.required}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                )}
+                {field.helpText && (
+                  <p className="mt-1 text-xs text-gray-500">{field.helpText}</p>
                 )}
               </div>
             ))}

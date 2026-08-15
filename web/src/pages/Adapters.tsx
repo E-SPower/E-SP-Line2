@@ -3,6 +3,7 @@ import { Plus, Play, Square, Edit, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import apiClient from '../api/client'
 import EntityModal, { FieldConfig } from '../components/EntityModal'
+import { useFormOptions } from '../hooks/useFormOptions'
 
 interface Adapter {
   id: string
@@ -24,6 +25,8 @@ export default function Adapters() {
   const [editing, setEditing] = useState<Adapter | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const { getOptions } = useFormOptions()
+  const runtimeOptions = getOptions('runtime_types')
 
   useEffect(() => {
     loadAdapters()
@@ -105,9 +108,18 @@ export default function Adapters() {
       type: 'select',
       required: true,
       options: platformOptions,
+      placeholder: t('adapters.selectPlatform'),
+      helpText: t('adapters.platformHelp'),
     },
     { key: 'version', label: t('adapters.version'), required: true },
-    { key: 'runtime_type', label: t('adapters.runtime') },
+    {
+      key: 'runtime_type',
+      label: t('adapters.runtime'),
+      type: 'select',
+      options: runtimeOptions,
+      placeholder: t('adapters.selectRuntime'),
+      helpText: t('adapters.runtimeHelp'),
+    },
   ]
 
   if (loading) {

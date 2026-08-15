@@ -96,3 +96,27 @@ func DeleteInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "instance deleted"})
 	}
 }
+
+// StartInstance starts the instance's Python adapter process.
+func StartInstance(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if err := instanceService.Start(id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "instance started"})
+	}
+}
+
+// StopInstance stops the instance's Python adapter process.
+func StopInstance(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if err := instanceService.Stop(id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "instance stopped"})
+	}
+}

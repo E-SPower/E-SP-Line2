@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -61,6 +62,29 @@ type AdapterConfig struct {
 	ReconnectDelay    int `mapstructure:"reconnect_delay"`    // in seconds
 	MaxRetries        int `mapstructure:"max_retries"`
 	MessageQueueSize  int `mapstructure:"message_queue_size"`
+
+	// Python adapter process management
+	PythonBin        string `mapstructure:"python_bin"`        // python executable path (default: python3)
+	AdaptersDir      string `mapstructure:"adapters_dir"`      // root dir containing adapters/<platform>/main.py (default: adapters)
+	AutoRestart      bool   `mapstructure:"auto_restart"`      // auto-restart crashed python processes (default: true)
+}
+
+// FormOptionsPath returns the path to the form options YAML registry file.
+// The file is resolved relative to the current working directory and the
+// ./config directory, mirroring how the main config file is discovered.
+func (c *Config) FormOptionsPath() string {
+	candidates := []string{
+		"config/form-options.yaml",
+		"./config/form-options.yaml",
+		"/etc/e-sp-line2/form-options.yaml",
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	// Fallback: default to the config directory location
+	return "config/form-options.yaml"
 }
 
 // Load loads the configuration from file and environment
@@ -131,6 +155,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("adapter.reconnect_delay", 5)
 	v.SetDefault("adapter.max_retries", 3)
 	v.SetDefault("adapter.message_queue_size", 1000)
+
+	// Python adapter process defaults
+	v.SetDefault("adapter.python_bin", "python3")
+	v.SetDefault("adapter.adapters_dir", "adapters")
+	v.SetDefault("adapter.auto_restart", true)
 }
 
 // GetDSN returns the database connection string

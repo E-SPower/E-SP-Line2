@@ -107,6 +107,8 @@ func (s *Server) setupRoutes() {
 			instances.GET("/:id", handler.GetInstance(s.services.Instance))
 			instances.PUT("/:id", handler.UpdateInstance(s.services.Instance))
 			instances.DELETE("/:id", handler.DeleteInstance(s.services.Instance))
+			instances.POST("/:id/start", handler.StartInstance(s.services.Instance))
+			instances.POST("/:id/stop", handler.StopInstance(s.services.Instance))
 		}
 
 		// Message routes
@@ -144,6 +146,14 @@ func (s *Server) setupRoutes() {
 		{
 			docs.GET("", handler.ListDocs())
 			docs.GET("/:key", handler.GetDoc())
+		}
+
+		// Form options (from YAML registry)
+		options := v1.Group("/options")
+		options.Use(middleware.AuthRequired())
+		{
+			options.GET("", handler.ListOptions(s.services.Options))
+			options.GET("/:key", handler.GetOption(s.services.Options))
 		}
 	}
 

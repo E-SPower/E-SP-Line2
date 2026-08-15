@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import apiClient from '../api/client'
 import EntityModal, { FieldConfig } from '../components/EntityModal'
+import { useFormOptions } from '../hooks/useFormOptions'
 
 interface Platform {
   id: string
@@ -22,6 +23,8 @@ export default function Platforms() {
   const [editing, setEditing] = useState<Platform | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const { getOptions } = useFormOptions()
+  const codeOptions = getOptions('platform_codes')
 
   useEffect(() => {
     loadPlatforms()
@@ -77,7 +80,15 @@ export default function Platforms() {
 
   const fields: FieldConfig[] = [
     { key: 'name', label: t('common.name'), required: true },
-    { key: 'code', label: t('platforms.code'), required: true },
+    {
+      key: 'code',
+      label: t('platforms.code'),
+      type: 'select',
+      required: true,
+      options: codeOptions,
+      placeholder: t('platforms.selectCode'),
+      helpText: t('platforms.codeHelp'),
+    },
     { key: 'description', label: t('common.description') },
   ]
 

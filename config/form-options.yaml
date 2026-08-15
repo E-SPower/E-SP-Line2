@@ -1,0 +1,126 @@
+# E-SP-Line2 Form Options Registry
+#
+# 该文件用于注册前端填报表单中的下拉框选项(枚举值),避免用户手工输入
+# 关键性内容(平台代码、运行时类型、消息类型等)导致的拼写错误与判断不准确。
+#
+# 结构说明:
+#   - 顶层 key 为选项组名(即 API: GET /api/v1/options/:key 中的 :key)
+#   - 每个选项包含:
+#       value: 实际存储到数据库的值(必须与后端逻辑一致,不可随意修改)
+#       label: 前端下拉框显示的中文名称
+#       label_en: 前端下拉框显示的英文名称(可选,用于 en-US 界面)
+#   - 如需新增/调整选项,直接修改本文件后重启后端即可,无需改代码。
+
+# 平台代码(Platform.code) —— 消息平台注册
+platform_codes:
+  - value: "xianyu"
+    label: "闲鱼"
+    label_en: "Xianyu"
+  - value: "taobao"
+    label: "淘宝"
+    label_en: "Taobao"
+  - value: "qianniu"
+    label: "千牛"
+    label_en: "Qianniu"
+  - value: "wechat"
+    label: "微信"
+    label_en: "WeChat"
+  - value: "qq"
+    label: "QQ"
+    label_en: "QQ"
+  - value: "telegram"
+    label: "Telegram"
+    label_en: "Telegram"
+  - value: "dingtalk"
+    label: "钉钉"
+    label_en: "DingTalk"
+  - value: "feishu"
+    label: "飞书"
+    label_en: "Feishu"
+  - value: "discord"
+    label: "Discord"
+    label_en: "Discord"
+  - value: "slack"
+    label: "Slack"
+    label_en: "Slack"
+
+# 接入器运行时类型(Adapter.runtime_type)
+runtime_types:
+  - value: "python"
+    label: "Python"
+    label_en: "Python"
+  - value: "node"
+    label: "Node.js"
+    label_en: "Node.js"
+  - value: "go"
+    label: "Go"
+    label_en: "Go"
+
+# 接入器状态(Adapter.status)
+adapter_statuses:
+  - value: "active"
+    label: "活跃"
+    label_en: "Active"
+  - value: "deprecated"
+    label: "已废弃"
+    label_en: "Deprecated"
+
+# 实例状态(AdapterInstance.status)
+instance_statuses:
+  - value: "stopped"
+    label: "已停止"
+    label_en: "Stopped"
+  - value: "running"
+    label: "运行中"
+    label_en: "Running"
+  - value: "error"
+    label: "异常"
+    label_en: "Error"
+
+# 消息类型(InboundEvent.message_type)
+message_types:
+  - value: "text"
+    label: "文本"
+    label_en: "Text"
+  - value: "image"
+    label: "图片"
+    label_en: "Image"
+  - value: "audio"
+    label: "语音"
+    label_en: "Audio"
+  - value: "product_card"
+    label: "商品卡片"
+    label_en: "Product Card"
+  - value: "video"
+    label: "视频"
+    label_en: "Video"
+  - value: "file"
+    label: "文件"
+    label_en: "File"
+
+# 路由目标类型(RouteRule.target_type)
+route_target_types:
+  - value: "app"
+    label: "应用"
+    label_en: "App"
+  - value: "webhook"
+    label: "Webhook"
+    label_en: "Webhook"
+
+# 路由启用状态(RouteRule.enabled)
+boolean_options:
+  - value: "true"
+    label: "是"
+    label_en: "Yes"
+  - value: "false"
+    label: "否"
+    label_en: "No"
+
+# 平台状态(Platform.status)
+platform_statuses:
+  - value: "active"
+    label: "活跃"
+    label_en: "Active"
+  - value: "inactive"
+    label: "未激活"
+    label_en: "Inactive"

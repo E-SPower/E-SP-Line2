@@ -3,6 +3,8 @@ import { Plus, Edit, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import apiClient from '../api/client'
 import EntityModal, { FieldConfig } from '../components/EntityModal'
+import RouteConditionBuilder, { conditionsToRows, rowsToConditions } from '../components/RouteConditionBuilder'
+import { useFormOptions } from '../hooks/useFormOptions'
 
 interface Route {
   id: string
@@ -12,6 +14,7 @@ interface Route {
   target_type: string
   target_id: string
   enabled: boolean
+  conditions: string
   created_at: string
 }
 
@@ -19,16 +22,20 @@ export default function RoutesPage() {
   const { t } = useTranslation()
   const [routes, setRoutes] = useState<Route[]>([])
   const [platforms, setPlatforms] = useState<{ id: string; name: string }[]>([])
+  const [adapters, setAdapters] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Route | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const { getOptions } = useFormOptions()
+  const targetTypeOptions = getOptions('route_target_types')
 
   useEffect(() => {
     loadRoutes()
     loadPlatforms()
+    loadAdapters()
   }, [])
 
   const loadRoutes = async () => {
@@ -51,6 +58,13 @@ export default function RoutesPage() {
     }
   }
 
+  const loadAdapters = async () => {
+    const result = await apiClient.getAdapters()
+    if (!result.error) {
+      setAdapters((result.data || []).map((a: any) => ({ id: a.id, name: a.name })))
+    }
+  }
+
   const openCreate = () => {
     setEditing(null)
     setFormError(null)
@@ -66,13 +80,16 @@ export default function RoutesPage() {
   const handleSubmit = async (values: Record<string, any>) => {
     setSubmitting(true)
     setFormError(null)
-    // Convert the enabled select value ("true"/"false") back to a boolean.
     const payload = { ...values }
-    if (typeof payload.enabled === 'string') {
-      payload.enabled = payload.enabled === 'true'
-    }
-    if (payload.priority === '' || payload.priority === undefined) {
-      delete payload.priority
+    // conditions holds the visual rows; serialize to the backend JSON map.
+    // Empty rows mean "no conditions" -> drop the field entirely.
+    if (Array.isArray(payload.conditions)) {
+      const condStr = rowsToConditions(payload.conditions)
+      if (condStr && condStr !== '{}') {
+        payload.conditions = condStr
+      } else {
+        delete payload.conditions
+      }
     }
     const result = editing
       ? await apiClient.updateRoute(editing.id, payload)
@@ -95,6 +112,7 @@ export default function RoutesPage() {
   }
 
   const platformOptions = platforms.map((p) => ({ value: p.id, label: p.name }))
+  const adapterOptions = adapters.map((a) => ({ value: a.id, label: a.name }))
 
   const fields: FieldConfig[] = [
     { key: 'name', label: t('common.name'), required: true },
@@ -103,23 +121,43 @@ export default function RoutesPage() {
       label: t('messages.platform'),
       type: 'select',
       options: platformOptions,
+      placeholder: t('routes.selectPlatform') || '--',
+      helpText: t('routes.platformHelp'),
     },
-    { key: 'priority', label: t('routes.priority'), type: 'number' },
+    {
+      key: 'priority',
+      label: t('routes.priority'),
+      type: 'number',
+      defaultValue: 0,
+      helpText: t('routes.priorityHelp'),
+    },
     {
       key: 'target_type',
       label: t('routes.targetType') || 'Target Type',
+      type: 'select',
       required: true,
+      options: targetTypeOptions,
+      placeholder: t('routes.selectTargetType'),
+      helpText: t('routes.targetTypeHelp'),
     },
-    { key: 'target_id', label: t('routes.targetId') || 'Target ID', required: true },
-    { key: 'conditions', label: t('routes.conditions') },
+    { key: 'target_id', label: t('routes.targetId') || 'Target ID', required: true, helpText: t('routes.targetIdHelp') },
+    {
+      key: 'conditions',
+      label: t('routes.conditions'),
+      defaultValue: [],
+      render: (value, setValue) => (
+        <RouteConditionBuilder
+          value={value || []}
+          onChange={setValue}
+          adapterOptions={adapterOptions}
+        />
+      ),
+    },
     {
       key: 'enabled',
       label: t('routes.enabled'),
-      type: 'select',
-      options: [
-        { value: 'true', label: 'true' },
-        { value: 'false', label: 'false' },
-      ],
+      type: 'switch',
+      defaultValue: true,
     },
   ]
 
@@ -135,7 +173,7 @@ export default function RoutesPage() {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <div className="text-red-800">Error: {error}</div>
-        <button 
+        <button
           onClick={loadRoutes}
           className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
         >
@@ -196,7 +234,7 @@ export default function RoutesPage() {
                     {route.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {route.platform_id}
+                    {route.platform_id || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {route.priority}
@@ -206,8 +244,8 @@ export default function RoutesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      route.enabled 
-                        ? 'bg-green-100 text-green-800' 
+                      route.enabled
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
                       {route.enabled ? t('routes.enabled') : t('routes.disabled') || 'Disabled'}
@@ -238,7 +276,19 @@ export default function RoutesPage() {
         title={editing ? t('routes.edit') || 'Edit Route' : t('routes.create')}
         open={modalOpen}
         fields={fields}
-        initialValues={editing ? { ...editing, enabled: editing.enabled ? 'true' : 'false' } : { enabled: 'true', priority: 0 }}
+        initialValues={
+          editing
+            ? {
+                name: editing.name,
+                platform_id: editing.platform_id,
+                priority: editing.priority,
+                target_type: editing.target_type,
+                target_id: editing.target_id,
+                conditions: conditionsToRows(editing.conditions),
+                enabled: editing.enabled,
+              }
+            : undefined
+        }
         submitting={submitting}
         error={formError}
         onClose={() => setModalOpen(false)}

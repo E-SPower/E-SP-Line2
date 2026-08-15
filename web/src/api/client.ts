@@ -192,6 +192,14 @@ class ApiClient {
     return this.request(`/instances/${id}`, { method: 'DELETE' });
   }
 
+  async startInstance(id: string) {
+    return this.request(`/instances/${id}/start`, { method: 'POST' });
+  }
+
+  async stopInstance(id: string) {
+    return this.request(`/instances/${id}/stop`, { method: 'POST' });
+  }
+
   // Message APIs
   async getMessages(limit = 20, offset = 0) {
     return this.request<any[]>(`/messages?limit=${limit}&offset=${offset}`);
@@ -234,6 +242,15 @@ class ApiClient {
 
   async deleteRoute(id: string) {
     return this.request(`/routes/${id}`, { method: 'DELETE' });
+  }
+
+  // Form option APIs (from YAML registry)
+  async getFormOptions() {
+    return this.request<any[]>(`/options`);
+  }
+
+  async getFormOptionGroup(key: string) {
+    return this.request<any>(`/options/${key}`);
   }
 
   // Documentation APIs
