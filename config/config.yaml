@@ -40,6 +40,6 @@ adapter:
   message_queue_size: 1000
 
   # Python 接入器进程管理（WebUI 启动/停止）
-  # python_bin: "python3"          # Python 可执行文件路径（建议指向 venv 中的 python）
-  # adapters_dir: "adapters"       # 接入器根目录（含 adapters/<platform>/main.py）
-  # auto_restart: true             # Python 进程异常退出后是否自动重启
+  python_bin: "/tmp/esp-py-venv/bin/python"  # Python 可执行文件路径（建议指向 venv 中的 python）
+  adapters_dir: "adapters"       # 接入器根目录（含 adapters/<platform>/main.py）
+  auto_restart: true             # Python 进程异常退出后是否自动重启

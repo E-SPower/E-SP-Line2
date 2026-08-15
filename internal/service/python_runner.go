@@ -92,11 +92,6 @@ func (r *PythonRunner) resolvePlatformCode(instanceID string) (string, error) {
 	return code, nil
 }
 
-// mainScriptPath returns the path to adapters/<platform>/main.py
-func (r *PythonRunner) mainScriptPath(platformCode string) string {
-	return filepath.Join(r.dir, platformCode, "main.py")
-}
-
 // Start launches the Python adapter process for the given instance.
 func (r *PythonRunner) Start(instanceID string) error {
 	r.mu.Lock()
@@ -113,10 +108,12 @@ func (r *PythonRunner) Start(instanceID string) error {
 	if err != nil {
 		return err
 	}
-	script := r.mainScriptPath(platformCode)
+	workDir := filepath.Join(r.dir, platformCode)
+	script := filepath.Join(workDir, "main.py")
 	if _, err := os.Stat(script); err != nil {
 		return fmt.Errorf("python adapter script not found: %s (%v)", script, err)
 	}
+	_ = script // script exists check only; run relative to cmd.Dir
 
 	// Validate the instance has a cookie configured.
 	instance, err := r.instances.FindByID(instanceID)
@@ -132,9 +129,10 @@ func (r *PythonRunner) Start(instanceID string) error {
 	}
 
 	// Build the command: python main.py --instance-id X --backend URL
-	args := []string{script, "--instance-id", instanceID, "--backend", r.backendURL}
+	// Run inside the platform adapter directory, so the script path is relative.
+	args := []string{"main.py", "--instance-id", instanceID, "--backend", r.backendURL}
 	cmd := exec.Command(r.python, args...)
-	cmd.Dir = filepath.Join(r.dir, platformCode)
+	cmd.Dir = workDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
