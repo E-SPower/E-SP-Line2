@@ -1,4 +1,7 @@
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+// Use a configurable base URL. In development the Vite dev server proxies
+// /api and /ws to the backend, so a relative path works out of the box.
+// For a custom backend origin, set VITE_API_BASE_URL (e.g. http://localhost:8080).
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1') as string;
 
 interface ApiResponse<T> {
   data?: T;
@@ -42,12 +45,41 @@ class ApiClient {
         headers,
       });
 
+      if (response.status === 401) {
+        // Try to read the backend error message (e.g. "invalid credentials").
+        let message = 'Unauthorized';
+        try {
+          const errorBody = await response.json();
+          if (errorBody && typeof errorBody.error === 'string' && errorBody.error) {
+            message = errorBody.error;
+          }
+        } catch {
+          // ignore body parse errors
+        }
+
+        // Only redirect to login for protected endpoints. Login itself (and other
+        // auth endpoints) may legitimately return 401 for bad credentials.
+        if (endpoint !== '/auth/login' && endpoint !== '/auth/register') {
+          this.clearToken();
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        }
+        return { error: message };
+      }
+
       if (!response.ok) {
         const error = await response.json();
         return { error: error.error || 'Request failed' };
       }
 
-      const data = await response.json();
+      const body = await response.json();
+      // Unwrap paginated responses ({ data: [...], total }) so callers receive the array.
+      // For non-paginated responses (e.g. auth: { token, user }) return the whole body.
+      const data =
+        body && typeof body === 'object' && 'data' in body
+          ? (body as { data: T }).data
+          : (body as T);
       return { data };
     } catch (error) {
       return { error: 'Network error' };
@@ -88,6 +120,24 @@ class ApiClient {
     return this.request<any>(`/platforms/${id}`);
   }
 
+  async createPlatform(data: any) {
+    return this.request('/platforms', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePlatform(id: string, data: any) {
+    return this.request(`/platforms/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePlatform(id: string) {
+    return this.request(`/platforms/${id}`, { method: 'DELETE' });
+  }
+
   // Adapter APIs
   async getAdapters(limit = 20, offset = 0) {
     return this.request<any[]>(`/adapters?limit=${limit}&offset=${offset}`);
@@ -98,6 +148,17 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async updateAdapter(id: string, data: any) {
+    return this.request(`/adapters/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAdapter(id: string) {
+    return this.request(`/adapters/${id}`, { method: 'DELETE' });
   }
 
   async startAdapter(id: string) {
@@ -118,6 +179,17 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async updateInstance(id: string, data: any) {
+    return this.request(`/instances/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInstance(id: string) {
+    return this.request(`/instances/${id}`, { method: 'DELETE' });
   }
 
   // Message APIs
@@ -153,10 +225,31 @@ class ApiClient {
     });
   }
 
+  async updateRoute(id: string, data: any) {
+    return this.request(`/routes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteRoute(id: string) {
+    return this.request(`/routes/${id}`, { method: 'DELETE' });
+  }
+
+  // Documentation APIs
+  async getDocs() {
+    return this.request<any[]>('/docs');
+  }
+
+  async getDoc(key: string) {
+    return this.request<any>(`/docs/${key}`);
+  }
+
   // Health check
   async healthCheck() {
     try {
-      const response = await fetch('http://localhost:8080/health');
+      const base = (import.meta.env.VITE_API_BASE_URL as string) || '';
+      const response = await fetch(`${base}/health`);
       return await response.json();
     } catch {
       return { status: 'error', message: 'Backend not available' };

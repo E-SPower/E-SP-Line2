@@ -32,7 +32,7 @@ ping www.goofish.com
 **查看日志**
 ```bash
 # 查看后端日志
-tail -f backend/logs/app.log
+tail -f logs/app.log
 ```
 
 ### 2. 消息接收不到
@@ -174,7 +174,7 @@ function connect() {
 **检查服务器日志**
 ```bash
 # 查看 WebSocket 日志
-grep "WebSocket" backend/logs/app.log
+grep "WebSocket" logs/app.log
 ```
 
 ## 日志分析
@@ -191,17 +191,17 @@ grep "WebSocket" backend/logs/app.log
 
 **查找错误**
 ```bash
-grep "ERROR" backend/logs/app.log | tail -50
+grep "ERROR" logs/app.log | tail -50
 ```
 
 **查找特定适配器**
 ```bash
-grep "adapter_id: instance-001" backend/logs/app.log
+grep "adapter_id: instance-001" logs/app.log
 ```
 
 **查找特定时间段**
 ```bash
-grep "2024-01-01 10:" backend/logs/app.log
+grep "2024-01-01 10:" logs/app.log
 ```
 
 ### 日志格式

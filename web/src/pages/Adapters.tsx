@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Play, Square, Edit, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import apiClient from '../api/client'
+import EntityModal, { FieldConfig } from '../components/EntityModal'
 
 interface Adapter {
   id: string
@@ -16,11 +17,17 @@ interface Adapter {
 export default function Adapters() {
   const { t } = useTranslation()
   const [adapters, setAdapters] = useState<Adapter[]>([])
+  const [platforms, setPlatforms] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<Adapter | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
     loadAdapters()
+    loadPlatforms()
   }, [])
 
   const loadAdapters = async () => {
@@ -36,6 +43,13 @@ export default function Adapters() {
     setLoading(false)
   }
 
+  const loadPlatforms = async () => {
+    const result = await apiClient.getPlatforms()
+    if (!result.error) {
+      setPlatforms((result.data || []).map((p: any) => ({ id: p.id, name: p.name })))
+    }
+  }
+
   const handleStart = async (id: string) => {
     await apiClient.startAdapter(id)
     loadAdapters()
@@ -45,6 +59,56 @@ export default function Adapters() {
     await apiClient.stopAdapter(id)
     loadAdapters()
   }
+
+  const openCreate = () => {
+    setEditing(null)
+    setFormError(null)
+    setModalOpen(true)
+  }
+
+  const openEdit = (adapter: Adapter) => {
+    setEditing(adapter)
+    setFormError(null)
+    setModalOpen(true)
+  }
+
+  const handleSubmit = async (values: Record<string, any>) => {
+    setSubmitting(true)
+    setFormError(null)
+    const result = editing
+      ? await apiClient.updateAdapter(editing.id, values)
+      : await apiClient.createAdapter(values)
+    setSubmitting(false)
+    if (result.error) {
+      setFormError(result.error)
+      return
+    }
+    setModalOpen(false)
+    loadAdapters()
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm(t('common.confirmDelete') || 'Delete this item?')) return
+    const result = await apiClient.deleteAdapter(id)
+    if (!result.error) {
+      loadAdapters()
+    }
+  }
+
+  const platformOptions = platforms.map((p) => ({ value: p.id, label: p.name }))
+
+  const fields: FieldConfig[] = [
+    { key: 'name', label: t('common.name'), required: true },
+    {
+      key: 'platform_id',
+      label: t('adapters.platform'),
+      type: 'select',
+      required: true,
+      options: platformOptions,
+    },
+    { key: 'version', label: t('adapters.version'), required: true },
+    { key: 'runtime_type', label: t('adapters.runtime') },
+  ]
 
   if (loading) {
     return (
@@ -72,7 +136,10 @@ export default function Adapters() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('adapters.title')}</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button
+          onClick={openCreate}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
           <Plus className="w-4 h-4 mr-2" />
           {t('adapters.create')}
         </button>
@@ -81,7 +148,7 @@ export default function Adapters() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {adapters.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500">
-            No adapters found. Create your first adapter to get started.
+            {t('adapters.noAdapters') || 'No adapters found. Create your first adapter to get started.'}
           </div>
         ) : (
           adapters.map((adapter) => (
@@ -89,7 +156,7 @@ export default function Adapters() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">{adapter.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1">Platform: {adapter.platform_id}</p>
+                  <p className="text-sm text-gray-500 mt-1">{t('adapters.platform')}: {adapter.platform_id}</p>
                 </div>
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                   adapter.status === 'active' 
@@ -128,11 +195,17 @@ export default function Adapters() {
                       <Play className="w-4 h-4" />
                     </button>
                   )}
-                  <button className="p-2 text-blue-600 hover:bg-blue-50 rounded">
+                  <button
+                    onClick={() => openEdit(adapter)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
                 </div>
-                <button className="p-2 text-red-600 hover:bg-red-50 rounded">
+                <button
+                  onClick={() => handleDelete(adapter.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -140,6 +213,17 @@ export default function Adapters() {
           ))
         )}
       </div>
+
+      <EntityModal
+        title={editing ? t('adapters.edit') || 'Edit Adapter' : t('adapters.create')}
+        open={modalOpen}
+        fields={fields}
+        initialValues={editing ? { name: editing.name, platform_id: editing.platform_id, version: editing.version, runtime_type: editing.runtime_type } : undefined}
+        submitting={submitting}
+        error={formError}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleSubmit}
+      />
     </div>
   )
 }

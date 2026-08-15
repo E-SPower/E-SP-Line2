@@ -16,12 +16,14 @@
   "common": {
     "loading": "加载中...",
     "save": "保存",
+    "saving": "保存中...",
     "cancel": "取消",
     "delete": "删除",
     "edit": "编辑",
     "create": "创建",
     "search": "搜索",
     "confirm": "确认",
+    "confirmDelete": "确定要删除吗？",
     "back": "返回",
     "actions": "操作",
     "status": "状态",
@@ -29,7 +31,9 @@
     "description": "描述",
     "type": "类型",
     "createdAt": "创建时间",
-    "updatedAt": "更新时间"
+    "updatedAt": "更新时间",
+    "refresh": "刷新",
+    "seconds": "秒"
   },
   "dashboard": {
     "title": "仪表盘",
@@ -39,33 +43,44 @@
     "totalInstances": "实例总数",
     "totalMessages": "消息总数",
     "recentActivity": "最近活动",
-    "systemStatus": "系统状态"
+    "noActivity": "暂无活动记录",
+    "newMessage": "收到新消息",
+    "systemStatus": "系统状态",
+    "statusOnline": "在线",
+    "statusOffline": "离线",
+    "statusChecking": "检查中"
   },
   "platforms": {
     "title": "平台管理",
     "create": "创建平台",
+    "edit": "编辑平台",
     "code": "平台代码",
     "status": "状态",
     "active": "活跃",
-    "inactive": "未激活"
+    "inactive": "未激活",
+    "noPlatforms": "暂无平台，请先创建"
   },
   "adapters": {
     "title": "接入器管理",
     "create": "创建接入器",
+    "edit": "编辑接入器",
     "platform": "所属平台",
     "version": "版本",
     "runtime": "运行时",
     "start": "启动",
     "stop": "停止",
     "running": "运行中",
-    "stopped": "已停止"
+    "stopped": "已停止",
+    "noAdapters": "暂无接入器，请先创建"
   },
   "instances": {
     "title": "实例管理",
     "create": "创建实例",
+    "edit": "编辑实例",
     "adapter": "所属接入器",
     "config": "配置",
-    "status": "状态"
+    "status": "状态",
+    "noInstances": "暂无实例，请先创建"
   },
   "messages": {
     "title": "消息管理",
@@ -79,10 +94,52 @@
   "routes": {
     "title": "路由规则",
     "create": "创建规则",
+    "edit": "编辑规则",
     "priority": "优先级",
     "conditions": "条件",
     "target": "目标",
-    "enabled": "启用"
+    "targetType": "目标类型",
+    "targetId": "目标 ID",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "noRoutes": "暂无路由规则，请先创建"
+  },
+  "monitoring": {
+    "title": "系统监控",
+    "totalAdapters": "接入器总数",
+    "runningAdapters": "运行中",
+    "totalMessages": "消息总数",
+    "avgResponseTime": "平均响应时间",
+    "adapterStatus": "接入器状态",
+    "noAdapters": "暂无接入器实例",
+    "messages": "消息数",
+    "errors": "错误数",
+    "lastHeartbeat": "最后心跳",
+    "realtimeMetrics": "实时指标",
+    "messagesPerMinute": "每分钟消息数",
+    "errorRate": "错误率",
+    "uptime": "运行时间"
+  },
+  "settings": {
+    "title": "系统设置",
+    "saved": "设置已保存",
+    "general": "基本设置",
+    "siteName": "站点名称",
+    "language": "界面语言",
+    "timezone": "时区",
+    "database": "数据库",
+    "databaseDriver": "数据库驱动",
+    "host": "主机",
+    "port": "端口",
+    "databaseName": "数据库名称",
+    "security": "安全设置",
+    "tokenExpiry": "令牌有效期",
+    "maxLoginAttempts": "最大登录尝试次数",
+    "requireEmailVerification": "需要邮箱验证",
+    "notifications": "通知设置",
+    "emailNotifications": "邮件通知",
+    "webhookUrl": "Webhook 地址",
+    "alertOnError": "出错时告警"
   },
   "auth": {
     "login": "登录",
@@ -91,12 +148,18 @@
     "password": "密码",
     "register": "注册",
     "loginTitle": "登录到 E-SP-Line2",
-    "registerTitle": "注册新账户"
+    "registerTitle": "注册新账户",
+    "invalidCredentials": "用户名或密码错误",
+    "unauthorized": "登录已过期，请重新登录",
+    "networkError": "网络连接失败，请稍后重试",
+    "loginFailed": "登录失败，请重试"
   },
   "docs": {
     "title": "文档中心",
     "userGuide": "使用指南",
     "apiDocs": "API 文档",
-    "developerGuide": "开发者指南"
+    "developerGuide": "开发者指南",
+    "backToList": "返回文档列表",
+    "toc": "目录"
   }
 }

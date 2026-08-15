@@ -24,7 +24,6 @@ cd E-SP-Line2
 ### 2. 后端安装
 
 ```bash
-cd backend
 go mod download
 ```
 
@@ -37,7 +36,7 @@ npm install
 
 ### 4. 配置数据库
 
-编辑 `backend/config/config.yaml`：
+编辑 `config/config.yaml`：
 
 ```yaml
 database:
@@ -53,7 +52,6 @@ server:
 
 ```bash
 # 启动后端
-cd backend
 go run main.go
 
 # 启动前端（新终端）

@@ -18,18 +18,51 @@ E-SP-Line2 是一个基于平台化架构的接入器管理系统，支持多平
 ## 技术栈
 
 ### 后端
+
 - **语言**: Go 1.22+
 - **框架**: Gin
 - **数据库**: GORM + SQLite/PostgreSQL
 - **缓存**: Redis
 - **WebSocket**: Gorilla WebSocket
+- **认证**: JWT
+- **日志**: Zap
 
 ### 前端
+
 - **框架**: React 18 + TypeScript
 - **构建工具**: Vite
 - **UI 组件**: Tailwind CSS + shadcn/ui
 - **国际化**: i18next
 - **路由**: React Router DOM
+
+## 项目结构
+
+```
+E-SP-Line2/
+├── internal/               # 后端内部包
+│   ├── adapter/            # 接入器管理
+│   ├── config/             # 配置管理
+│   ├── handler/            # HTTP 处理器
+│   ├── message/            # 消息分发与路由
+│   ├── middleware/         # 中间件
+│   ├── models/             # 数据模型
+│   ├── protocol/           # 协议定义
+│   ├── repository/         # 数据访问层
+│   ├── server/             # 服务器
+│   └── service/            # 业务逻辑层
+├── pkg/                    # 公共包
+│   └── logger/             # 日志工具
+├── config/                 # 后端配置文件
+├── data/                   # 后端数据目录
+├── migrations/             # 数据库迁移脚本
+├── bin/                    # 构建产物
+├── web/                    # 前端项目
+├── docs/                   # 文档
+├── main.go                 # 后端入口文件
+├── go.mod                  # Go 模块定义
+├── Makefile                # 后端构建脚本
+└── package-lock.json
+```
 
 ## 快速开始
 
@@ -39,12 +72,11 @@ E-SP-Line2 是一个基于平台化架构的接入器管理系统，支持多平
 - Node.js 18+
 - pnpm 或 npm
 - Redis (可选)
+- PostgreSQL (可选，默认使用 SQLite)
 
 ### 后端启动
 
 ```bash
-cd backend
-
 # 安装依赖
 make deps
 
@@ -91,6 +123,34 @@ pnpm dev
 - `POST /api/v1/adapters/:id/start` - 启动接入器
 - `POST /api/v1/adapters/:id/stop` - 停止接入器
 
+### 实例接口
+
+- `GET /api/v1/instances` - 获取实例列表
+- `POST /api/v1/instances` - 创建实例
+- `GET /api/v1/instances/:id` - 获取实例详情
+- `PUT /api/v1/instances/:id` - 更新实例
+- `DELETE /api/v1/instances/:id` - 删除实例
+
+### 消息接口
+
+- `GET /api/v1/messages` - 获取消息列表
+- `GET /api/v1/messages/:id` - 获取消息详情
+- `POST /api/v1/messages/:id/ack` - 确认消息
+
+### 命令接口
+
+- `GET /api/v1/commands` - 获取命令列表
+- `POST /api/v1/commands` - 创建命令
+- `GET /api/v1/commands/:id` - 获取命令详情
+
+### 路由接口
+
+- `GET /api/v1/routes` - 获取路由规则列表
+- `POST /api/v1/routes` - 创建路由规则
+- `GET /api/v1/routes/:id` - 获取路由规则详情
+- `PUT /api/v1/routes/:id` - 更新路由规则
+- `DELETE /api/v1/routes/:id` - 删除路由规则
+
 ### WebSocket 接口
 
 - `ws://localhost:8080/ws/adapter?instance_id=xxx` - 接入器 WebSocket
@@ -117,16 +177,20 @@ pnpm dev
 
 ## 开发指南
 
-### 添加新平台
+### 添加新的 API 端点
 
-1. 在 `internal/models/` 中定义平台模型
-2. 在 `internal/repository/` 中实现数据访问
+1. 在 `internal/handler/` 中创建处理器函数
+2. 在 `internal/server/server.go` 中注册路由
 3. 在 `internal/service/` 中实现业务逻辑
-4. 在 `internal/handler/` 中实现 API 端点
+4. 在 `internal/repository/` 中实现数据访问
 
-### 开发接入器
+### 数据库迁移
 
-参考 `TaoBaoApis` 和 `XianYuApis` 项目的实现，遵循统一的接入器契约。
+使用 GORM 的 AutoMigrate 功能自动迁移数据库模型。
+
+### 日志
+
+使用 Zap 结构化日志，支持多种日志级别。
 
 ## 许可证
 
@@ -140,4 +204,4 @@ pnpm dev
 
 如有问题或建议，请通过以下方式联系：
 
-- GitHub Issues: https://github.com/your-org/E-SP-Line2/issues
+- GitHub Issues: https://github.com/E-SPower/E-SP-Line2/issues

@@ -74,7 +74,7 @@ export default function Monitoring() {
           errorAdapters: errors,
           totalMessages,
           messagesPerMinute: Math.round(totalMessages / 60),
-          avgResponseTime: 150 // Mock value
+          avgResponseTime: 0
         })
       }
     } catch (error) {
@@ -241,7 +241,7 @@ export default function Monitoring() {
           </div>
           <div className="border border-gray-200 rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-2">{t('monitoring.uptime')}</p>
-            <p className="text-3xl font-bold text-green-600">99.9%</p>
+            <p className="text-3xl font-bold text-green-600">-</p>
           </div>
         </div>
       </div>

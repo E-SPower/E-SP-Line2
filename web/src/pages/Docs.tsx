@@ -1,19 +1,34 @@
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { BookOpen, Code, FileText } from 'lucide-react'
 
+interface DocLink {
+  label: string
+  key: string
+}
+
+interface DocSection {
+  icon: typeof BookOpen
+  title: string
+  description: string
+  links: DocLink[]
+}
+
 export default function Docs() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
-  const docSections = [
+  const docSections: DocSection[] = [
     {
       icon: BookOpen,
       title: t('docs.userGuide'),
       description: '了解如何使用 E-SP-Line2 平台管理您的接入器和实例',
       links: [
-        { label: '快速开始', href: '#' },
-        { label: '平台配置', href: '#' },
-        { label: '接入器管理', href: '#' },
-        { label: '消息路由', href: '#' }
+        { label: '快速开始', key: 'getting-started' },
+        { label: '平台配置', key: 'platform-config' },
+        { label: '接入器管理', key: 'adapter-management' },
+        { label: '消息路由', key: 'message-routing' },
+        { label: '故障排除', key: 'troubleshooting' }
       ]
     },
     {
@@ -21,10 +36,10 @@ export default function Docs() {
       title: t('docs.apiDocs'),
       description: '完整的 API 文档，包括 REST API 和 WebSocket 接口',
       links: [
-        { label: 'REST API', href: '#' },
-        { label: 'WebSocket API', href: '#' },
-        { label: '认证授权', href: '#' },
-        { label: '错误码说明', href: '#' }
+        { label: 'REST API', key: 'rest-api' },
+        { label: 'WebSocket API', key: 'websocket-api' },
+        { label: '认证授权', key: 'auth' },
+        { label: '错误码说明', key: 'error-codes' }
       ]
     },
     {
@@ -32,10 +47,10 @@ export default function Docs() {
       title: t('docs.developerGuide'),
       description: '开发者指南，帮助您开发和集成自定义接入器',
       links: [
-        { label: '接入器开发', href: '#' },
-        { label: '协议规范', href: '#' },
-        { label: '最佳实践', href: '#' },
-        { label: '示例代码', href: '#' }
+        { label: '接入器开发', key: 'adapter-development' },
+        { label: '协议规范', key: 'protocol' },
+        { label: '最佳实践', key: 'best-practices' },
+        { label: '示例代码', key: 'examples' }
       ]
     }
   ]
@@ -62,7 +77,7 @@ export default function Docs() {
                   {section.title}
                 </h2>
               </div>
-              
+
               <p className="text-sm text-gray-600 mb-4">
                 {section.description}
               </p>
@@ -70,12 +85,12 @@ export default function Docs() {
               <ul className="space-y-2">
                 {section.links.map((link, linkIndex) => (
                   <li key={linkIndex}>
-                    <a
-                      href={link.href}
+                    <button
+                      onClick={() => navigate(`/docs/${link.key}`)}
                       className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       {link.label}
-                    </a>
+                    </button>
                   </li>
                 ))}
               </ul>

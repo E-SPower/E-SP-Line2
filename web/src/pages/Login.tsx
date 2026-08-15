@@ -1,18 +1,41 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import apiClient from '../api/client'
 
 export default function Login() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Implement actual login logic
-    console.log('Login:', { username, password })
-    navigate('/dashboard')
+    setError('')
+    setLoading(true)
+    try {
+      const result = await apiClient.login(username, password)
+      if (result.error) {
+        // Map backend error codes to localized messages.
+        const key =
+          result.error === 'invalid credentials'
+            ? 'auth.invalidCredentials'
+            : result.error === 'Unauthorized' || result.error === 'unauthorized'
+            ? 'auth.unauthorized'
+            : result.error === 'Network error'
+            ? 'auth.networkError'
+            : null
+        setError(key ? t(key) : result.error)
+        return
+      }
+      navigate('/dashboard')
+    } catch (err) {
+      setError(t('auth.loginFailed'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const toggleLanguage = () => {
@@ -70,12 +93,18 @@ export default function Login() {
               </div>
             </div>
 
+            {error && (
+              <div className="rounded-md bg-red-50 p-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {t('auth.login')}
+                {loading ? t('common.loading') : t('auth.login')}
               </button>
             </div>
           </form>

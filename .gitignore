@@ -1,0 +1,28 @@
+# Runtime data (SQLite database generated on first run)
+data/
+
+# Compiled binaries
+bin/
+*.exe
+*.test
+*.out
+
+# Logs
+logs/
+*.log
+
+# Frontend build artifacts
+web/dist/
+web/node_modules/
+
+# Environment / local config
+.env
+.env.local
+config/local.yaml
+config/config.local.yaml
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

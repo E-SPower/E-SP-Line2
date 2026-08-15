@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Save, Database, Globe, Shield, Bell } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import apiClient from '../api/client'
 
 interface Settings {
   general: {
@@ -61,7 +60,7 @@ export default function Settings() {
 
   const loadSettings = async () => {
     try {
-      // Load settings from API (mock for now)
+      // Load settings from local storage
       const savedSettings = localStorage.getItem('app_settings')
       if (savedSettings) {
         setSettings(JSON.parse(savedSettings))
@@ -76,7 +75,7 @@ export default function Settings() {
     setSaved(false)
     
     try {
-      // Save settings to localStorage (mock for now)
+      // Save settings to local storage
       localStorage.setItem('app_settings', JSON.stringify(settings))
       
       // Update i18n language

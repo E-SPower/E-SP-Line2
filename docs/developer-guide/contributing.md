@@ -76,7 +76,6 @@ Closes #123
 
 ```bash
 # 安装 Go 依赖
-cd backend
 go mod download
 
 # 运行测试
@@ -197,7 +196,6 @@ pytest
 
 ```bash
 # 后端测试
-cd backend
 go test ./... -v
 
 # 前端测试

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Edit, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import apiClient from '../api/client'
+import EntityModal, { FieldConfig } from '../components/EntityModal'
 
 interface Platform {
   id: string
@@ -17,6 +18,10 @@ export default function Platforms() {
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<Platform | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
     loadPlatforms()
@@ -34,6 +39,47 @@ export default function Platforms() {
     }
     setLoading(false)
   }
+
+  const openCreate = () => {
+    setEditing(null)
+    setFormError(null)
+    setModalOpen(true)
+  }
+
+  const openEdit = (platform: Platform) => {
+    setEditing(platform)
+    setFormError(null)
+    setModalOpen(true)
+  }
+
+  const handleSubmit = async (values: Record<string, any>) => {
+    setSubmitting(true)
+    setFormError(null)
+    const result = editing
+      ? await apiClient.updatePlatform(editing.id, values)
+      : await apiClient.createPlatform(values)
+    setSubmitting(false)
+    if (result.error) {
+      setFormError(result.error)
+      return
+    }
+    setModalOpen(false)
+    loadPlatforms()
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm(t('common.confirmDelete') || 'Delete this item?')) return
+    const result = await apiClient.deletePlatform(id)
+    if (!result.error) {
+      loadPlatforms()
+    }
+  }
+
+  const fields: FieldConfig[] = [
+    { key: 'name', label: t('common.name'), required: true },
+    { key: 'code', label: t('platforms.code'), required: true },
+    { key: 'description', label: t('common.description') },
+  ]
 
   if (loading) {
     return (
@@ -61,7 +107,10 @@ export default function Platforms() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('platforms.title')}</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button
+          onClick={openCreate}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
           <Plus className="w-4 h-4 mr-2" />
           {t('platforms.create')}
         </button>
@@ -92,7 +141,7 @@ export default function Platforms() {
             {platforms.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                  No platforms found. Create your first platform to get started.
+                  {t('platforms.noPlatforms') || 'No platforms found. Create your first platform to get started.'}
                 </td>
               </tr>
             ) : (
@@ -117,10 +166,16 @@ export default function Platforms() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
+                    <button
+                      onClick={() => openEdit(platform)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                    >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button className="text-red-600 hover:text-red-900">
+                    <button
+                      onClick={() => handleDelete(platform.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -130,6 +185,17 @@ export default function Platforms() {
           </tbody>
         </table>
       </div>
+
+      <EntityModal
+        title={editing ? t('platforms.edit') || 'Edit Platform' : t('platforms.create')}
+        open={modalOpen}
+        fields={fields}
+        initialValues={editing ? { name: editing.name, code: editing.code, description: editing.description } : undefined}
+        submitting={submitting}
+        error={formError}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleSubmit}
+      />
     </div>
   )
 }
