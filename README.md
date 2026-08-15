@@ -31,32 +31,6 @@ E-SP-Line2 是一个基于平台化架构的接入器管理系统，支持多平
 - **国际化**: i18next
 - **路由**: React Router DOM
 
-## 项目结构
-
-```
-E-SP-Line2/
-├── backend/              # Go 后端服务
-│   ├── cmd/             # 命令行工具
-│   ├── internal/        # 内部包
-│   │   ├── config/     # 配置管理
-│   │   ├── handler/    # HTTP 处理器
-│   │   ├── middleware/ # 中间件
-│   │   ├── models/     # 数据模型
-│   │   ├── repository/ # 数据访问层
-│   │   ├── server/     # 服务器
-│   │   └── service/    # 业务逻辑层
-│   ├── pkg/            # 公共包
-│   └── config/         # 配置文件
-├── web/                # React 前端
-│   ├── src/
-│   │   ├── components/ # 组件
-│   │   ├── pages/      # 页面
-│   │   ├── locales/    # 多语言资源
-│   │   └── i18n.ts     # 国际化配置
-│   └── package.json
-└── docs/               # 文档
-```
-
 ## 快速开始
 
 ### 环境要求
