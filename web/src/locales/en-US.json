@@ -48,7 +48,15 @@
     "systemStatus": "System Status",
     "statusOnline": "Online",
     "statusOffline": "Offline",
-    "statusChecking": "Checking"
+    "statusChecking": "Checking",
+    "instanceStatus": "Instance Activity",
+    "viewAll": "View all",
+    "noInstances": "No instances"
+  },
+  "connection": {
+    "lostTitle": "Connection to backend lost",
+    "lostDesc": "Cannot reach the backend service. Check that the backend is still running; it will reconnect automatically.",
+    "reconnecting": "Reconnecting..."
   },
   "platforms": {
     "title": "Platform Management",
@@ -66,9 +74,9 @@
     "title": "Adapter Management",
     "create": "Create Adapter",
     "edit": "Edit Adapter",
-    "platform": "Platform",
-    "selectPlatform": "Select platform",
-    "platformHelp": "Platform is the message source (e.g. Xianyu/Taobao). The adapter processes messages from that platform",
+    "platform": "Message Platform",
+    "selectPlatform": "Select message platform",
+    "platformHelp": "The adapter handles messages from the selected message platform (Xianyu/Taobao/WeChat etc.). Add instances under it after creation",
     "version": "Version",
     "runtime": "Runtime",
     "selectRuntime": "Select runtime type",
@@ -90,7 +98,11 @@
     "status": "Status",
     "cookieHelp": "Copy the full Cookie from browser dev tools after logging into Xianyu (independent per instance)",
     "deviceIdHelp": "Optional; auto-generated if left empty",
-    "noInstances": "No instances found. Create your first instance to get started."
+    "logs": "View logs",
+    "noInstances": "No instances found. Create your first instance to get started.",
+    "initializing": "Initializing",
+    "initializingHint": "Installing dependencies automatically; start will be enabled when ready",
+    "statusError": "Error"
   },
   "messages": {
     "title": "Message Management",

@@ -48,7 +48,15 @@
     "systemStatus": "系统状态",
     "statusOnline": "在线",
     "statusOffline": "离线",
-    "statusChecking": "检查中"
+    "statusChecking": "检查中",
+    "instanceStatus": "实例活动状态",
+    "viewAll": "查看全部",
+    "noInstances": "暂无实例"
+  },
+  "connection": {
+    "lostTitle": "与后端连接已断开",
+    "lostDesc": "无法连接到后端服务。请检查后端是否仍在运行，连接恢复后将自动继续。",
+    "reconnecting": "正在尝试重新连接..."
   },
   "platforms": {
     "title": "平台管理",
@@ -66,9 +74,9 @@
     "title": "接入器管理",
     "create": "创建接入器",
     "edit": "编辑接入器",
-    "platform": "所属平台",
-    "selectPlatform": "请选择所属平台",
-    "platformHelp": "平台是消息来源（如闲鱼/淘宝），接入器负责处理该平台的消息",
+    "platform": "消息平台",
+    "selectPlatform": "请选择消息平台",
+    "platformHelp": "接入器用于处理所选消息平台（闲鱼/淘宝/微信等）的消息，创建后即可在该平台下添加实例",
     "version": "版本",
     "runtime": "运行时",
     "selectRuntime": "请选择运行时类型",
@@ -90,7 +98,11 @@
     "status": "状态",
     "cookieHelp": "登录闲鱼后从浏览器开发者工具复制完整 Cookie(每个实例独立)",
     "deviceIdHelp": "可选，留空自动生成",
-    "noInstances": "暂无实例，请先创建"
+    "logs": "查看日志",
+    "noInstances": "暂无实例，请先创建",
+    "initializing": "初始化中",
+    "initializingHint": "正在自动安装依赖，完成后即可启动运行",
+    "statusError": "异常"
   },
   "messages": {
     "title": "消息管理",

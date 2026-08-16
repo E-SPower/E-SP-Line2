@@ -19,26 +19,31 @@ type docIndexEntry struct {
 	Key   string `json:"key"`   // unique identifier used by the frontend route
 	Title string `json:"title"` // human-readable title
 	Path  string `json:"path"`  // relative file path inside docs/
+	Group string `json:"group"` // category used by the frontend to group docs
 }
 
 // docIndex is the whitelist of documents that can be served. Any file not in
 // this list is unreachable, which also prevents path-traversal attempts.
 var docIndex = []docIndexEntry{
-	{Key: "getting-started", Title: "快速开始", Path: "user-guide/getting-started.md"},
-	{Key: "platform-config", Title: "平台配置", Path: "user-guide/getting-started.md"},
-	{Key: "adapter-management", Title: "接入器管理", Path: "user-guide/adapters.md"},
-	{Key: "message-routing", Title: "消息路由", Path: "user-guide/routing.md"},
-	{Key: "troubleshooting", Title: "故障排除", Path: "user-guide/troubleshooting.md"},
+	// ── 使用指南 ──
+	{Key: "getting-started", Title: "快速开始", Path: "user-guide/getting-started.md", Group: "guide"},
+	{Key: "adapter-management", Title: "接入器管理", Path: "user-guide/adapters.md", Group: "guide"},
+	{Key: "message-routing", Title: "消息路由", Path: "user-guide/routing.md", Group: "guide"},
+	{Key: "troubleshooting", Title: "故障排除", Path: "user-guide/troubleshooting.md", Group: "guide"},
 
-	{Key: "rest-api", Title: "REST API", Path: "developer-guide/api-reference.md"},
-	{Key: "websocket-api", Title: "WebSocket API", Path: "developer-guide/api-reference.md"},
-	{Key: "auth", Title: "认证授权", Path: "developer-guide/api-reference.md"},
-	{Key: "error-codes", Title: "错误码说明", Path: "developer-guide/api-reference.md"},
+	// ── 接入器文档 ──
+	{Key: "adapter-xianyu", Title: "闲鱼接入器", Path: "user-guide/adapters-xianyu.md", Group: "adapters"},
+	{Key: "adapter-taobao", Title: "淘宝接入器", Path: "user-guide/adapters-taobao.md", Group: "adapters"},
 
-	{Key: "adapter-development", Title: "接入器开发", Path: "developer-guide/adapter-development.md"},
-	{Key: "protocol", Title: "协议规范", Path: "developer-guide/protocol-v3.md"},
-	{Key: "best-practices", Title: "最佳实践", Path: "developer-guide/adapter-development.md"},
-	{Key: "examples", Title: "示例代码", Path: "developer-guide/adapter-development.md"},
+	// ── API 参考 ──
+	{Key: "rest-api", Title: "REST API", Path: "developer-guide/api-reference.md", Group: "api"},
+	{Key: "websocket-api", Title: "WebSocket API", Path: "developer-guide/api-reference.md", Group: "api"},
+
+	// ── 开发者指南 ──
+	{Key: "adapter-development", Title: "接入器开发", Path: "developer-guide/adapter-development.md", Group: "dev"},
+	{Key: "adapter-yaml", Title: "adapter.yaml 字段规则", Path: "developer-guide/adapter-yaml.md", Group: "dev"},
+	{Key: "protocol", Title: "协议规范", Path: "developer-guide/protocol-v3.md", Group: "dev"},
+	{Key: "contributing", Title: "参与贡献", Path: "developer-guide/contributing.md", Group: "dev"},
 }
 
 // lookupDoc finds a docIndexEntry by key. Returns nil if not whitelisted.

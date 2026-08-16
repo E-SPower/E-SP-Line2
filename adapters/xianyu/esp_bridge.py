@@ -31,6 +31,14 @@ import websockets
 # ---------------------------------------------------------------- logging ---
 from loguru import logger
 
+# 详细日志格式：时间 | 级别 | 消息
+logger.remove()
+logger.add(
+    sink=lambda msg: print(msg, end=""),
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    colorize=False,
+)
+
 
 # ------------------------------------------------------------- data types ----
 @dataclass
@@ -51,7 +59,13 @@ def fetch_instance_config(backend_url: str, instance_id: str, token: str = "") -
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
+    logger.info(f"[config] GET {url}")
     resp = requests.get(url, headers=headers, timeout=15)
+    if resp.status_code == 401:
+        raise RuntimeError(
+            f"无法从后端拉取实例配置：401 未授权。实例 {instance_id} 可能不存在，"
+            "或需要为接入器配置有效的后端登录 token(--token)。"
+        )
     resp.raise_for_status()
     data = resp.json()
 
@@ -64,6 +78,15 @@ def fetch_instance_config(backend_url: str, instance_id: str, token: str = "") -
                 config_dict = parsed
         except Exception:
             logger.warning("Instance config is not valid JSON, treating as empty")
+
+    # 打印配置概要（不泄露 cookie 值）
+    cfg_summary = {k: ("******" if "cookie" in k.lower() else v) for k, v in config_dict.items()}
+    logger.info(
+        f"[config] 拉取成功: instance={data.get('id', instance_id)} "
+        f"adapter={data.get('adapter_id', '')} platform={data.get('platform_id', '')} "
+        f"name={data.get('name', '')} config_keys={list(config_dict.keys())} "
+        f"config={cfg_summary}"
+    )
 
     return InstanceConfig(
         instance_id=data.get("id", instance_id),
@@ -141,18 +164,25 @@ class EspBridge:
     async def connect_forever(self):
         """持续连接后端 WebSocket，断线自动重连。"""
         self.running = True
+        attempts = 0
         while self.running:
             try:
-                logger.info(f"Connecting to backend: {self._ws_url()}")
+                attempts += 1
+                logger.info(f"[ws] 连接后端 (第{attempts}次尝试): {self._ws_url()}")
                 async with websockets.connect(self._ws_url()) as ws:
                     self.ws = ws
-                    logger.info("Backend WebSocket connected")
+                    attempts = 0
+                    logger.info("[ws] 后端 WebSocket 已连接")
                     await self._read_loop(ws)
+            except asyncio.CancelledError:
+                logger.info("[ws] 连接循环被取消")
+                break
             except Exception as e:
-                logger.error(f"WebSocket connection error: {e}")
+                logger.error(f"[ws] 连接错误: {e}")
             if self.running:
-                logger.info(f"Reconnecting in {self.reconnect_delay}s...")
+                logger.info(f"[ws] {self.reconnect_delay}s 后重连...")
                 await asyncio.sleep(self.reconnect_delay)
+        logger.info("[ws] 连接循环结束")
 
     async def _read_loop(self, ws: websockets.WebSocketClientProtocol):
         """读取后端下发的消息(指令/ack)。"""
@@ -160,29 +190,37 @@ class EspBridge:
             try:
                 data = json.loads(raw)
             except Exception:
-                logger.warning(f"Non-JSON message from backend: {raw}")
+                logger.warning(f"[ws] 收到非 JSON 消息: {raw[:200]}")
                 continue
 
             msg_type = data.get("type", "")
             if msg_type == "connected":
-                logger.info("Backend ready")
+                logger.info("[ws] 后端握手成功，就绪")
                 continue
             if msg_type == "ack":
+                logger.debug(f"[ws] 收到 ACK: event_id={data.get('event_id', '')}")
                 continue
 
             # 出站指令
+            logger.info(f"[ws] 收到后端指令: {data}")
             if self.on_inbound:
                 try:
                     await self.on_inbound(data)
                 except Exception as e:
-                    logger.error(f"Command handling error: {e}")
+                    logger.error(f"[ws] 指令处理出错: {e}")
 
     async def send_inbound(self, payload: Dict[str, Any]):
         """向后端上报一条入站消息。"""
         if not self.ws:
-            logger.warning("Backend not connected, dropping message")
+            logger.warning("[ws] 后端未连接，丢弃消息")
             return
-        await self.ws.send(json.dumps(payload, ensure_ascii=False))
+        msg = json.dumps(payload, ensure_ascii=False)
+        await self.ws.send(msg)
+        logger.info(
+            f"[ws] 已上报消息: conversation={payload.get('conversation_id', '')} "
+            f"sender={payload.get('sender_name', '')} type={payload.get('message_type', '')} "
+            f"len={len(msg)}"
+        )
 
     async def close(self):
         self.running = False

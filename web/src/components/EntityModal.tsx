@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 export interface FieldConfig {
   key: string
   label: string
-  type?: 'text' | 'number' | 'select' | 'switch'
+  type?: 'text' | 'password' | 'number' | 'select' | 'switch'
   required?: boolean
   placeholder?: string
   options?: { value: string; label: string }[]
@@ -43,7 +43,6 @@ export default function EntityModal({
   )
 
   // Reset form values whenever the modal opens with new initial values.
-  // Apply field defaultValue for fields not present in initialValues.
   useEffect(() => {
     if (open) {
       const base = initialValues ? { ...initialValues } : {}
@@ -54,7 +53,27 @@ export default function EntityModal({
       })
       setValues(base)
     }
-  }, [open, initialValues, fields])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialValues])
+
+  // When fields change dynamically (e.g. after choosing an adapter), apply
+  // defaultValue only to fields that are not yet set. Do NOT reset values the
+  // user has already filled in.
+  useEffect(() => {
+    if (!open) return
+    setValues((prev) => {
+      const next = { ...prev }
+      let changed = false
+      fields.forEach((f) => {
+        if (f.defaultValue !== undefined && next[f.key] === undefined) {
+          next[f.key] = f.defaultValue
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields, open])
 
   if (!open) return null
 
@@ -148,7 +167,13 @@ export default function EntityModal({
                   </select>
                 ) : (
                   <input
-                    type={field.type === 'number' ? 'number' : 'text'}
+                    type={
+                      field.type === 'number'
+                        ? 'number'
+                        : field.type === 'password'
+                        ? 'password'
+                        : 'text'
+                    }
                     value={values[field.key] ?? ''}
                     onChange={(e) =>
                       setField(

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Plus, Play, Square, Edit, Trash2 } from 'lucide-react'
+import { Plus, Play, Square, Edit, Trash2, FileText, X, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import apiClient from '../api/client'
 import EntityModal, { FieldConfig } from '../components/EntityModal'
@@ -14,28 +14,30 @@ interface Instance {
   created_at: string
 }
 
+// init status returned by GET /instances/:id/init
+interface InitStatus {
+  status: string // installing, done, failed
+  progress: number
+  message?: string
+  error?: string
+  instance_status?: string
+}
+
 interface AdapterOption {
   id: string
   name: string
-  platform_id: string
+  platform_code: string
+  config_schema: Record<string, ConfigFieldDef>
 }
 
-/**
- * 内置适配器 ConfigSchema 映射(按平台 platform_id 匹配，与后端
- * internal/adapter/adapters.go 保持一致)。当所选接入器的平台匹配时，
- * 实例表单动态渲染这些配置字段。
- */
-const ADAPTER_CONFIG_SCHEMAS: Record<string, { key: string; label: string; type: 'text' | 'password' | 'number'; placeholder?: string }[]> = {
-  xianyu: [
-    { key: 'cookie', label: '闲鱼 Cookie', type: 'password', placeholder: '登录闲鱼后从浏览器复制完整 Cookie' },
-    { key: 'device_id', label: 'Device ID', type: 'text', placeholder: '可选，留空自动生成' },
-    { key: 'heartbeat_interval', label: '心跳间隔(秒)', type: 'number', placeholder: '默认 15' },
-    { key: 'reconnect_delay', label: '重连延迟(秒)', type: 'number', placeholder: '默认 5' },
-  ],
-  taobao: [
-    { key: 'cookie', label: '淘宝 Cookie', type: 'password', placeholder: '登录淘宝后从浏览器复制完整 Cookie' },
-    { key: 'device_id', label: 'Device ID', type: 'text', placeholder: '可选，留空自动生成' },
-  ],
+// config_schema field definition from adapter.yaml
+interface ConfigFieldDef {
+  label: string
+  type: 'text' | 'password' | 'number'
+  required?: boolean
+  placeholder?: string
+  help?: string
+  default?: any
 }
 
 // Parse instance config JSON string -> object
@@ -65,11 +67,53 @@ export default function Instances() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formAdapterId, setFormAdapterId] = useState<string>('')
+  // Dependency installation (init) status per instance
+  const [initStatuses, setInitStatuses] = useState<Record<string, InitStatus>>({})
+  // Log drawer state
+  const [logInstance, setLogInstance] = useState<Instance | null>(null)
+  const [logs, setLogs] = useState('')
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [logLevel, setLogLevel] = useState<string>('')
+  const [logKeyword, setLogKeyword] = useState<string>('')
 
   useEffect(() => {
     loadInstances()
     loadAdapters()
   }, [])
+
+  // Poll dependency installation status for instances that are initializing.
+  useEffect(() => {
+    const initializing = instances.filter((i) => i.status === 'initializing')
+    if (initializing.length === 0) return
+
+    const poll = async () => {
+      const results = await Promise.all(
+        initializing.map(async (inst) => {
+          const r = await apiClient.getInstanceInitStatus(inst.id)
+          return { id: inst.id, status: r.data }
+        })
+      )
+      const next: Record<string, InitStatus> = {}
+      let stillInitializing = false
+      results.forEach(({ id, status }) => {
+        next[id] = status
+        const st = status?.status || ''
+        if (st === 'installing' || st === 'initializing') {
+          stillInitializing = true
+        }
+      })
+      setInitStatuses((prev) => ({ ...prev, ...next }))
+      // If all instances finished, refresh the instance list once.
+      if (!stillInitializing) {
+        loadInstances()
+      }
+    }
+
+    poll()
+    const timer = setInterval(poll, 3000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instances])
 
   const loadInstances = async () => {
     setLoading(true)
@@ -85,9 +129,14 @@ export default function Instances() {
   }
 
   const loadAdapters = async () => {
-    const result = await apiClient.getAdapters()
+    const result = await apiClient.getAdapterCatalog()
     if (!result.error) {
-      setAdapters((result.data || []).map((a: any) => ({ id: a.id, name: a.name, platform_id: a.platform_id })))
+      setAdapters((result.data || []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        platform_code: a.platform_code,
+        config_schema: a.config_schema || {},
+      })))
     }
   }
 
@@ -115,12 +164,10 @@ export default function Instances() {
     setSubmitting(true)
     setFormError(null)
 
-    // Determine the adapter's config schema from the submitted adapter's platform.
+    // Determine the adapter's config schema from the selected catalog adapter.
     const adapterId = values.adapter_id || formAdapterId
     const adapter = adapters.find((a) => a.id === adapterId)
-    const configKeys = new Set(
-      (ADAPTER_CONFIG_SCHEMAS[adapter?.platform_id || ''] || []).map((f) => f.key)
-    )
+    const configKeys = new Set(Object.keys(adapter?.config_schema || {}))
     const config: Record<string, any> = {}
     const top: Record<string, any> = {}
     Object.entries(values).forEach(([key, val]) => {
@@ -133,9 +180,9 @@ export default function Instances() {
 
     const payload: Record<string, any> = { ...top }
 
-    // Resolve platform_id from the selected adapter.
+    // Resolve platform_id from the selected adapter's platform code.
     if (adapter && !payload.platform_id) {
-      payload.platform_id = adapter.platform_id
+      payload.platform_id = adapter.platform_code
     }
 
     if (Object.keys(config).length > 0) {
@@ -180,28 +227,61 @@ export default function Instances() {
     loadInstances()
   }
 
+  const openLogs = async (instance: Instance) => {
+    setLogInstance(instance)
+    setLogLevel('')
+    setLogKeyword('')
+    setLogs('')
+    setLogsLoading(true)
+    const result = await apiClient.getInstanceLogs(instance.id, { lines: 'all' })
+    setLogsLoading(false)
+    setLogs(result.error ? `无法读取日志: ${result.error}` : (result.data || ''))
+  }
+
+  const refreshLogs = async () => {
+    if (!logInstance) return
+    setLogsLoading(true)
+    const result = await apiClient.getInstanceLogs(logInstance.id, {
+      lines: 'all',
+      level: logLevel || undefined,
+    })
+    setLogsLoading(false)
+    setLogs(result.error ? `无法读取日志: ${result.error}` : (result.data || ''))
+  }
+
+  const changeLevel = async (level: string) => {
+    setLogLevel(level)
+    if (!logInstance) return
+    setLogsLoading(true)
+    const result = await apiClient.getInstanceLogs(logInstance.id, {
+      lines: 'all',
+      level: level || undefined,
+    })
+    setLogsLoading(false)
+    setLogs(result.error ? `无法读取日志: ${result.error}` : (result.data || ''))
+  }
+
+  const closeLogs = () => {
+    setLogInstance(null)
+    setLogs('')
+  }
+
   const adapterOptions = adapters.map((a) => ({ value: a.id, label: a.name }))
 
-  // Build config fields from all known adapter schemas (union of fields),
-  // so the form is stable regardless of adapter selection. On submit, only
-  // fields belonging to the selected adapter's schema are stored in config.
-  const configFields: FieldConfig[] = Object.values(ADAPTER_CONFIG_SCHEMAS)
-    .flat()
-    .filter(
-      (f, index, self) => self.findIndex((x) => x.key === f.key) === index
-    )
-    .map((f) => ({
-      key: f.key,
-      label: f.label,
-      type: f.type === 'number' ? 'number' : 'text',
-      placeholder: f.placeholder,
-      helpText:
-        f.key === 'cookie'
-          ? t('instances.cookieHelp')
-          : f.key === 'device_id'
-          ? t('instances.deviceIdHelp')
-          : undefined,
-    }))
+  // Build config fields from the selected adapter's config_schema (from its
+  // adapter.yaml). No fields are shown until an adapter is chosen.
+  const selectedAdapter = adapters.find((a) => a.id === formAdapterId)
+  const configFields: FieldConfig[] = Object.entries(
+    selectedAdapter?.config_schema || {}
+  ).map(([key, f]) => ({
+    key,
+    label: f.label || key,
+    type: f.type === 'number' ? 'number' : f.type === 'password' ? 'password' : 'text',
+    required: f.required,
+    placeholder: f.placeholder,
+    helpText: f.help,
+    defaultValue: f.default,
+  }))
 
   const fields: FieldConfig[] = [
     { key: 'name', label: t('common.name'), required: true },
@@ -263,6 +343,9 @@ export default function Instances() {
                 {t('instances.adapter')}
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {t('instances.config')}
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 {t('common.status')}
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -273,27 +356,79 @@ export default function Instances() {
           <tbody className="bg-white divide-y divide-gray-200">
             {instances.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                   {t('instances.noInstances') || 'No instances found. Create your first instance to get started.'}
                 </td>
               </tr>
             ) : (
-              instances.map((instance) => (
+              instances.map((instance) => {
+                const instAdapter = adapters.find((a) => a.id === instance.adapter_id)
+                const cfg = parseConfig(instance.config)
+                const cfgKeys = Object.keys(cfg)
+                return (
                 <tr key={instance.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {instance.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {instance.adapter_id}
+                    {instAdapter?.name || instance.adapter_id}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {cfgKeys.length === 0 ? (
+                      <span className="text-gray-400">未配置</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {cfgKeys.map((k) => (
+                          <span
+                            key={k}
+                            className="px-1.5 py-0.5 text-xs bg-green-50 text-green-700 rounded"
+                            title={k === 'cookie' ? '已设置' : undefined}
+                          >
+                            {k === 'cookie' ? 'Cookie ✓' : `${k} ✓`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      instance.status === 'running'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {instance.status === 'running' ? t('adapters.running') : t('adapters.stopped')}
-                    </span>
+                    {instance.status === 'initializing' ? (
+                      <div>
+                        <span className="px-2 inline-flex items-center text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                          <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                          {t('instances.initializing') || '初始化中'}
+                        </span>
+                        {initStatuses[instance.id] && (
+                          <div className="mt-1 flex items-center space-x-2">
+                            <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-yellow-500 rounded-full transition-all"
+                                style={{ width: `${Math.min(initStatuses[instance.id].progress ?? 5, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {initStatuses[instance.id].progress ?? 0}%
+                            </span>
+                          </div>
+                        )}
+                        {initStatuses[instance.id]?.message && (
+                          <div className="mt-1 text-xs text-gray-400 max-w-[180px] truncate">
+                            {initStatuses[instance.id].message}
+                          </div>
+                        )}
+                      </div>
+                    ) : instance.status === 'error' ? (
+                      <span className="px-2 inline-flex items-center text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                        {t('instances.statusError') || '异常'}
+                      </span>
+                    ) : (
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        instance.status === 'running'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {instance.status === 'running' ? t('adapters.running') : t('adapters.stopped')}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     {instance.status === 'running' ? (
@@ -304,6 +439,14 @@ export default function Instances() {
                       >
                         <Square className="w-4 h-4" />
                       </button>
+                    ) : instance.status === 'initializing' ? (
+                      <button
+                        disabled
+                        className="text-gray-300 rounded p-1 mr-3 cursor-not-allowed"
+                        title={t('instances.initializing') || '初始化中，请稍候'}
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleStart(instance.id)}
@@ -313,6 +456,13 @@ export default function Instances() {
                         <Play className="w-4 h-4" />
                       </button>
                     )}
+                    <button
+                      onClick={() => openLogs(instance)}
+                      className="text-gray-500 hover:text-gray-700 mr-3"
+                      title={t('instances.logs') || '查看日志'}
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => openEdit(instance)}
                       className="text-blue-600 hover:text-blue-900 mr-3"
@@ -327,7 +477,8 @@ export default function Instances() {
                     </button>
                   </td>
                 </tr>
-              ))
+                )
+              })
             )}
           </tbody>
         </table>
@@ -352,6 +503,96 @@ export default function Instances() {
         onSubmit={handleSubmit}
         onValuesChange={handleValuesChange}
       />
+
+      {/* 实例日志窗口预览(居中模态) */}
+      {logInstance && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 py-8">
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50"
+              onClick={closeLogs}
+            />
+            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+              <div className="px-5 py-3 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <FileText className="w-5 h-5 text-gray-500 mr-2" />
+                    <span className="font-semibold text-gray-800">
+                      {logInstance.name} — 日志
+                    </span>
+                    <span className="ml-3 text-xs text-gray-400">
+                      {logInstance.adapter_id}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={refreshLogs}
+                      className="inline-flex items-center px-2.5 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                      title="刷新"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-1 ${logsLoading ? 'animate-spin' : ''}`} />
+                      刷新
+                    </button>
+                    <button
+                      onClick={closeLogs}
+                      className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                      title="关闭"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                {/* 级别过滤 + 关键词搜索 */}
+                <div className="mt-3 flex items-center space-x-2">
+                  <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+                    {[
+                      { v: '', label: '全部' },
+                      { v: 'debug', label: 'DEBUG' },
+                      { v: 'info', label: 'INFO' },
+                      { v: 'warning', label: 'WARNING' },
+                      { v: 'error', label: 'ERROR' },
+                    ].map((lv) => (
+                      <button
+                        key={lv.v || 'all'}
+                        onClick={() => changeLevel(lv.v)}
+                        className={`px-2.5 py-1 text-xs rounded ${
+                          logLevel === lv.v
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {lv.label}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    value={logKeyword}
+                    onChange={(e) => setLogKeyword(e.target.value)}
+                    placeholder="关键词过滤..."
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 bg-gray-900 rounded-b-lg">
+                {logsLoading ? (
+                  <p className="text-gray-400 text-sm">加载中...</p>
+                ) : (
+                  <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-words">
+                    {(() => {
+                      if (!logKeyword) return logs || '(暂无日志)'
+                      const kw = logKeyword.toLowerCase()
+                      return (logs || '')
+                        .split('\n')
+                        .filter((l) => l.toLowerCase().includes(kw))
+                        .join('\n') || '(无匹配)'
+                    })()}
+                  </pre>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

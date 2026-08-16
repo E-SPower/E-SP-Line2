@@ -97,6 +97,31 @@ func DeleteInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	}
 }
 
+// GetInstanceLogs returns the instance's adapter process log.
+// Query params:
+//   - lines: number of trailing lines to return; "all" or missing negative
+//     returns the full log (default: all).
+//   - level: filter by level (debug/info/warning/error). Empty = all.
+func GetInstanceLogs(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		linesParam := c.DefaultQuery("lines", "all")
+		maxLines := 0 // 0 = full log
+		if linesParam != "" && linesParam != "all" {
+			if n, err := strconv.Atoi(linesParam); err == nil && n > 0 {
+				maxLines = n
+			}
+		}
+		level := c.Query("level")
+		logs, err := instanceService.ReadLog(id, maxLines, level)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": logs})
+	}
+}
+
 // StartInstance starts the instance's Python adapter process.
 func StartInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -118,5 +143,16 @@ func StopInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "instance stopped"})
+	}
+}
+
+// GetInstanceInitStatus returns the dependency installation (initialization)
+// status of an instance. The WebUI polls this while the instance is
+// "initializing" so it can show progress.
+func GetInstanceInitStatus(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		status := instanceService.InitStatus(id)
+		c.JSON(http.StatusOK, gin.H{"data": status})
 	}
 }

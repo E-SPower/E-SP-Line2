@@ -36,6 +36,13 @@ if _VENDOR_DIR not in sys.path:
 
 from loguru import logger
 
+logger.remove()
+logger.add(
+    sink=lambda msg: print(msg, end=""),
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    colorize=False,
+)
+
 from esp_bridge import EspBridge, fetch_instance_config
 
 
@@ -78,17 +85,20 @@ class TaobaoInstance:
 
     async def start(self):
         # 1. 从后端拉取实例配置(WebUI 中填写的 cookie / device_id)
+        logger.info(f"[{self.instance_id}] ===== 启动淘宝实例 =====")
         self.cfg = fetch_instance_config(self.backend_url, self.instance_id, self.token)
         cookie = self.cfg.config.get("cookie", "")
         if not cookie:
-            raise RuntimeError(
-                f"Instance {self.instance_id} has no cookie configured. "
-                "Please configure it in the WebUI (Instance Management)."
+            logger.error(
+                f"[{self.instance_id}] 实例未配置 Cookie，无法启动。"
+                "请在 WebUI 实例管理中填写淘宝 Cookie。"
             )
+            raise RuntimeError(f"Instance {self.instance_id} has no cookie configured")
 
         logger.info(
-            f"[{self.instance_id}] Starting Taobao instance: {self.cfg.name} "
-            f"(platform={self.cfg.platform_id})"
+            f"[{self.instance_id}] 实例信息: 名称={self.cfg.name} "
+            f"接入器={self.cfg.adapter_id} 平台={self.cfg.platform_id} "
+            f"has_cookie=True"
         )
 
         # 2. 创建 ESPL 桥接器(连接后端，接收指令)
@@ -111,8 +121,12 @@ class TaobaoInstance:
         )
         # 绑定桥接器，供兜底上报与指令发送使用
         self.live.bind_bridge(self.instance_id, self.bridge)
+        logger.info(
+            f"[{self.instance_id}] 淘宝客户端已创建: device_id={'******' if device_id else '自动生成'}"
+        )
 
         # 4. 并行运行：后端连接 + 淘宝监听
+        logger.info(f"[{self.instance_id}] 开始运行: 连接后端 + 监听淘宝消息")
         await asyncio.gather(
             self.bridge.connect_forever(),
             self.live.main(),

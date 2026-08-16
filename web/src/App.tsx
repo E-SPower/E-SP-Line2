@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import RequireAuth from './components/RequireAuth'
+import ConnectionMonitor from './components/ConnectionMonitor'
 import Dashboard from './pages/Dashboard'
 import Platforms from './pages/Platforms'
 import Adapters from './pages/Adapters'
@@ -16,6 +17,8 @@ import DocViewer from './pages/DocViewer'
 function App() {
   return (
     <BrowserRouter>
+      {/* Show a modal warning whenever the frontend loses connection to the backend */}
+      <ConnectionMonitor />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route

@@ -323,10 +323,14 @@ class XianyuLive:
                 send_user_name = message["1"]["10"]["reminderTitle"]
                 send_user_id = message["1"]["10"]["senderUserId"]
                 send_message = message["1"]["10"]["reminderContent"]
-                logger.info(f"user: {send_user_name}, 发送给我的信息 message: {send_message}")
+                logger.info(
+                    f"[闲鱼] 收到新消息: 发送者={send_user_name}({send_user_id}) "
+                    f"内容={send_message}"
+                )
 
                 cid = message["1"]["2"]
                 cid = cid.split('@')[0]
+                logger.info(f"[闲鱼] 会话 cid={cid} 发送者={send_user_id}")
 
                 # 触发外部回调（ESPL 桥接上报 / 业务处理）
                 if self.message_callback:

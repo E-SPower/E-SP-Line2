@@ -37,6 +37,13 @@ func (r *InstanceRepository) FindByUserID(userID string) ([]models.AdapterInstan
 	return instances, err
 }
 
+// FindByAdapterID finds instances belonging to the given adapter.
+func (r *InstanceRepository) FindByAdapterID(adapterID string) ([]models.AdapterInstance, error) {
+	var instances []models.AdapterInstance
+	err := r.db.Where("adapter_id = ?", adapterID).Find(&instances).Error
+	return instances, err
+}
+
 // Update updates an instance
 func (r *InstanceRepository) Update(instance *models.AdapterInstance) error {
 	return r.db.Save(instance).Error

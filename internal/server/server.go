@@ -90,6 +90,7 @@ func (s *Server) setupRoutes() {
 		adapters.Use(middleware.AuthRequired())
 		{
 			adapters.GET("", handler.ListAdapters(s.services.Adapter))
+			adapters.GET("/catalog", handler.ListAdapterCatalog(s.services.Catalog))
 			adapters.POST("", handler.CreateAdapter(s.services.Adapter))
 			adapters.GET("/:id", handler.GetAdapter(s.services.Adapter))
 			adapters.PUT("/:id", handler.UpdateAdapter(s.services.Adapter))
@@ -109,6 +110,8 @@ func (s *Server) setupRoutes() {
 			instances.DELETE("/:id", handler.DeleteInstance(s.services.Instance))
 			instances.POST("/:id/start", handler.StartInstance(s.services.Instance))
 			instances.POST("/:id/stop", handler.StopInstance(s.services.Instance))
+			instances.GET("/:id/logs", handler.GetInstanceLogs(s.services.Instance))
+			instances.GET("/:id/init", handler.GetInstanceInitStatus(s.services.Instance))
 		}
 
 		// Message routes

@@ -323,12 +323,16 @@ class taobaoLive:
                 send_message = message["1"]["6"]["2"]["1"]
 
                 if send_user_name == f"cntaobao{self.nk}":
-                    logger.info(f"这是自己发的消息，忽略 message: {message}")
+                    logger.info(f"[淘宝] 自己发的消息，忽略")
                     return
 
-                logger.info(f"user: {send_user_name}, 发送给我的信息 message: {send_message}")
+                logger.info(
+                    f"[淘宝] 收到新消息: 发送者={send_user_name}({send_user_id}) "
+                    f"内容={send_message}"
+                )
 
                 cid = message["1"]["2"]
+                logger.info(f"[淘宝] 会话 cid={cid} 发送者={send_user_id}")
 
                 # 触发外部回调（ESPL 桥接上报 / 业务处理）
                 if self.message_callback:

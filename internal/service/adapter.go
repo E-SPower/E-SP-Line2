@@ -6,6 +6,7 @@ import (
 
 	"github.com/e-spl/e-sp-line2/internal/models"
 	"github.com/e-spl/e-sp-line2/internal/repository"
+	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
 
 // AdapterService handles adapter operations
@@ -13,6 +14,10 @@ type AdapterService struct {
 	repo        *repository.AdapterRepository
 	pkgRepo     *repository.AdapterPackageRepository
 	sessionRepo *repository.AdapterSessionRepository
+
+	// runner manages Python adapter subprocesses (optional).
+	runner    *PythonRunner
+	instances *repository.InstanceRepository
 }
 
 // NewAdapterService creates a new adapter service
@@ -24,9 +29,23 @@ func NewAdapterService(repo *repository.AdapterRepository, pkgRepo *repository.A
 	}
 }
 
-// CreateAdapterRequest represents a create adapter request
+// SetRunner attaches the Python process runner.
+func (s *AdapterService) SetRunner(runner *PythonRunner) {
+	s.runner = runner
+}
+
+// SetInstanceRepository attaches the instance repository (used to stop running
+// instances when the adapter is deleted).
+func (s *AdapterService) SetInstanceRepository(repo *repository.InstanceRepository) {
+	s.instances = repo
+}
+
+// CreateAdapterRequest represents a create adapter request.
+// PlatformCode is the message platform code (e.g. "xianyu", "taobao") chosen
+// directly in the WebUI, so no separate platform record is required.
 type CreateAdapterRequest struct {
-	PlatformID      string `json:"platform_id" binding:"required"`
+	PlatformID      string `json:"platform_id"`
+	PlatformCode    string `json:"platform_code"`
 	Name            string `json:"name" binding:"required"`
 	Version         string `json:"version" binding:"required"`
 	RuntimeType     string `json:"runtime_type"`
@@ -42,11 +61,21 @@ type UpdateAdapterRequest struct {
 	Manifest string `json:"manifest"`
 }
 
-// Create creates a new adapter package
+// Create creates a new adapter package.
+// PlatformID stores the message platform code (e.g. "xianyu", "taobao"), so a
+// separate platform record is no longer required.
 func (s *AdapterService) Create(req *CreateAdapterRequest) (*models.AdapterPackage, error) {
+	platformCode := req.PlatformCode
+	if platformCode == "" {
+		platformCode = req.PlatformID
+	}
+	if platformCode == "" {
+		return nil, errors.New("platform_code is required")
+	}
+
 	adapter := &models.AdapterPackage{
 		ID:              models.GenerateID(),
-		PlatformID:      req.PlatformID,
+		PlatformID:      platformCode,
 		Name:            req.Name,
 		Version:         req.Version,
 		RuntimeType:     req.RuntimeType,
@@ -102,8 +131,24 @@ func (s *AdapterService) Update(id string, req *UpdateAdapterRequest) (*models.A
 	return adapter, nil
 }
 
-// Delete deletes an adapter
+// Delete deletes an adapter. Any running instances of this adapter are
+// stopped first to avoid orphan Python processes.
 func (s *AdapterService) Delete(id string) error {
+	// Stop running instances belonging to this adapter.
+	if s.runner != nil && s.instances != nil {
+		instances, err := s.instances.FindByAdapterID(id)
+		if err == nil {
+			for _, inst := range instances {
+				if s.runner.IsRunning(inst.ID) {
+					if serr := s.runner.Stop(inst.ID); serr != nil {
+						logger.Warn("Failed to stop instance while deleting adapter",
+							logger.String("instance_id", inst.ID),
+							logger.String("error", serr.Error()))
+					}
+				}
+			}
+		}
+	}
 	return s.repo.Delete(id)
 }
 

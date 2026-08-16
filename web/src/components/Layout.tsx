@@ -1,12 +1,11 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { 
-  LayoutDashboard, 
-  Globe, 
-  Package, 
-  Server, 
-  MessageSquare, 
-  GitBranch, 
+import {
+  LayoutDashboard,
+  Package,
+  Server,
+  MessageSquare,
+  GitBranch,
   BookOpen,
   LogOut
 } from 'lucide-react'
@@ -17,7 +16,6 @@ export default function Layout() {
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard') },
-    { path: '/platforms', icon: Globe, label: t('nav.platforms') },
     { path: '/adapters', icon: Package, label: t('nav.adapters') },
     { path: '/instances', icon: Server, label: t('nav.instances') },
     { path: '/messages', icon: MessageSquare, label: t('nav.messages') },

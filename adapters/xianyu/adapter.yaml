@@ -1,0 +1,61 @@
+# 闲鱼接入器配置 (adapter.yaml)
+#
+# 本文件定义了一个可用的接入器。后端启动时扫描 adapters/*/adapter.yaml，
+# 据此确定：可用接入器列表、实例配置字段、是否在 WebUI 显示等。
+#
+# 字段规则见 docs/user-guide/adapter-yaml.md
+
+# 接入器唯一标识（用于实例关联、路由）
+id: xianyu-adapter
+
+# 处理的消息平台代码（须与 config/form-options.yaml 的 platform_codes 一致）
+platform_code: xianyu
+
+# 显示名称
+name: 闲鱼接入器
+
+# 版本
+version: 1.0.0
+
+# 运行时类型（python / node / go）
+runtime_type: python
+
+# 描述
+description: 支持闲鱼平台消息收发，多开多账号
+
+# 是否在 WebUI 显示（false 则隐藏，但接入器仍可用）
+hidden: false
+
+# 图标（可选，前端展示）
+icon: "🐟"
+
+# 实例配置字段定义（创建实例时在 WebUI 渲染的表单）
+config_schema:
+  cookie:
+    label: 闲鱼 Cookie
+    type: password
+    required: true
+    placeholder: 登录闲鱼后从浏览器复制完整 Cookie
+    help: 每个实例独立的登录 Cookie
+  device_id:
+    label: Device ID
+    type: text
+    required: false
+    placeholder: 可选，留空自动生成
+  heartbeat_interval:
+    label: 心跳间隔（秒）
+    type: number
+    required: false
+    default: 15
+  reconnect_delay:
+    label: 重连延迟（秒）
+    type: number
+    required: false
+    default: 5
+
+# 能力声明（可选）
+capabilities:
+  - receive_message
+  - send_text
+  - send_image
+  - get_history

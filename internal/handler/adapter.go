@@ -8,6 +8,18 @@ import (
 	"github.com/e-spl/e-sp-line2/internal/service"
 )
 
+// ListAdapterCatalog returns the available adapters discovered by scanning
+// adapters/*/adapter.yaml (hidden adapters excluded).
+func ListAdapterCatalog(catalog *service.AdapterCatalog) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		adapters := catalog.All(false)
+		c.JSON(http.StatusOK, gin.H{
+			"data":  adapters,
+			"total": len(adapters),
+		})
+	}
+}
+
 // ListAdapters lists all adapters
 func ListAdapters(adapterService *service.AdapterService) gin.HandlerFunc {
 	return func(c *gin.Context) {

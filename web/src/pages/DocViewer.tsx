@@ -8,6 +8,15 @@ import Markdown from '../components/Markdown'
 interface DocInfo {
   key: string
   title: string
+  group: string
+}
+
+// Group display labels for the sidebar (kept in sync with the Docs page).
+const GROUP_LABELS: Record<string, string> = {
+  guide: '使用指南',
+  adapters: '接入器文档',
+  api: 'API 参考',
+  dev: '开发者指南',
 }
 
 export default function DocViewer() {
@@ -23,7 +32,9 @@ export default function DocViewer() {
   useEffect(() => {
     apiClient.getDocs().then((res: any) => {
       if (!res.error && Array.isArray(res.data)) {
-        setDocs(res.data)
+        setDocs(
+          res.data.map((d: any) => ({ key: d.key, title: d.title, group: d.group }))
+        )
       }
     })
   }, [])
@@ -43,6 +54,15 @@ export default function DocViewer() {
   }, [key])
 
   const currentKey = doc?.key || key
+
+  // Group docs for the sidebar, preserving order.
+  const groups = ['guide', 'adapters', 'api', 'dev']
+    .map((g) => ({
+      id: g,
+      label: GROUP_LABELS[g] || g,
+      items: docs.filter((d) => d.group === g),
+    }))
+    .filter((g) => g.items.length > 0)
 
   return (
     <div>
@@ -76,33 +96,40 @@ export default function DocViewer() {
 
       {!loading && !error && doc && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Table of contents sidebar */}
+          {/* Table of contents sidebar (grouped) */}
           <aside className="hidden lg:block">
             <div className="bg-white rounded-lg shadow p-4 sticky top-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
                 <BookOpen className="w-4 h-4 mr-2 text-blue-600" />
                 {t('docs.toc') || '目录'}
               </h3>
-              <ul className="space-y-1 text-sm">
-                {docs.map((d) => (
-                  <li key={d.key}>
-                    <a
-                      href={`/docs/${d.key}`}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        navigate(`/docs/${d.key}`)
-                      }}
-                      className={`block px-2 py-1.5 rounded hover:bg-gray-50 ${
-                        d.key === currentKey
-                          ? 'text-blue-600 font-medium bg-blue-50'
-                          : 'text-gray-600'
-                      }`}
-                    >
-                      {d.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+              {groups.map((group) => (
+                <div key={group.id} className="mb-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    {group.label}
+                  </p>
+                  <ul className="space-y-1 text-sm">
+                    {group.items.map((d) => (
+                      <li key={d.key}>
+                        <a
+                          href={`/docs/${d.key}`}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            navigate(`/docs/${d.key}`)
+                          }}
+                          className={`block px-2 py-1.5 rounded hover:bg-gray-50 ${
+                            d.key === currentKey
+                              ? 'text-blue-600 font-medium bg-blue-50'
+                              : 'text-gray-600'
+                          }`}
+                        >
+                          {d.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           </aside>
 

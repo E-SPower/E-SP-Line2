@@ -143,6 +143,11 @@ class ApiClient {
     return this.request<any[]>(`/adapters?limit=${limit}&offset=${offset}`);
   }
 
+  // Adapter catalog (scanned from adapters/*/adapter.yaml)
+  async getAdapterCatalog() {
+    return this.request<any[]>(`/adapters/catalog`);
+  }
+
   async createAdapter(data: any) {
     return this.request('/adapters', {
       method: 'POST',
@@ -198,6 +203,18 @@ class ApiClient {
 
   async stopInstance(id: string) {
     return this.request(`/instances/${id}/stop`, { method: 'POST' });
+  }
+
+  async getInstanceLogs(id: string, opts: { lines?: number | 'all'; level?: string } = {}) {
+    const params = new URLSearchParams()
+    params.set('lines', opts.lines === undefined ? 'all' : String(opts.lines))
+    if (opts.level) params.set('level', opts.level)
+    return this.request<any>(`/instances/${id}/logs?${params.toString()}`);
+  }
+
+  // Dependency installation (initialization) status for an instance
+  async getInstanceInitStatus(id: string) {
+    return this.request<any>(`/instances/${id}/init`);
   }
 
   // Message APIs
