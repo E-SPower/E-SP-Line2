@@ -241,11 +241,15 @@ export default function Instances() {
     loadInstances()
   }
 
-  const fetchLogs = async (level: string, keyword: string, from: string, to: string) => {
-    if (!logInstance) return
+  // instanceOverride lets callers fetch logs before the `logInstance` state
+  // has been committed (e.g. right after openLogs calls setLogInstance), so
+  // the first click always loads logs instead of returning early.
+  const fetchLogs = async (level: string, keyword: string, from: string, to: string, instanceOverride?: Instance) => {
+    const instance = instanceOverride || logInstance
+    if (!instance) return
     setLogsLoading(true)
     // Read a bounded tail (default 2000 lines) so a huge log never stalls the request.
-    const result = await apiClient.getInstanceLogs(logInstance.id, {
+    const result = await apiClient.getInstanceLogs(instance.id, {
       level: level || undefined,
       keyword: keyword || undefined,
       from: from || undefined,
@@ -255,7 +259,7 @@ export default function Instances() {
     setLogs(result.error ? `无法读取日志: ${result.error}` : (result.data || ''))
 
     // Load heatmap (respect current level filter)
-    const hm = await apiClient.getInstanceLogHeatmap(logInstance.id, level || undefined)
+    const hm = await apiClient.getInstanceLogHeatmap(instance.id, level || undefined)
     if (!hm.error) setHeatmap(hm.data || [])
   }
 
@@ -277,7 +281,9 @@ export default function Instances() {
     setLogTo('')
     setLogs('')
     setHeatmap([])
-    await fetchLogs('', '', '', '')
+    // Pass the instance explicitly: setLogInstance is async, so relying on
+    // the `logInstance` state here would skip loading on the first click.
+    await fetchLogs('', '', '', '', instance)
   }
 
   const refreshLogs = async () => {

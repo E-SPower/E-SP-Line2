@@ -191,6 +191,21 @@ class TaobaoInstance:
             logger.warning(f"[{self.instance_id}] Unknown command: {command_type}")
 
 
+# ASCII art banner, same as the E-SP-Line2 backend startup banner.
+BANNER = r"""
+  ███████╗   ███████╗██████╗     ██╗     ██╗███╗   ██╗███████╗██████╗
+  ██╔════╝   ██╔════╝██╔══██╗    ██║     ██║████╗  ██║██╔════╝╚════██╗
+  █████╗     ███████╗██████╔╝    ██║     ██║██╔██╗ ██║█████╗    ▄███╔╝
+  ██╔══╝     ╚════██║██╔═══╝     ██║     ██║██║╚██╗██║██╔══╝  ▄▀══╝
+  ███████╗   ███████║██║         ███████╗██║██║ ╚████║███████╗███████╗
+  ╚══════╝   ╚══════╝╚═╝         ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+
+  Power By LangBot-community-team
+
+  --------------------------------------------------------------------
+"""
+
+
 async def main(argv: List[str]) -> int:
     args = parse_args(argv)
     instance_ids = [i.strip() for i in args.instance_id.split(",") if i.strip()]
@@ -198,6 +213,7 @@ async def main(argv: List[str]) -> int:
         logger.error("No instance IDs provided")
         return 1
 
+    print(BANNER, flush=True)
     logger.info(f"Starting Taobao adapter for instances: {instance_ids}")
     instances = [TaobaoInstance(args.backend, i, args.token) for i in instance_ids]
 

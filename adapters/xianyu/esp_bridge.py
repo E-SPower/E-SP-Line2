@@ -173,6 +173,10 @@ class EspBridge:
         base = self.backend_url.replace("http://", "ws://").replace("https://", "wss://")
         return f"{base}/ws/adapter?instance_id={self.instance_id}"
 
+    def _tag(self) -> str:
+        """短标签：instance_id 前 8 位，便于在日志中区分多个桥。"""
+        return self.instance_id[:8]
+
     async def connect_forever(self):
         """持续连接后端 WebSocket，断线自动重连。"""
         self.running = True
@@ -180,21 +184,34 @@ class EspBridge:
         while self.running:
             try:
                 attempts += 1
-                logger.info(f"[ws] 连接后端 (第{attempts}次尝试): {self._ws_url()}")
+                logger.info(
+                    f"[{self._tag()}][bridge] 连接后端 (第{attempts}次尝试): "
+                    f"instance={self.instance_id} url={self._ws_url()}"
+                )
                 async with websockets.connect(self._ws_url()) as ws:
                     self.ws = ws
                     attempts = 0
-                    logger.info("[ws] 后端 WebSocket 已连接")
+                    logger.info(
+                        f"[{self._tag()}][bridge] 后端 WebSocket 已连接: "
+                        f"instance={self.instance_id} "
+                        f"remote={getattr(ws.remote_address, 'host', '')}:{getattr(ws.remote_address, 'port', '')}"
+                    )
                     await self._read_loop(ws)
             except asyncio.CancelledError:
-                logger.info("[ws] 连接循环被取消")
+                logger.info(f"[{self._tag()}][bridge] 连接循环被取消")
                 break
             except Exception as e:
-                logger.error(f"[ws] 连接错误: {e}")
+                logger.error(
+                    f"[{self._tag()}][bridge] 连接错误: instance={self.instance_id} "
+                    f"attempt={attempts} error={e!r}"
+                )
             if self.running:
-                logger.info(f"[ws] {self.reconnect_delay}s 后重连...")
+                logger.info(
+                    f"[{self._tag()}][bridge] {self.reconnect_delay}s 后重连... "
+                    f"instance={self.instance_id}"
+                )
                 await asyncio.sleep(self.reconnect_delay)
-        logger.info("[ws] 连接循环结束")
+        logger.info(f"[{self._tag()}][bridge] 连接循环结束: instance={self.instance_id}")
 
     async def _read_loop(self, ws: websockets.WebSocketClientProtocol):
         """读取后端下发的消息(指令/ack)。"""
@@ -202,36 +219,56 @@ class EspBridge:
             try:
                 data = json.loads(raw)
             except Exception:
-                logger.warning(f"[ws] 收到非 JSON 消息: {raw[:200]}")
+                logger.warning(
+                    f"[{self._tag()}][bridge] 收到非 JSON 消息: instance={self.instance_id} "
+                    f"preview={raw[:200]!r}"
+                )
                 continue
 
             msg_type = data.get("type", "")
             if msg_type == "connected":
-                logger.info("[ws] 后端握手成功，就绪")
+                logger.info(
+                    f"[{self._tag()}][bridge] 后端握手成功，就绪: instance={self.instance_id}"
+                )
                 continue
             if msg_type == "ack":
-                logger.debug(f"[ws] 收到 ACK: event_id={data.get('event_id', '')}")
+                logger.debug(
+                    f"[{self._tag()}][bridge] 收到 ACK: instance={self.instance_id} "
+                    f"event_id={data.get('event_id', '')}"
+                )
                 continue
 
             # 出站指令
-            logger.info(f"[ws] 收到后端指令: {data}")
+            cmd = data.get("command_type") or data.get("type")
+            logger.info(
+                f"[{self._tag()}][bridge] 收到后端指令: instance={self.instance_id} "
+                f"command={cmd} payload_keys={list((data.get('payload') or {}).keys())}"
+            )
             if self.on_inbound:
                 try:
                     await self.on_inbound(data)
                 except Exception as e:
-                    logger.error(f"[ws] 指令处理出错: {e}")
+                    logger.error(
+                        f"[{self._tag()}][bridge] 指令处理出错: instance={self.instance_id} "
+                        f"command={cmd} error={e!r}"
+                    )
 
     async def send_inbound(self, payload: Dict[str, Any]):
         """向后端上报一条入站消息。"""
         if not self.ws:
-            logger.warning("[ws] 后端未连接，丢弃消息")
+            logger.warning(
+                f"[{self._tag()}][bridge] 后端未连接，丢弃消息: instance={self.instance_id} "
+                f"conversation={payload.get('conversation_id', '')}"
+            )
             return
         msg = json.dumps(payload, ensure_ascii=False)
         await self.ws.send(msg)
         logger.info(
-            f"[ws] 已上报消息: conversation={payload.get('conversation_id', '')} "
-            f"sender={payload.get('sender_name', '')} type={payload.get('message_type', '')} "
-            f"len={len(msg)}"
+            f"[{self._tag()}][bridge] 已上报消息: instance={self.instance_id} "
+            f"conversation={payload.get('conversation_id', '')} "
+            f"sender={payload.get('sender_name', '')} "
+            f"type={payload.get('message_type', '')} "
+            f"len={len(msg)} has_raw={'raw' in payload} has_chain={'message_chain' in payload}"
         )
 
     async def close(self):

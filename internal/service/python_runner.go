@@ -49,6 +49,22 @@ type PythonRunner struct {
 // giving up (prevents log spam when dependencies are missing, etc.).
 const maxAutoRestarts = 5
 
+// adapterBanner is the ASCII art echoed into every adapter instance log when
+// its process starts, so the WebUI instance log always shows the same banner
+// regardless of the Python script's own startup output.
+const adapterBanner = `
+  ███████╗   ███████╗██████╗     ██╗     ██╗███╗   ██╗███████╗██████╗
+  ██╔════╝   ██╔════╝██╔══██╗    ██║     ██║████╗  ██║██╔════╝╚════██╗
+  █████╗     ███████╗██████╔╝    ██║     ██║██╔██╗ ██║█████╗    ▄███╔╝
+  ██╔══╝     ╚════██║██╔═══╝     ██║     ██║██║╚██╗██║██╔══╝  ▄▀══╝
+  ███████╗   ███████║██║         ███████╗██║██║ ╚████║███████╗███████╗
+  ╚══════╝   ╚══════╝╚═╝         ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+
+  Power By LangBot-community-team
+
+  --------------------------------------------------------------------
+`
+
 // NewPythonRunner creates a Python process manager.
 //
 // python: Python executable (e.g. python3)
@@ -794,6 +810,32 @@ func (r *PythonRunner) Start(instanceID string) error {
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start python adapter: %w", err)
+	}
+
+	// Echo the startup banner and a detailed start record into the instance
+	// log file. This guarantees every adapter instance shows the banner in
+	// the WebUI log regardless of what the Python script itself prints, and
+	// gives the bridge log a full startup context (instance, platform, PID,
+	// backend URL, command).
+	if logFile != nil {
+		ts := time.Now().Format("2006-01-02 15:04:05")
+		var sb strings.Builder
+		sb.WriteString(adapterBanner)
+		fmt.Fprintf(&sb, "%s | INFO    | ============================================================\n", ts)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge] 适配器进程启动 (Adapter process started)\n", ts)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   instance_id : %s\n", ts, instanceID)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   platform    : %s\n", ts, platformCode)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   pid         : %d\n", ts, cmd.Process.Pid)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   backend     : %s\n", ts, r.backendURL)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   workdir     : %s\n", ts, workDir)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   command     : %s %s\n", ts, r.python, strings.Join(args, " "))
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge] 等待适配器连接后端 WebSocket...\n", ts)
+		fmt.Fprintf(&sb, "%s | INFO    | ============================================================\n", ts)
+		if _, werr := logFile.WriteString(sb.String()); werr != nil {
+			logger.Warn("Failed to write startup banner to instance log",
+				logger.String("instance_id", instanceID),
+				logger.String("error", werr.Error()))
+		}
 	}
 
 	r.mu.Lock()
