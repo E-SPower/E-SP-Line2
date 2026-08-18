@@ -258,6 +258,11 @@ func (m *InstanceDirManager) VerifyIntegrity(instanceID string) error {
 	}
 	// Check for unexpected extra files.
 	for p := range current {
+		// Python bytecode caches (__pycache__/*.pyc) are generated at runtime
+		// and are not part of the manifest; they are safe to ignore.
+		if isPythonCacheFile(p) {
+			continue
+		}
 		found := false
 		for _, e := range entries {
 			if e.Path == p {
@@ -270,6 +275,17 @@ func (m *InstanceDirManager) VerifyIntegrity(instanceID string) error {
 		}
 	}
 	return nil
+}
+
+// isPythonCacheFile reports whether a path is a Python bytecode cache file
+// (e.g. "__pycache__/module.cpython-314.pyc" or "module.pyc").
+func isPythonCacheFile(p string) bool {
+	base := filepath.Base(p)
+	if strings.HasSuffix(base, ".pyc") || strings.HasSuffix(base, ".pyo") {
+		return true
+	}
+	// Also ignore any file inside a __pycache__ directory.
+	return strings.Contains(filepath.ToSlash(p), "/__pycache__/")
 }
 
 // Remove deletes the entire sandbox for an instance.

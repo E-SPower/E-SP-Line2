@@ -6,8 +6,9 @@
   "nav": {
     "dashboard": "Dashboard",
     "platforms": "Platforms",
-    "adapters": "Adapters",
+    "adapters": "Bridge Adapters",
     "instances": "Instances",
+    "adapterGateway": "WebSocket Adapter",
     "messages": "Messages",
     "routes": "Routes",
     "docs": "Documentation",
@@ -33,7 +34,13 @@
     "createdAt": "Created At",
     "updatedAt": "Updated At",
     "refresh": "Refresh",
-    "seconds": "seconds"
+    "seconds": "seconds",
+    "yes": "Yes",
+    "no": "No",
+    "close": "Close"
+  },
+  "version": {
+    "mismatch": "Frontend and backend versions differ; some features may be limited. Please update the backend or frontend and try again."
   },
   "dashboard": {
     "title": "Dashboard",
@@ -71,7 +78,7 @@
     "noPlatforms": "No platforms found. Create your first platform to get started."
   },
   "adapters": {
-    "title": "Adapter Management",
+    "title": "Bridge Adapters",
     "create": "Create Adapter",
     "edit": "Edit Adapter",
     "platform": "Message Platform",
@@ -102,7 +109,9 @@
     "noInstances": "No instances found. Create your first instance to get started.",
     "initializing": "Initializing",
     "initializingHint": "Installing dependencies automatically; start will be enabled when ready",
-    "statusError": "Error"
+    "statusError": "Error",
+    "platform": "Platform",
+    "subtitle": "Manage adapter instances across platforms"
   },
   "messages": {
     "title": "Message Management",
@@ -111,7 +120,56 @@
     "sender": "Sender",
     "content": "Content",
     "timestamp": "Timestamp",
-    "ack": "Acknowledge"
+    "ack": "Acknowledge",
+    "statusAcked": "Acknowledged",
+    "statusDelivered": "Delivered",
+    "statusPending": "Pending",
+    "noMessages": "No messages found."
+  },
+  "adapterGateway": {
+    "title": "WebSocket Adapter",
+    "subtitle": "Create configurable WebSocket adapters with server/client modes, authenticated by an access key",
+    "create": "New Adapter",
+    "createServer": "New Server",
+    "createClient": "New Client",
+    "edit": "Edit Adapter",
+    "name": "Name",
+    "namePlaceholder": "e.g. Support Adapter-1",
+    "mode": "Mode",
+    "modeServer": "Server (listen)",
+    "modeClient": "Client (connect)",
+    "modeHelp": "Server mode: this system listens on a WebSocket endpoint and external systems connect with the key. Client mode: this system actively connects to an external WebSocket URL with the key.",
+    "listenPath": "Listen Path",
+    "listenPathHelp": "Listen path for server mode; leave empty to use default /ws",
+    "wsUrl": "Target WebSocket URL",
+    "wsUrlHelp": "External WebSocket URL to connect to in client mode, e.g. ws://host:port/path",
+    "key": "Access Key",
+    "keyPlaceholder": "Access key; click the button on the right to regenerate",
+    "keyHelp": "External systems must present this key to authenticate. It can be edited or regenerated anytime.",
+    "showKey": "Show key",
+    "hideKey": "Hide key",
+    "regenerateKey": "Regenerate key",
+    "endpoint": "Endpoint",
+    "platform": "Platform",
+    "allPlatforms": "All platforms",
+    "platformHelp": "Only receive messages from this platform; leave empty to receive all",
+    "scope": "Scope",
+    "scopeHelp": "read = receive messages only, write = send replies only, read+write = both",
+    "enabled": "Enabled",
+    "active": "Active",
+    "disabled": "Disabled",
+    "status": "Status",
+    "online": "Online",
+    "offline": "Offline",
+    "connected": "Connected",
+    "createdAt": "Created At",
+    "viewConnections": "View connections",
+    "connectionsFor": "Connections for",
+    "noConnections": "No connection records",
+    "noAdapters": "No adapters yet. Click \"New Server\" or \"New Client\" in the top-right to create one.",
+    "remoteAddr": "Remote Address",
+    "connectedAt": "Connected At",
+    "messages": "Messages"
   },
   "routes": {
     "title": "Route Rules",
@@ -192,6 +250,17 @@
   "settings": {
     "title": "System Settings",
     "saved": "Settings saved",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode",
+    "storage": "Storage usage",
+    "storageUsage": "Storage usage",
+    "dbFile": "Database file",
+    "dbSize": "Database size",
+    "dataDirSize": "Data directory total",
+    "tableRows": "Rows per table",
+    "totalRows": "Total rows",
+    "refreshStorage": "Refresh stats",
+    "storageLoading": "Computing storage usage...",
     "general": "General",
     "siteName": "Site Name",
     "language": "Language",
@@ -208,7 +277,13 @@
     "notifications": "Notifications",
     "emailNotifications": "Email Notifications",
     "webhookUrl": "Webhook URL",
-    "alertOnError": "Alert on Error"
+    "alertOnError": "Alert on Error",
+    "userManagement": "User Management",
+    "allowRegistration": "Allow Registration",
+    "allowRegistrationHint": "When disabled, new users cannot self-register",
+    "noUsers": "No users yet",
+    "role": "Role",
+    "addUser": "Add User"
   },
   "auth": {
     "login": "Login",

@@ -151,10 +151,22 @@ pnpm dev
 - `PUT /api/v1/routes/:id` - 更新路由规则
 - `DELETE /api/v1/routes/:id` - 删除路由规则
 
+### 接入器网关接口（Adapter Gateway）
+
+- `POST /api/v1/adapter-tokens` - 创建接入器访问密钥（返回明文，仅一次）
+- `GET /api/v1/adapter-tokens` - 接入器令牌列表
+- `GET /api/v1/adapter-tokens/:id` - 令牌详情
+- `POST /api/v1/adapter-tokens/:id/revoke` - 吊销令牌
+- `DELETE /api/v1/adapter-tokens/:id` - 删除令牌
+- `GET /api/v1/adapter-tokens/:id/connections` - 令牌连接记录
+- `GET /api/v1/adapter-connections` - 接入器连接列表
+
 ### WebSocket 接口
 
-- `ws://localhost:8080/ws/adapter?instance_id=xxx` - 接入器 WebSocket
+- `ws://localhost:8080/ws/adapter?instance_id=xxx` - 桥（Bridge）回连 WebSocket
 - `ws://localhost:8080/ws/app?app_id=xxx` - 应用 WebSocket
+- `ws://localhost:8080/ws?key=xxx` - 接入器（Adapter）网关，外部框架连接入口（默认监听路径）
+- `ws://localhost:8080/ws/adapter-gateway?key=xxx` - 接入器网关兼容别名
 
 ## 架构设计
 

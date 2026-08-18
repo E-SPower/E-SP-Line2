@@ -1,13 +1,20 @@
-# V3 协议说明文档
+# ESPL v3 协议规范
+
+> **ESPL v3 是 E-SP-Line2 的接入器（Adapter）协议**，用于外部系统（机器人框架、
+> 客服系统等）通过 WebSocket 接入核心，消费电商消息并回复。
+>
+> 注意：桥（Bridge）进程与核心通信使用**另一套 Bridge 协议**（WebSocket），
+> 老版接入器 HTTP v1/v2 协议已弃用。请先阅读 [协议体系总览](./protocol-overview.md)。
 
 ## 概述
 
-V3 协议是 E-SP-Line2 的核心通信协议，定义了消息信封、消息链、事件类型和签名验证等标准。该协议参考了 LangBot 的设计，并针对电商场景进行了扩展。
+ESPL v3 协议定义了消息信封、消息链、事件类型和签名验证等标准。该协议参考了主流消息中间件的设计，并针对电商场景进行了扩展。
 
 ## 协议版本
 
 - **当前版本**: v3
 - **协议标识**: `protocol_version: "v3"`
+- **传输**: WebSocket（接入器网关 `/ws`、`/ws/adapter-gateway` 等）
 
 ## 核心概念
 
@@ -444,10 +451,16 @@ func GenerateTraceID() string {
 
 ### v3.0 (当前)
 
-- 初始版本
+- 接入器（Adapter）与外部系统的 WebSocket 通信协议
 - 支持基础消息类型
 - 支持电商扩展类型
 - 支持签名验证
+
+### 已弃用版本
+
+- **v1 / v2（HTTP）**：老版接入器通过 HTTP 与核心通信的协议，已弃用。
+  接入器已迁移到 ESPL v3（WebSocket），桥进程已迁移到
+  [Bridge 协议](./bridge-protocol.md)（WebSocket）。
 
 ### 未来计划
 
@@ -457,6 +470,7 @@ func GenerateTraceID() string {
 
 ## 参考资源
 
-- [LangBot 协议文档](https://docs.langbot.app/protocol)
-- [E-SP-Line2 架构文档](../E-SP-Line2-about-platfrom.md)
+- [协议体系总览](./protocol-overview.md)
+- [桥（Bridge）协议规范](./bridge-protocol.md)
+- [WebSocket 接入器（Adapter Gateway）](../user-guide/adapter-gateway.md)
 - [API 参考文档](./api-reference.md)

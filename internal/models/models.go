@@ -132,3 +132,10 @@ type AuditLog struct {
 	IPAddress  string    `json:"ip_address"`
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+// SystemSetting represents a key/value system setting (e.g. registration toggle).
+type SystemSetting struct {
+	Key       string    `json:"key" gorm:"primaryKey"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

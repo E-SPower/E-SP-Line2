@@ -3,6 +3,11 @@
 // For a custom backend origin, set VITE_API_BASE_URL (e.g. http://localhost:8080).
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1') as string;
 
+// requestTimeoutMs bounds every API request. Without a timeout, a stalled
+// backend leaves fetches pending forever, accumulating in-flight requests and
+// making the UI appear frozen.
+const requestTimeoutMs = 30000;
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -39,10 +44,15 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
+    // Abort the request if the backend does not respond in time.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        signal: controller.signal,
       });
 
       if (response.status === 401) {
@@ -82,7 +92,12 @@ class ApiClient {
           : (body as T);
       return { data };
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return { error: 'Request timeout' };
+      }
       return { error: 'Network error' };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -205,11 +220,57 @@ class ApiClient {
     return this.request(`/instances/${id}/stop`, { method: 'POST' });
   }
 
-  async getInstanceLogs(id: string, opts: { lines?: number | 'all'; level?: string } = {}) {
+  async getInstanceLogs(id: string, opts: { lines?: number | 'all'; level?: string; keyword?: string; from?: string; to?: string } = {}) {
     const params = new URLSearchParams()
-    params.set('lines', opts.lines === undefined ? 'all' : String(opts.lines))
+    // Cap the default log read so a huge log file never stalls the request.
+    params.set('lines', opts.lines === undefined ? '2000' : String(opts.lines))
     if (opts.level) params.set('level', opts.level)
+    if (opts.keyword) params.set('keyword', opts.keyword)
+    if (opts.from) params.set('from', opts.from)
+    if (opts.to) params.set('to', opts.to)
     return this.request<any>(`/instances/${id}/logs?${params.toString()}`);
+  }
+
+  // Per-hour log level distribution (heatmap)
+  async getInstanceLogHeatmap(id: string, level?: string) {
+    const params = new URLSearchParams()
+    if (level) params.set('level', level)
+    return this.request<any[]>(`/instances/${id}/logs/heatmap?${params.toString()}`);
+  }
+
+  // Clear (truncate) an instance's log file
+  async clearInstanceLogs(id: string) {
+    return this.request<any>(`/instances/${id}/logs`, { method: 'DELETE' });
+  }
+
+  // ---- User management (admin) ----
+  async listUsers() {
+    return this.request<any[]>('/users');
+  }
+  async createUser(username: string, password: string, role: string) {
+    return this.request<any>('/users', { method: 'POST', body: JSON.stringify({ username, password, role }) });
+  }
+  async updateUserRole(id: string, role: string) {
+    return this.request<any>(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) });
+  }
+  async updateUserStatus(id: string, status: string) {
+    return this.request<any>(`/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+  }
+  async deleteUser(id: string) {
+    return this.request<any>(`/users/${id}`, { method: 'DELETE' });
+  }
+
+  // ---- Registration toggle (admin) ----
+  async getRegistrationStatus() {
+    return this.request<boolean>('/settings/registration');
+  }
+  async setRegistrationStatus(enabled: boolean) {
+    return this.request<any>('/settings/registration', { method: 'PUT', body: JSON.stringify({ enabled }) });
+  }
+
+  // Database / storage usage stats
+  async getStorageStats() {
+    return this.request<any>(`/stats/storage`);
   }
 
   // Dependency installation (initialization) status for an instance
@@ -270,6 +331,41 @@ class ApiClient {
     return this.request<any>(`/options/${key}`);
   }
 
+  // ---- Adapter gateway (接入器) entity & connection APIs ----
+  async getGatewayAdapters(limit = 20, offset = 0) {
+    return this.request<any[]>(`/adapter-gateways?limit=${limit}&offset=${offset}`);
+  }
+
+  async createGatewayAdapter(data: any) {
+    return this.request<any>('/adapter-gateways', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getGatewayAdapter(id: string) {
+    return this.request<any>(`/adapter-gateways/${id}`);
+  }
+
+  async updateGatewayAdapter(id: string, data: any) {
+    return this.request<any>(`/adapter-gateways/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteGatewayAdapter(id: string) {
+    return this.request<any>(`/adapter-gateways/${id}`, { method: 'DELETE' });
+  }
+
+  async getAdapterConnections(limit = 20, offset = 0) {
+    return this.request<any[]>(`/adapter-connections?limit=${limit}&offset=${offset}`);
+  }
+
+  async getAdapterConnectionsByAdapter(id: string, limit = 20, offset = 0) {
+    return this.request<any[]>(`/adapter-gateways/${id}/connections?limit=${limit}&offset=${offset}`);
+  }
+
   // Documentation APIs
   async getDocs() {
     return this.request<any[]>('/docs');
@@ -283,7 +379,10 @@ class ApiClient {
   async healthCheck() {
     try {
       const base = (import.meta.env.VITE_API_BASE_URL as string) || '';
-      const response = await fetch(`${base}/health`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${base}/health`, { signal: controller.signal });
+      clearTimeout(timeout);
       return await response.json();
     } catch {
       return { status: 'error', message: 'Backend not available' };

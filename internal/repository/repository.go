@@ -24,6 +24,11 @@ type Repositories struct {
 	InboundEvent    *InboundEventRepository
 	OutboundCommand *OutboundCommandRepository
 	RouteRule       *RouteRuleRepository
+	SystemSetting   *SystemSettingRepository
+
+	// Adapter gateway (接入器) repositories
+	AdapterGateway    *AdapterGatewayRepository
+	AdapterConnection *AdapterConnectionRepository
 }
 
 // NewRepositories creates all repository instances
@@ -45,6 +50,9 @@ func NewRepositories(cfg *config.Config) (*Repositories, error) {
 		&models.OutboundCommand{},
 		&models.RouteRule{},
 		&models.AuditLog{},
+		&models.SystemSetting{},
+		&models.Adapter{},
+		&models.AdapterConnection{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
@@ -60,6 +68,10 @@ func NewRepositories(cfg *config.Config) (*Repositories, error) {
 		InboundEvent:    NewInboundEventRepository(db),
 		OutboundCommand: NewOutboundCommandRepository(db),
 		RouteRule:       NewRouteRuleRepository(db),
+		SystemSetting:   NewSystemSettingRepository(db),
+
+		AdapterGateway:    NewAdapterGatewayRepository(db),
+		AdapterConnection: NewAdapterConnectionRepository(db),
 	}
 
 	logger.Info("Repositories initialized")
@@ -83,7 +95,12 @@ func initDB(cfg *config.Config) (*gorm.DB, error) {
 	case "postgres":
 		dialector = postgres.Open(cfg.Database.GetDSN())
 	case "sqlite":
-		dialector = sqlite.Open(cfg.Database.DSN)
+		// Enable WAL mode + busy_timeout so concurrent readers/writers do not
+		// block each other. Without these, long-running servers hit SQLite
+		// "database is locked" errors and progressively stall as write
+		// contention grows (heartbeats, message persistence, connection
+		// counters all write on the hot path).
+		dialector = sqlite.Open(cfg.Database.DSN + "?_busy_timeout=10000&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=on")
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", cfg.Database.Driver)
 	}
@@ -99,6 +116,18 @@ func initDB(cfg *config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+
+	// Configure the connection pool. A single SQLite connection serializes
+	// all writes; allowing more than one writer connection causes "database
+	// is locked" under concurrency. We keep a single connection so writes are
+	// serialized and reads never contend with a half-committed write.
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(0)
 
 	return db, nil
 }

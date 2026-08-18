@@ -8,12 +8,17 @@ websockets>=12.0
 # Logging
 loguru>=0.7.2
 
+# Data models (vendor/message/types.py)
+pydantic>=2.0.0
+
 # Sign JS execution (vendor/static/*.js)
 # 需同时安装 Node.js 18+ 运行时
-execjs>=1.5.1
+# 注意: 安装包名为 PyExecJS（import 名为 execjs）
+PyExecJS>=1.5.1
 
 # Protobuf 消息解密 (vendor/utils/goofish_utils.py)
-blackboxprotobuf>=3.0.0
+# 注意: PyPI 上 blackboxprotobuf 最新为 1.0.1，勿写 >=3.0.0
+blackboxprotobuf>=1.0.1
 
 # Optional: QR code login
 qrcode>=7.4.2

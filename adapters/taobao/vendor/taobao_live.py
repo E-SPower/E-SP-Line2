@@ -14,6 +14,17 @@ from utils.taobao_utils import generate_mid, generate_uuid, trans_cookies, gener
 from message import Message, make_text, make_image
 
 
+# websockets 14+ 将 extra_headers 改名为 additional_headers；这里做兼容封装。
+# 返回可异步上下文管理的连接对象（websockets.connect 本身就是 async CM）。
+def _ws_connect(uri, headers):
+    try:
+        # 新版 websockets (>=14)
+        return websockets.connect(uri, additional_headers=headers)
+    except TypeError:
+        # 旧版 websockets (<14) 使用 extra_headers
+        return websockets.connect(uri, extra_headers=headers)
+
+
 class taobaoLive:
     def __init__(self, cookies_str, message_callback=None, device_id_override=None):
         self.base_url = 'wss://wss-cntaobao.dingtalk.com/'
@@ -56,7 +67,7 @@ class taobaoLive:
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9",
         }
-        async with websockets.connect(self.base_url, extra_headers=headers) as websocket:
+        async with _ws_connect(self.base_url, headers) as websocket:
             asyncio.create_task(self.init(websocket))
             send_mid = generate_mid()
             msg = {
@@ -285,7 +296,7 @@ class taobaoLive:
             "Accept-Language": "zh-CN,zh;q=0.9",
         }
         threading.Thread(target=self.user_alive).start()
-        async with websockets.connect(self.base_url, extra_headers=headers) as websocket:
+        async with _ws_connect(self.base_url, headers) as websocket:
             asyncio.create_task(self.init(websocket))
             asyncio.create_task(self.heart_beat(websocket))
             async for message in websocket:
@@ -315,12 +326,12 @@ class taobaoLive:
             logger.info(f"无需解密 message: {data}")
         except Exception as e:
             try:
-                data = decrypt(data)
-                message = json.loads(data)
+                raw_decrypted = decrypt(data)
+                raw_message = json.loads(raw_decrypted)
 
-                send_user_name = message["1"]["10"]["sender_nick"]
-                send_user_id = message["1"]["1"]["1"].split('@')[0]
-                send_message = message["1"]["6"]["2"]["1"]
+                send_user_name = raw_message["1"]["10"]["sender_nick"]
+                send_user_id = raw_message["1"]["1"]["1"].split('@')[0]
+                send_message = raw_message["1"]["6"]["2"]["1"]
 
                 if send_user_name == f"cntaobao{self.nk}":
                     logger.info(f"[淘宝] 自己发的消息，忽略")
@@ -331,8 +342,11 @@ class taobaoLive:
                     f"内容={send_message}"
                 )
 
-                cid = message["1"]["2"]
+                cid = raw_message["1"]["2"]
                 logger.info(f"[淘宝] 会话 cid={cid} 发送者={send_user_id}")
+
+                # 构建消息链
+                message_chain = [{"type": "text", "text": send_message}]
 
                 # 触发外部回调（ESPL 桥接上报 / 业务处理）
                 if self.message_callback:
@@ -340,6 +354,8 @@ class taobaoLive:
                         await self.message_callback(
                             websocket, cid, send_user_id,
                             send_user_name, send_message,
+                            raw_message=raw_message,
+                            message_chain=message_chain,
                         )
                     except Exception as cb_e:
                         logger.error(f"message_callback error: {cb_e}")
@@ -353,6 +369,8 @@ class taobaoLive:
                         "sender_name": send_user_name,
                         "message_type": "text",
                         "message_content": send_message,
+                        "raw": raw_message,  # 保存完整的原始平台消息
+                        "message_chain": message_chain,  # 保存消息链
                         "idempotency_key": f"taobao-{send_user_id}-{cid}-{int(time.time()*1000)}",
                     }
                     try:

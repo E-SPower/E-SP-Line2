@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Code, FileText, Plug, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { BookOpen, Code, FileText, Plug, Loader2, ChevronRight, FileText as FileIcon } from 'lucide-react'
 import apiClient from '../api/client'
-import Markdown from '../components/Markdown'
 
 interface DocInfo {
   key: string
@@ -47,16 +47,16 @@ const GROUPS: DocGroup[] = [
 
 export default function Docs() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [docs, setDocs] = useState<DocInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set())
 
-  // Load the index, then fetch each document's content so everything can be
-  // shown on a single page (accordion), without navigating away.
+  // Load the index only (content is fetched lazily by DocViewer when the user
+  // opens a document). This keeps the docs list fast.
   useEffect(() => {
     let cancelled = false
-    apiClient.getDocs().then(async (res: any) => {
+    apiClient.getDocs().then((res: any) => {
       if (cancelled) return
       if (res.error) {
         setError(res.error)
@@ -64,37 +64,20 @@ export default function Docs() {
         return
       }
       const index = Array.isArray(res.data) ? res.data : []
-      const items: DocInfo[] = await Promise.all(
-        index.map(async (d: any) => {
-          const content = await apiClient.getDoc(d.key)
-          return {
-            key: d.key,
-            title: d.title,
-            group: d.group,
-            content: content.data?.content || '',
-          }
-        })
+      setDocs(
+        index.map((d: any) => ({
+          key: d.key,
+          title: d.title,
+          group: d.group,
+          content: '',
+        }))
       )
-      if (cancelled) return
-      setDocs(items)
       setLoading(false)
     })
     return () => {
       cancelled = true
     }
   }, [])
-
-  const toggle = (key: string) => {
-    setOpenKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
 
   const grouped = useMemo(
     () =>
@@ -105,10 +88,14 @@ export default function Docs() {
     [docs]
   )
 
+  const openDoc = (key: string) => {
+    navigate(`/docs/${key}`)
+  }
+
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('docs.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('docs.title')}</h1>
       </div>
 
       {/* 系统概述：简短说明这个框架是干什么的（置顶） */}
@@ -124,7 +111,7 @@ export default function Docs() {
       {loading && (
         <div className="flex items-center justify-center h-40">
           <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-          <span className="ml-2 text-gray-500">{t('common.loading')}</span>
+          <span className="ml-2 text-gray-500 dark:text-gray-400">{t('common.loading')}</span>
         </div>
       )}
 
@@ -139,49 +126,35 @@ export default function Docs() {
           {grouped.map((group) => {
             const Icon = group.icon
             return (
-              <div key={group.id} className="bg-white rounded-lg shadow p-6">
+              <div key={group.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="flex items-center mb-3">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Icon className="w-6 h-6 text-blue-600" />
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+                    <Icon className="w-6 h-6 text-blue-600 dark:text-blue-300" />
                   </div>
                   <div className="ml-3">
-                    <h2 className="text-lg font-semibold text-gray-900">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                       {group.title}
                     </h2>
-                    <p className="text-xs text-gray-500">{group.items.length} 篇文档</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{group.items.length} 篇文档</p>
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-600 mb-4">{group.description}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{group.description}</p>
 
                 <div className="space-y-1">
-                  {group.items.map((doc) => {
-                    const open = openKeys.has(doc.key)
-                    return (
-                      <div key={doc.key} className="border border-gray-100 rounded-lg overflow-hidden">
-                        <button
-                          onClick={() => toggle(doc.key)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        >
-                          <span className="text-blue-600 hover:text-blue-800">
-                            {doc.title}
-                          </span>
-                          {open ? (
-                            <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
-                          )}
-                        </button>
-                        {open && (
-                          <div className="px-4 py-3 border-t border-gray-100 max-h-96 overflow-y-auto">
-                            <div className="prose max-w-none">
-                              <Markdown source={doc.content} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                  {group.items.map((doc) => (
+                    <button
+                      key={doc.key}
+                      onClick={() => openDoc(doc.key)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <span className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                        <FileIcon className="w-4 h-4 mr-2 shrink-0" />
+                        {doc.title}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                    </button>
+                  ))}
                 </div>
               </div>
             )

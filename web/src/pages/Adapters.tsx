@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2, Plug, ShoppingBag, Fish } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import apiClient from '../api/client'
@@ -67,7 +67,7 @@ export default function Adapters() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('adapters.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('adapters.title')}</h1>
         <button
           onClick={() => navigate('/instances')}
           className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -84,12 +84,20 @@ export default function Adapters() {
           </div>
         ) : (
           adapters.map((adapter) => (
-            <div key={adapter.id} className="bg-white rounded-lg shadow p-6">
+            <div key={adapter.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center">
-                  <span className="text-3xl mr-3">{adapter.icon || '🔌'}</span>
+                  <span className="mr-3 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30">
+                    {adapter.platform_code === 'taobao' ? (
+                      <ShoppingBag className="w-6 h-6 text-blue-500" />
+                    ) : adapter.platform_code === 'xianyu' ? (
+                      <Fish className="w-6 h-6 text-cyan-500" />
+                    ) : (
+                      <Plug className="w-6 h-6 text-blue-500" />
+                    )}
+                  </span>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{adapter.name}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{adapter.name}</h3>
                     <p className="text-xs text-gray-400 font-mono">{adapter.id}</p>
                   </div>
                 </div>
@@ -98,9 +106,9 @@ export default function Adapters() {
                 </span>
               </div>
 
-              <p className="text-sm text-gray-600 mb-4">{adapter.description}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{adapter.description}</p>
 
-              <div className="space-y-2 text-sm text-gray-600 mb-4">
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-300 mb-4">
                 <div className="flex justify-between">
                   <span>{t('adapters.version')}:</span>
                   <span>v{adapter.version}</span>

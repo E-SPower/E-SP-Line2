@@ -240,29 +240,72 @@ func (mc *MessageChain) VerifyHash() bool {
 	return mc.Hash == expectedHash
 }
 
-// GetTextContent returns the first text content
+// GetTextContent returns the first text content. It handles both the typed
+// TextContent struct (when the chain is built in-process) and the generic
+// map[string]interface{} form (when the chain is parsed from JSON).
 func (mc *MessageChain) GetTextContent() string {
 	for _, elem := range mc.Content {
-		if elem.Type == ElementTypeText {
-			if content, ok := elem.Content.(TextContent); ok {
-				return content.Text
+		if elem.Type != ElementTypeText {
+			continue
+		}
+		switch content := elem.Content.(type) {
+		case TextContent:
+			return content.Text
+		case map[string]interface{}:
+			if text, ok := content["text"].(string); ok {
+				return text
 			}
 		}
 	}
 	return ""
 }
 
-// GetProductCards returns all product cards
+// GetProductCards returns all product cards. It handles both the typed
+// ProductCard struct and the generic map form parsed from JSON.
 func (mc *MessageChain) GetProductCards() []ProductCard {
 	cards := make([]ProductCard, 0)
 	for _, elem := range mc.Content {
-		if elem.Type == ElementTypeProductCard {
-			if content, ok := elem.Content.(ProductCard); ok {
-				cards = append(cards, content)
-			}
+		if elem.Type != ElementTypeProductCard {
+			continue
+		}
+		switch content := elem.Content.(type) {
+		case ProductCard:
+			cards = append(cards, content)
+		case map[string]interface{}:
+			cards = append(cards, productCardFromMap(content))
 		}
 	}
 	return cards
+}
+
+// productCardFromMap converts a generic map into a ProductCard.
+func productCardFromMap(m map[string]interface{}) ProductCard {
+	card := ProductCard{}
+	if v, ok := m["item_id"].(string); ok {
+		card.ItemID = v
+	}
+	if v, ok := m["title"].(string); ok {
+		card.Title = v
+	}
+	if v, ok := m["price"].(float64); ok {
+		card.Price = v
+	}
+	if v, ok := m["image_url"].(string); ok {
+		card.ImageURL = v
+	}
+	if v, ok := m["detail_url"].(string); ok {
+		card.DetailURL = v
+	}
+	if v, ok := m["platform"].(string); ok {
+		card.Platform = v
+	}
+	if v, ok := m["sku"].(string); ok {
+		card.SKU = v
+	}
+	if v, ok := m["stock"].(float64); ok {
+		card.Stock = int(v)
+	}
+	return card
 }
 
 // ToJSON converts the message chain to JSON

@@ -47,28 +47,28 @@ function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'error':
       return (
-        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">
+        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
           <AlertCircle className="w-3 h-3 mr-1" />
           {t('instances.statusError') || '异常'}
         </span>
       )
     case 'initializing':
       return (
-        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-700">
+        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300">
           <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
           {t('instances.initializing') || '初始化中'}
         </span>
       )
     case 'running':
       return (
-        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
           <span className="w-2 h-2 rounded-full bg-green-500 mr-1"></span>
           {t('adapters.running')}
         </span>
       )
     default:
       return (
-        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
           <span className="w-2 h-2 rounded-full bg-gray-400 mr-1"></span>
           {t('adapters.stopped')}
         </span>
@@ -77,7 +77,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function Dashboard() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [stats, setStats] = useState([
     { label: t('dashboard.totalPlatforms'), value: '0', icon: Globe, color: 'blue' },
     { label: t('dashboard.totalAdapters'), value: '0', icon: Package, color: 'green' },
@@ -134,22 +134,22 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('dashboard.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('dashboard.title')}</h1>
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setRefreshKey((k) => k + 1)}
-            className="flex items-center px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100"
+            className="flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <RefreshCw className="w-4 h-4 mr-1" />
             {t('common.refresh')}
           </button>
-          <span className="text-sm text-gray-600">{t('dashboard.systemStatus')}:</span>
+          <span className="text-sm text-gray-600 dark:text-gray-300">{t('dashboard.systemStatus')}:</span>
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
             backendStatus === 'online'
-              ? 'bg-green-100 text-green-700'
+              ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
               : backendStatus === 'offline'
-              ? 'bg-red-100 text-red-700'
-              : 'bg-gray-100 text-gray-600'
+              ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
           }`}>
             <span className={`w-2 h-2 rounded-full mr-2 ${
               backendStatus === 'online'
@@ -172,13 +172,13 @@ export default function Dashboard() {
         {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <div key={index} className="bg-white rounded-lg shadow p-6">
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{stat.label}</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</p>
                 </div>
-                <div className={`p-3 rounded-lg bg-${stat.color}-100`}>
+                <div className={`p-3 rounded-lg bg-${stat.color}-100 dark:bg-gray-700`}>
                   <Icon className={`w-6 h-6 text-${stat.color}-600`} />
                 </div>
               </div>
@@ -189,22 +189,22 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Instance Activity Status - 出错优先 */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">{t('dashboard.instanceStatus')}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.instanceStatus')}</h2>
             <Link to="/instances" className="text-sm text-blue-600 hover:text-blue-800">
               {t('dashboard.viewAll')} →
             </Link>
           </div>
 
           <div className="flex flex-wrap gap-3 mb-4">
-            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-50 text-red-700">
+            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300">
               {t('instances.statusError') || '异常'}: {errorCount}
             </span>
-            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700">
+            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-300">
               {t('adapters.running')}: {runningCount}
             </span>
-            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-yellow-50 text-yellow-700">
+            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-yellow-50 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300">
               {t('instances.initializing') || '初始化中'}: {initializingCount}
             </span>
           </div>
@@ -217,12 +217,12 @@ export default function Dashboard() {
                 <Link
                   key={instance.id}
                   to="/instances"
-                  className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50"
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   <div className="flex items-center min-w-0">
                     <div>
-                      <p className="text-sm font-medium text-gray-900 truncate">{instance.name}</p>
-                      <p className="text-xs text-gray-400 truncate">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{instance.name}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                         {adapters[instance.adapter_id] || instance.adapter_id}
                       </p>
                     </div>
@@ -235,18 +235,18 @@ export default function Dashboard() {
         </div>
 
         {/* Recent Activity - 从 API 加载真实消息记录 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('dashboard.recentActivity')}</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('dashboard.recentActivity')}</h2>
           {recentMessages.length === 0 ? (
             <p className="text-sm text-gray-500">{t('dashboard.noActivity')}</p>
           ) : (
             <div className="space-y-3">
               {recentMessages.map((message) => (
-                <div key={message.id} className="flex items-center text-sm text-gray-600">
+                <div key={message.id} className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                   <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
                   <span>{t('dashboard.newMessage')}: {message.sender_name || message.sender_id}</span>
-                  <span className="ml-auto text-gray-400">
-                    {new Date(message.created_at).toLocaleString()}
+                  <span className="ml-auto text-gray-400 dark:text-gray-500">
+                    {new Date(message.created_at).toLocaleString(i18n.language)}
                   </span>
                 </div>
               ))}

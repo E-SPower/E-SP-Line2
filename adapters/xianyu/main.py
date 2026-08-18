@@ -131,8 +131,13 @@ class XianyuInstance:
             self.live.main(),
         )
 
-    async def _handle_xianyu_message(self, websocket, cid, send_user_id, send_user_name, send_message):
-        """闲鱼收到消息 -> 通过桥接上报后端。"""
+    async def _handle_xianyu_message(self, websocket, cid, send_user_id, send_user_name, send_message,
+                                     raw_message=None, message_chain=None):
+        """闲鱼收到消息 -> 通过桥接上报后端。
+
+        现在上报包含完整的原始消息(raw)和消息链(message_chain)，
+        确保后端保存时不会丢失任何信息。
+        """
         if not self.bridge:
             return
         payload = {
@@ -144,6 +149,12 @@ class XianyuInstance:
             "message_content": send_message,
             "idempotency_key": f"xianyu-{send_user_id}-{cid}-{int(__import__('time').time()*1000)}",
         }
+        # 保存完整的原始平台消息
+        if raw_message is not None:
+            payload["raw"] = raw_message
+        # 保存消息链
+        if message_chain is not None:
+            payload["message_chain"] = message_chain
         await self.bridge.send_inbound(payload)
         logger.info(f"[{self.instance_id}] Reported inbound message to backend")
 
@@ -176,6 +187,21 @@ class XianyuInstance:
             logger.warning(f"[{self.instance_id}] Unknown command: {command_type}")
 
 
+# ASCII art banner, same as the E-SP-Line2 backend startup banner.
+BANNER = r"""
+  ███████╗   ███████╗██████╗     ██╗     ██╗███╗   ██╗███████╗██████╗
+  ██╔════╝   ██╔════╝██╔══██╗    ██║     ██║████╗  ██║██╔════╝╚════██╗
+  █████╗     ███████╗██████╔╝    ██║     ██║██╔██╗ ██║█████╗    ▄███╔╝
+  ██╔══╝     ╚════██║██╔═══╝     ██║     ██║██║╚██╗██║██╔══╝  ▄▀══╝
+  ███████╗   ███████║██║         ███████╗██║██║ ╚████║███████╗███████╗
+  ╚══════╝   ╚══════╝╚═╝         ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+
+  Power By LangBot-community-team
+
+  --------------------------------------------------------------------
+"""
+
+
 async def main(argv: List[str]) -> int:
     args = parse_args(argv)
     instance_ids = [i.strip() for i in args.instance_id.split(",") if i.strip()]
@@ -183,6 +209,7 @@ async def main(argv: List[str]) -> int:
         logger.error("No instance IDs provided")
         return 1
 
+    print(BANNER, flush=True)
     logger.info(f"Starting XianYu adapter for instances: {instance_ids}")
     instances = [XianyuInstance(args.backend, i, args.token) for i in instance_ids]
 
@@ -193,12 +220,26 @@ async def main(argv: List[str]) -> int:
         await asyncio.gather(*tasks)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        for inst in instances:
+        await shutdown(instances)
+    except Exception as e:
+        logger.error(f"适配器异常退出: {e}")
+        await shutdown(instances)
+        return 1
+    return 0
+
+
+async def shutdown(instances) -> None:
+    for inst in instances:
+        try:
             if inst.live:
                 await inst.live.close()
+        except Exception:
+            pass
+        try:
             if inst.bridge:
                 await inst.bridge.close()
-    return 0
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

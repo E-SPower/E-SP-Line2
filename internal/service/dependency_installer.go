@@ -93,11 +93,52 @@ func (d *DependencyInstaller) saveState(instanceID string, s *installState) {
 	_ = os.WriteFile(d.dirs.StatePath(instanceID), data, 0o644)
 }
 
+// dependencyMarkerDir returns the directory holding per-platform "deps
+// installed" markers (data/deps). A marker means the platform's requirements
+// were already installed once system-wide, so new instances of the same
+// platform skip re-installation.
+func (d *DependencyInstaller) dependencyMarkerDir() string {
+	return filepath.Join(d.dirs.root, "..", "deps")
+}
+
+// markerPath returns the marker path for a platform code.
+func (d *DependencyInstaller) markerPath(platformCode string) string {
+	return filepath.Join(d.dependencyMarkerDir(), platformCode+".installed")
+}
+
+// depsInstalled reports whether the platform's dependencies were already
+// installed (marker file present).
+func (d *DependencyInstaller) depsInstalled(platformCode string) bool {
+	if platformCode == "" {
+		return false
+	}
+	_, err := os.Stat(d.markerPath(platformCode))
+	return err == nil
+}
+
+// markDepsInstalled writes the marker for a platform after a successful
+// install.
+func (d *DependencyInstaller) markDepsInstalled(platformCode string) {
+	if platformCode == "" {
+		return
+	}
+	dir := d.dependencyMarkerDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(d.markerPath(platformCode), []byte(time.Now().Format(time.RFC3339)), 0o644)
+}
+
 // InstallDependencies installs the requirements.txt of the instance's sandbox
 // adapter copy in the background. adapterDir is the sandboxed copy path
-// (data/instances/<id>/adapter). The instance status is updated to reflect
-// progress.
-func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir string, updateStatus func(string, string) error) {
+// (data/instances/<id>/adapter); platformCode identifies the adapter family so
+// that repeated installs are de-duplicated (the first instance of a platform
+// installs once; later instances of the same platform skip).
+//
+// If the shared marker exists but a dependency is actually missing at runtime,
+// the adapter start will fail with a clear traceback; deleting the marker (or
+// removing data/deps/<platform>.installed) forces re-installation.
+func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir, platformCode string, updateStatus func(string, string) error) {
 	d.mu.Lock()
 	if s, ok := d.states[instanceID]; ok && s.Status == "installing" && !s.done {
 		d.mu.Unlock()
@@ -128,6 +169,17 @@ func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir string,
 		return
 	}
 
+	// De-duplicate: if this platform already had its dependencies installed,
+	// skip the pip step for this instance.
+	if d.depsInstalled(platformCode) {
+		d.finish(instanceID, "done", 100, "依赖已安装（复用同一平台共享依赖）", "")
+		d.appendLog(instanceID, "该平台依赖已安装过，跳过重复安装")
+		if updateStatus != nil {
+			_ = updateStatus(instanceID, "stopped")
+		}
+		return
+	}
+
 	d.setProgress(instanceID, 5, "正在执行依赖安装 ...")
 
 	// Try a cascade of installers until one succeeds:
@@ -143,7 +195,9 @@ func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir string,
 			d.appendLog(instanceID, out)
 		}
 		if runErr == nil {
-			// Success.
+			// Success. Mark the platform as having dependencies installed so
+			// future instances of the same platform skip re-installation.
+			d.markDepsInstalled(platformCode)
 			d.finish(instanceID, "done", 100, "依赖安装完成", "")
 			d.appendLog(instanceID, "依赖安装完成（"+at.name+"）")
 			if updateStatus != nil {
@@ -156,7 +210,28 @@ func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir string,
 		d.appendLog(instanceID, fmt.Sprintf("%s 安装失败，尝试下一方式...", at.name))
 	}
 
-	// All attempts failed.
+	// All whole-file install attempts failed (e.g. one optional dependency is
+	// unavailable on this Python version, like execjs on 3.14). Fall back to
+	// installing each requirement individually, skipping packages that cannot
+	// be resolved, so the adapter can still start with the available deps
+	// (loguru, requests, websockets, ...).
+	d.appendLog(instanceID, "整体安装失败，尝试逐个安装依赖（跳过不可用的包）...")
+	installed, failedPkgs := d.installIndividually(adapterDir)
+	if installed > 0 {
+		d.markDepsInstalled(platformCode)
+		msg := fmt.Sprintf("依赖部分安装完成（%d 个包已装）", installed)
+		if len(failedPkgs) > 0 {
+			msg += "；跳过不可用: " + strings.Join(failedPkgs, ", ")
+		}
+		d.finish(instanceID, "done", 100, msg, "")
+		d.appendLog(instanceID, msg)
+		if updateStatus != nil {
+			_ = updateStatus(instanceID, "stopped")
+		}
+		return
+	}
+
+	// Everything failed.
 	d.finish(instanceID, "failed", 100, "依赖安装失败", lastErr.Error())
 	d.appendLog(instanceID, "依赖安装失败: "+lastErr.Error())
 	if lastOutput != "" {
@@ -165,6 +240,88 @@ func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir string,
 	if updateStatus != nil {
 		_ = updateStatus(instanceID, "error")
 	}
+}
+
+// installIndividually parses requirements.txt and attempts to install each
+// requirement on its own using the first working pip installer. Packages that
+// fail to resolve are skipped. Returns the number installed and the names of
+// the failed ones.
+func (d *DependencyInstaller) installIndividually(adapterDir string) (int, []string) {
+	reqPath := filepath.Join(adapterDir, "requirements.txt")
+	data, err := os.ReadFile(reqPath)
+	if err != nil {
+		return 0, nil
+	}
+	var pkgs []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Skip lines that are options or editable installs.
+		if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "http") {
+			continue
+		}
+		pkgs = append(pkgs, line)
+	}
+
+	// Pick the installer. Prefer `python -m pip` (the interpreter that the
+	// adapter runs under), so packages land in the system/user site-packages
+	// that `python` can actually import. Plain `pip3`/`pip` on PATH may be
+	// pipx shims that install into an isolated venv, so they are only used as
+	// a fallback when `python -m pip` itself is unavailable.
+	var base []string
+	bin := ""
+	if probe := exec.Command(d.python, "-m", "pip", "--version"); probe.Run() == nil {
+		bin = d.python
+		base = []string{"-m", "pip", "install"}
+	} else {
+		for _, name := range []string{"pip3", "pip"} {
+			if probe := exec.Command(name, "--version"); probe.Run() == nil {
+				bin = name
+				base = []string{"install"}
+				break
+			}
+		}
+	}
+	if bin == "" {
+		return 0, nil
+	}
+
+	installed := 0
+	var failed []string
+	for _, pkg := range pkgs {
+		cmd := exec.Command(bin, append(append([]string{}, base...), pkg)...)
+		cmd.Dir = adapterDir
+		cmd.Env = append(os.Environ(), "PIP_DISABLE_PIP_VERSION_CHECK=1")
+		out, cerr := cmd.CombinedOutput()
+		lower := strings.ToLower(string(out))
+		if cerr != nil && strings.Contains(lower, "externally-managed-environment") {
+			// PEP 668 retry for this package.
+			retryArgs := append([]string{}, base...)
+			retryArgs = append(retryArgs, "--break-system-packages", pkg)
+			retry := exec.Command(bin, retryArgs...)
+			retry.Dir = adapterDir
+			retry.Env = append(os.Environ(), "PIP_DISABLE_PIP_VERSION_CHECK=1")
+			out, cerr = retry.CombinedOutput()
+		}
+		if cerr == nil {
+			installed++
+			logger.Info("[init] individual dep installed", logger.String("pkg", pkg))
+		} else {
+			failed = append(failed, pkg)
+			// Log the tail of the real output to diagnose failures.
+			outStr := strings.TrimSpace(string(out))
+			if len(outStr) > 400 {
+				outStr = outStr[len(outStr)-400:]
+			}
+			logger.Warn("[init] individual dep skipped",
+				logger.String("pkg", pkg),
+				logger.String("error", cerr.Error()),
+				logger.String("output", outStr))
+		}
+	}
+	return installed, failed
 }
 
 // installAttempt describes one command shape used to install dependencies.
@@ -250,11 +407,28 @@ func (d *DependencyInstaller) runInstall(at installAttempt, adapterDir string) (
 	}
 	output, err := run(bin, at.args())
 
-	// PEP 668 retry for pip-style installers.
+	// PEP 668 retry for pip-style installers: insert --break-system-packages
+	// right after the "install" subcommand.
+	//   python -m pip install --break-system-packages -r requirements.txt
+	//   pip3 install --break-system-packages -r requirements.txt
 	if err != nil && at.isPip && !at.isPipx &&
 		strings.Contains(strings.ToLower(output), "externally-managed-environment") {
 		d.appendLogTo(adapterDir, "检测到 PEP 668 外部管理环境，使用 --break-system-packages 重试...")
-		retryArgs := append([]string{"--break-system-packages"}, at.args()[1:]...)
+		args := at.args()
+		// Find the "install" token and insert after it.
+		insertAt := -1
+		for i, a := range args {
+			if a == "install" {
+				insertAt = i + 1
+				break
+			}
+		}
+		retryArgs := args
+		if insertAt > 0 {
+			retryArgs = append([]string{}, args[:insertAt]...)
+			retryArgs = append(retryArgs, "--break-system-packages")
+			retryArgs = append(retryArgs, args[insertAt:]...)
+		}
 		output2, err2 := run(bin, retryArgs)
 		return output2, err2
 	}

@@ -102,6 +102,9 @@ func DeleteInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 //   - lines: number of trailing lines to return; "all" or missing negative
 //     returns the full log (default: all).
 //   - level: filter by level (debug/info/warning/error). Empty = all.
+//   - keyword: optional substring filter (case-insensitive); space-separated
+//     words are ANDed.
+//   - from / to: optional time-range filters (RFC3339 or "2006-01-02 15:04:05").
 func GetInstanceLogs(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -113,12 +116,42 @@ func GetInstanceLogs(instanceService *service.InstanceService) gin.HandlerFunc {
 			}
 		}
 		level := c.Query("level")
-		logs, err := instanceService.ReadLog(id, maxLines, level)
+		keyword := c.Query("keyword")
+		from := c.Query("from")
+		to := c.Query("to")
+		logs, err := instanceService.ReadLog(id, maxLines, level, keyword, from, to)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": logs})
+	}
+}
+
+// GetInstanceLogHeatmap returns per-hour log level counts for an instance.
+func GetInstanceLogHeatmap(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		level := c.Query("level")
+		heatmap, err := instanceService.LogHeatmap(id, level)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": heatmap})
+	}
+}
+
+// ClearInstanceLogs truncates the instance's log file.
+func ClearInstanceLogs(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		removed, err := instanceService.ClearLog(id)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "logs cleared", "removed_bytes": removed})
 	}
 }
 

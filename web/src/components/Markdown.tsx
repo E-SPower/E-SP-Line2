@@ -36,7 +36,7 @@ function slugify(text: string): string {
 }
 
 /** Parse inline markdown (code, bold, italic, links) into React nodes. */
-function parseInline(text: string): ReactNode[] {
+function parseInline(text: string, onLinkClick?: (href: string, e?: React.MouseEvent) => void): ReactNode[] {
   const nodes: ReactNode[] = []
   let remaining = text
   let key = 0
@@ -61,7 +61,7 @@ function parseInline(text: string): ReactNode[] {
       nodes.push(
         <code
           key={key++}
-          className="px-1.5 py-0.5 rounded bg-gray-100 text-pink-600 text-sm font-mono"
+          className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-pink-600 dark:text-pink-400 text-sm font-mono"
         >
           {escapeHtml(code.slice(1, -1))}
         </code>
@@ -88,15 +88,32 @@ function parseInline(text: string): ReactNode[] {
       if (sep > -1) {
         const label = inner.slice(0, sep)
         const href = inner.slice(sep + 2)
+        // Anchor links (#xxx) should scroll to the heading; internal links are
+        // handled by the onLinkClick callback (e.g. routing). External http(s)
+        // links open in a new tab.
+        const isAnchor = href.startsWith('#')
+        const isExternal = /^https?:\/\//i.test(href)
         nodes.push(
           <a
             key={key++}
             href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 hover:underline"
+            target={isExternal && !onLinkClick ? '_blank' : undefined}
+            rel={isExternal ? 'noopener noreferrer' : undefined}
+            onClick={(e) => {
+              if (isAnchor) {
+                e.preventDefault()
+                const el = document.getElementById(href.slice(1))
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                return
+              }
+              if (onLinkClick && !isExternal) {
+                e.preventDefault()
+                onLinkClick(href, e)
+              }
+            }}
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
           >
-            {parseInline(label)}
+            {parseInline(label, onLinkClick)}
           </a>
         )
       }
@@ -155,7 +172,7 @@ function tokenize(source: string): Array<{ type: 'code' | 'text'; lang?: string;
 }
 
 /** Render the text portion of a document (headings, lists, tables, etc.). */
-function renderTextBlock(text: string): ReactNode[] {
+function renderTextBlock(text: string, onLinkClick?: (href: string, e?: React.MouseEvent) => void): ReactNode[] {
   const blocks: ReactNode[] = []
   const lines = text.split('\n')
   let i = 0
@@ -182,13 +199,13 @@ function renderTextBlock(text: string): ReactNode[] {
           id={slugify(content)}
           className={
             level === 1
-              ? 'text-2xl font-bold text-gray-900 mt-8 mb-3 pb-2 border-b border-gray-200'
+              ? 'text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700'
               : level === 2
-                ? 'text-xl font-semibold text-gray-900 mt-6 mb-2'
-                : 'text-lg font-semibold text-gray-800 mt-5 mb-2'
+                ? 'text-xl font-semibold text-gray-900 dark:text-gray-100 mt-6 mb-2'
+                : 'text-lg font-semibold text-gray-800 dark:text-gray-200 mt-5 mb-2'
           }
         >
-          {parseInline(content)}
+          {parseInline(content, onLinkClick)}
         </Tag>
       )
       i++
@@ -197,7 +214,7 @@ function renderTextBlock(text: string): ReactNode[] {
 
     // Thematic break
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-      blocks.push(<hr key={key++} className="my-6 border-gray-200" />)
+      blocks.push(<hr key={key++} className="my-6 border-gray-200 dark:border-gray-700" />)
       i++
       continue
     }
@@ -212,9 +229,9 @@ function renderTextBlock(text: string): ReactNode[] {
       blocks.push(
         <blockquote
           key={key++}
-          className="border-l-4 border-blue-200 pl-4 py-1 my-3 text-gray-600 italic"
+          className="border-l-4 border-blue-200 dark:border-blue-800 pl-4 py-1 my-3 text-gray-600 dark:text-gray-300 italic"
         >
-          {renderTextBlock(quoteLines.join('\n'))}
+          {renderTextBlock(quoteLines.join('\n'), onLinkClick)}
         </blockquote>
       )
       continue
@@ -241,23 +258,23 @@ function renderTextBlock(text: string): ReactNode[] {
         <div key={key++} className="overflow-x-auto my-4">
           <table className="min-w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-gray-50">
+              <tr className="bg-gray-50 dark:bg-gray-700">
                 {headerCells.map((cell, idx) => (
                   <th
                     key={idx}
-                    className="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-700"
+                    className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200"
                   >
-                    {parseInline(cell)}
+                    {parseInline(cell, onLinkClick)}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((row, rowIdx) => (
-                <tr key={rowIdx} className={rowIdx % 2 ? 'bg-gray-50/50' : ''}>
+                <tr key={rowIdx} className={rowIdx % 2 ? 'bg-gray-50/50 dark:bg-gray-700/30' : ''}>
                   {headerCells.map((_, colIdx) => (
-                    <td key={colIdx} className="border border-gray-200 px-3 py-2 text-gray-600">
-                      {parseInline(row[colIdx] ?? '')}
+                    <td key={colIdx} className="border border-gray-200 dark:border-gray-600 px-3 py-2 text-gray-600 dark:text-gray-300">
+                      {parseInline(row[colIdx] ?? '', onLinkClick)}
                     </td>
                   ))}
                 </tr>
@@ -298,13 +315,13 @@ function renderTextBlock(text: string): ReactNode[] {
           className="py-0.5"
           style={{ marginLeft: `${item.depth * 1.5}rem` }}
         >
-          {parseInline(item.content)}
+          {parseInline(item.content, onLinkClick)}
         </li>
       ))
       blocks.push(
         <ListTag
           key={key++}
-          className={ordered ? 'list-decimal pl-6 my-3 text-gray-700' : 'list-disc pl-6 my-3 text-gray-700'}
+          className={ordered ? 'list-decimal pl-6 my-3 text-gray-700 dark:text-gray-300' : 'list-disc pl-6 my-3 text-gray-700 dark:text-gray-300'}
         >
           {listItems}
         </ListTag>
@@ -326,8 +343,8 @@ function renderTextBlock(text: string): ReactNode[] {
       i++
     }
     blocks.push(
-      <p key={key++} className="my-3 text-gray-700 leading-relaxed">
-        {parseInline(paraLines.join(' '))}
+      <p key={key++} className="my-3 text-gray-700 dark:text-gray-300 leading-relaxed">
+        {parseInline(paraLines.join(' '), onLinkClick)}
       </p>
     )
   }
@@ -335,7 +352,13 @@ function renderTextBlock(text: string): ReactNode[] {
   return blocks
 }
 
-export default function Markdown({ source }: { source: string }) {
+export default function Markdown({
+  source,
+  onLinkClick,
+}: {
+  source: string
+  onLinkClick?: (href: string, e?: React.MouseEvent) => void
+}) {
   const tokens = tokenize(source)
   let key = 0
 
@@ -350,7 +373,7 @@ export default function Markdown({ source }: { source: string }) {
             <code className="font-mono">{escapeHtml(token.content)}</code>
           </pre>
         ) : (
-          <Fragment key={key++}>{renderTextBlock(token.content)}</Fragment>
+          <Fragment key={key++}>{renderTextBlock(token.content, onLinkClick)}</Fragment>
         )
       )}
     </div>

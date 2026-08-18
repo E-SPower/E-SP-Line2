@@ -37,6 +37,7 @@ XXX_description.sql
 | 版本 | 文件 | 描述 |
 |------|------|------|
 | 001 | 001_initial_schema.sql | 初始数据库架构 |
+| 002 | 002_adapter_gateway.sql | 接入器（Adapter Gateway）实体与连接记录 |
 
 ## 编写迁移脚本
 

@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import Select from './Select'
 
 export interface ConditionRow {
   field: string
@@ -118,47 +119,30 @@ export default function RouteConditionBuilder({
       {value.map((row, index) => (
         <div key={index}>
           <div className="flex items-center space-x-2">
-            <select
+            <Select
               value={row.field}
-              onChange={(e) => updateRow(index, { field: e.target.value })}
-              className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              {fieldOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => updateRow(index, { field: v })}
+              options={fieldOptions}
+              className="w-40"
+            />
 
-            <span className="text-sm text-gray-500">{t('routes.equals')}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{t('routes.equals')}</span>
 
             {row.field === 'event_type' ? (
-              <select
+              <Select
                 value={row.value}
-                onChange={(e) => updateRow(index, { value: e.target.value })}
-                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 flex-1"
-              >
-                {EVENT_TYPES.map((et) => (
-                  <option key={et} value={et}>
-                    {eventTypeLabel(et)}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => updateRow(index, { value: v })}
+                options={EVENT_TYPES.map((et) => ({ value: et, label: eventTypeLabel(et) }))}
+                className="flex-1"
+              />
             ) : (
-              <select
+              <Select
                 value={row.value}
-                onChange={(e) => updateRow(index, { value: e.target.value })}
-                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 flex-1"
-              >
-                <option value="" disabled>
-                  {t('routes.selectAdapter')}
-                </option>
-                {adapterOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => updateRow(index, { value: v })}
+                options={adapterOptions}
+                placeholder={t('routes.selectAdapter')}
+                className="flex-1"
+              />
             )}
 
             <button

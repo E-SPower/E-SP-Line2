@@ -2,7 +2,16 @@
 
 ## 概述
 
-E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、适配器、消息和路由。
+E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入器、实例、消息和路由。
+
+> **协议说明**：本文档的 REST API 是**管理接口**（平台/接入器/实例/消息/路由的增删改查）。
+> 消息通信协议请参见：
+> - [协议体系总览](./protocol-overview.md)
+> - [ESPL v3 协议](./protocol-v3.md)（接入器 WebSocket 协议）
+> - [桥（Bridge）协议](./bridge-protocol.md)（桥进程 WebSocket 协议）
+>
+> ⛔ **已弃用**：老版接入器通过 HTTP 与核心通信的 v1/v2 协议已弃用，
+> 接入器已迁移到 WebSocket ESPL v3 协议，桥进程已迁移到 WebSocket Bridge 协议。
 
 ## 基础信息
 
@@ -707,49 +716,23 @@ Authorization: Bearer <token>
 
 ## WebSocket 接口
 
-### 适配器 WebSocket
+> WebSocket 是 E-SP-Line2 的**消息通信通道**，分为两套协议：
+> - **ESPL v3**：接入器（Adapter）与外部系统通信（详见 [ESPL v3 协议](./protocol-v3.md)）
+> - **Bridge 协议**：桥（Bridge）进程与核心通信（详见 [桥（Bridge）协议](./bridge-protocol.md)）
+
+### 桥 WebSocket（Bridge 协议）
 
 **URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>`
 
-**消息格式**:
-```json
-{
-  "type": "message.received",
-  "event_id": "evt-001",
-  "timestamp": 1704067200000,
-  "platform": "taobao",
-  "adapter_id": "adapter-001",
-  "payload": {
-    "conversation_id": "conv-001",
-    "sender_id": "user-123",
-    "sender_name": "买家A",
-    "message_type": "text",
-    "message_content": "你好"
-  }
-}
-```
+桥进程通过此端点与核心通信，上报入站消息、接收出站指令。消息格式见
+[桥（Bridge）协议](./bridge-protocol.md)。
 
-### 应用 WebSocket
+### 接入器 WebSocket（ESPL v3 协议）
 
-**URL**: `ws://localhost:8080/ws/app?app_id=<app_id>`
+**URL**: `ws://localhost:8080/ws?key=<KEY>`（或 `/ws/adapter-gateway?key=<KEY>`）
 
-**消息格式**:
-```json
-{
-  "type": "message.received",
-  "event_id": "evt-001",
-  "timestamp": 1704067200000,
-  "platform": "taobao",
-  "adapter_id": "adapter-001",
-  "payload": {
-    "conversation_id": "conv-001",
-    "sender_id": "user-123",
-    "sender_name": "买家A",
-    "message_type": "text",
-    "message_content": "你好"
-  }
-}
-```
+外部系统通过此端点接入核心，消费电商消息并回复。消息格式见
+[ESPL v3 协议](./protocol-v3.md) 与 [WebSocket 接入器](../user-guide/adapter-gateway.md)。
 
 ## 错误码
 

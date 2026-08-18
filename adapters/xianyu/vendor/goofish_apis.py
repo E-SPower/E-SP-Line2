@@ -329,7 +329,13 @@ class XianyuApis:
         data = {
             'data': data_val,
         }
-        token = self.session.cookies['_m_h5_tk'].split('_')[0]
+        try:
+            token = self.session.cookies['_m_h5_tk'].split('_')[0]
+        except KeyError:
+            raise RuntimeError(
+                "闲鱼 Cookie 无效或已过期：会话中缺少 _m_h5_tk 令牌。"
+                "请在 WebUI 实例管理中重新填写有效的闲鱼 Cookie 后重启实例。"
+            )
         sign = generate_sign(params['t'], token, data_val)
         params['sign'] = sign
         response = self.session.post(self.login_url, params=params, headers=headers, data=data)
@@ -382,7 +388,13 @@ class XianyuApis:
         data = {
             'data': data_val,
         }
-        token = self.session.cookies['_m_h5_tk'].split('_')[0]
+        try:
+            token = self.session.cookies['_m_h5_tk'].split('_')[0]
+        except KeyError:
+            raise RuntimeError(
+                "闲鱼 Cookie 无效或已过期：会话中缺少 _m_h5_tk 令牌。"
+                "请在 WebUI 实例管理中重新填写有效的闲鱼 Cookie 后重启实例。"
+            )
         sign = generate_sign(params['t'], token, data_val)
         params['sign'] = sign
         response = self.session.post(self.refresh_token_url, headers=headers, params=params, data=data)

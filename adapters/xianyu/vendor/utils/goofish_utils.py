@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import subprocess
 from functools import partial
 
@@ -8,10 +9,12 @@ import blackboxprotobuf
 subprocess.Popen = partial(subprocess.Popen, encoding="utf-8")
 import execjs
 
+# 用基于模块文件的绝对路径定位 static JS，避免依赖进程 CWD
+_XIANYU_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "goofish_js_version_2.js")
 try:
-    xianyu_js = execjs.compile(open(r'../static/goofish_js_version_2.js', 'r', encoding='utf-8').read())
+    xianyu_js = execjs.compile(open(_XIANYU_JS, 'r', encoding='utf-8').read())
 except:
-    xianyu_js = execjs.compile(open(r'static/goofish_js_version_2.js', 'r', encoding='utf-8').read())
+    xianyu_js = execjs.compile(open(os.path.basename(_XIANYU_JS), 'r', encoding='utf-8').read())
 
 def trans_cookies(cookies_str):
     cookies = dict()

@@ -14,6 +14,12 @@ i18n
       'en-US': { translation: enUS }
     },
     fallbackLng: 'zh-CN',
+    detection: {
+      // Persist the chosen language so it survives page reloads.
+      order: ['localStorage', 'navigator'],
+      caches: ['localStorage'],
+      lookupLocalStorage: 'esp-lang',
+    },
     interpolation: {
       escapeValue: false
     }

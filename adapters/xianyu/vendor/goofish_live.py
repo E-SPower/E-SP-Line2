@@ -13,6 +13,17 @@ from utils.goofish_utils import generate_mid, generate_uuid, trans_cookies, gene
 from message import Message, make_text, make_image
 
 
+# websockets 14+ 将 extra_headers 改名为 additional_headers；这里做兼容封装。
+# 返回可异步上下文管理的连接对象（websockets.connect 本身就是 async CM）。
+def _ws_connect(uri, headers):
+    try:
+        # 新版 websockets (>=14)
+        return websockets.connect(uri, additional_headers=headers)
+    except TypeError:
+        # 旧版 websockets (<14) 使用 extra_headers
+        return websockets.connect(uri, extra_headers=headers)
+
+
 class XianyuLive:
     def __init__(self, cookies_str, message_callback=None, device_id_override=None):
         self.base_url = 'wss://wss-goofish.dingtalk.com/'
@@ -54,7 +65,7 @@ class XianyuLive:
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9",
         }
-        async with websockets.connect(self.base_url, extra_headers=headers) as websocket:
+        async with _ws_connect(self.base_url, headers) as websocket:
             asyncio.create_task(self.init(websocket))
             send_mid = generate_mid()
             msg = {
@@ -217,11 +228,16 @@ class XianyuLive:
         await ws.send(json.dumps(msg))
 
     async def init(self, ws):
-        data = self.xianyu.get_token()
+        try:
+            data = self.xianyu.get_token()
+        except Exception as e:
+            logger.error(f"闲鱼登录失败: {e}")
+            logger.error("实例无法启动，请检查 Cookie 是否有效。")
+            raise RuntimeError(f"闲鱼登录失败: {e}")
         token = data['data']['accessToken'] if 'data' in data and 'accessToken' in data['data'] else ''
         if not token:
-            logger.error('获取token失败')
-            exit(0)
+            logger.error('获取token失败：Cookie 无效或已过期，请重新填写闲鱼 Cookie')
+            raise RuntimeError("获取token失败：Cookie 无效或已过期")
         msg = {
             "lwp": "/reg",
             "headers": {
@@ -270,8 +286,12 @@ class XianyuLive:
 
     def user_alive(self):
         while True:
-            time.sleep(600)
-            self.xianyu.refresh_token()
+            try:
+                time.sleep(600)
+                self.xianyu.refresh_token()
+            except Exception as e:
+                logger.error(f"保活线程异常: {e}")
+                time.sleep(60)
 
     async def main(self):
         headers = {
@@ -286,7 +306,7 @@ class XianyuLive:
             "Accept-Language": "zh-CN,zh;q=0.9",
         }
         threading.Thread(target=self.user_alive).start()
-        async with websockets.connect(self.base_url, extra_headers=headers) as websocket:
+        async with _ws_connect(self.base_url, headers) as websocket:
             asyncio.create_task(self.init(websocket))
             asyncio.create_task(self.heart_beat(websocket))
             async for message in websocket:
@@ -316,21 +336,24 @@ class XianyuLive:
             # logger.info(f"无需解密 message: {data}")
         except Exception as e:
             try:
-                data = decrypt(data)
-                message = json.loads(data)
-                # logger.info(f"解密的 message: {message}")
+                raw_decrypted = decrypt(data)
+                raw_message = json.loads(raw_decrypted)
+                # logger.info(f"解密的 message: {raw_message}")
 
-                send_user_name = message["1"]["10"]["reminderTitle"]
-                send_user_id = message["1"]["10"]["senderUserId"]
-                send_message = message["1"]["10"]["reminderContent"]
+                send_user_name = raw_message["1"]["10"]["reminderTitle"]
+                send_user_id = raw_message["1"]["10"]["senderUserId"]
+                send_message = raw_message["1"]["10"]["reminderContent"]
                 logger.info(
                     f"[闲鱼] 收到新消息: 发送者={send_user_name}({send_user_id}) "
                     f"内容={send_message}"
                 )
 
-                cid = message["1"]["2"]
+                cid = raw_message["1"]["2"]
                 cid = cid.split('@')[0]
                 logger.info(f"[闲鱼] 会话 cid={cid} 发送者={send_user_id}")
+
+                # 构建包含完整原始消息的消息链
+                message_chain = [{"type": "text", "text": send_message}]
 
                 # 触发外部回调（ESPL 桥接上报 / 业务处理）
                 if self.message_callback:
@@ -338,6 +361,8 @@ class XianyuLive:
                         await self.message_callback(
                             websocket, cid, send_user_id,
                             send_user_name, send_message,
+                            raw_message=raw_message,
+                            message_chain=message_chain,
                         )
                     except Exception as cb_e:
                         logger.error(f"message_callback error: {cb_e}")
@@ -351,6 +376,8 @@ class XianyuLive:
                         "sender_name": send_user_name,
                         "message_type": "text",
                         "message_content": send_message,
+                        "raw": raw_message,  # 保存完整的原始平台消息
+                        "message_chain": message_chain,  # 保存消息链
                         "idempotency_key": f"xianyu-{send_user_id}-{cid}-{int(time.time()*1000)}",
                     }
                     try:
@@ -371,6 +398,7 @@ class XianyuLive:
             except Exception as e:
                 pass
 
+if __name__ == '__main__':
     # 1 获取全部聊天记录
     # cid = '47812870000'
     # all_messages = asyncio.run(xianyuLive.list_all_conversations(cid))
@@ -378,4 +406,5 @@ class XianyuLive:
     #     print(message)
 
     # 2 常驻进程 用于接收消息和自动回复
+    xianyuLive = XianyuLive(cookies_str='')
     asyncio.run(xianyuLive.main())

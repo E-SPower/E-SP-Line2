@@ -11,6 +11,7 @@ import (
 // Services holds all service instances
 type Services struct {
 	Auth     *AuthService
+	User     *UserService
 	Platform *PlatformService
 	Adapter  *AdapterService
 	Instance *InstanceService
@@ -21,7 +22,11 @@ type Services struct {
 	Runner   *PythonRunner
 	Catalog  *AdapterCatalog
 
-	repos *repository.Repositories
+	// Adapter gateway (接入器) service
+	AdapterGateway *AdapterGatewayService
+
+	Repo  *repository.Repositories // exposed for stats / diagnostics
+	repos *repository.Repositories // alias for internal use
 }
 
 // NewServices creates all service instances
@@ -33,17 +38,26 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	}
 
 	services := &Services{
+		Repo:  repos,
 		repos: repos,
 	}
 
 	// Initialize services
-	services.Auth = NewAuthService(cfg, repos.User)
+	services.Auth = NewAuthService(cfg, repos.User, repos.SystemSetting)
+	services.User = NewUserService(repos.User, repos.SystemSetting)
 	services.Platform = NewPlatformService(repos.Platform)
 	services.Adapter = NewAdapterService(repos.Adapter, repos.AdapterPackage, repos.AdapterSession)
 	services.Instance = NewInstanceService(repos.Instance, repos.AdapterSession)
 	services.Message = NewMessageService(repos.InboundEvent, repos.Instance)
 	services.Command = NewCommandService(repos.OutboundCommand)
 	services.Route = NewRouteService(repos.RouteRule)
+
+	// Initialize the adapter gateway (接入器) service.
+	services.AdapterGateway = NewAdapterGatewayService(
+		repos.AdapterGateway,
+		repos.AdapterConnection,
+		services.Message,
+	)
 
 	// Initialize form options from the YAML registry file
 	optionsPath := cfg.FormOptionsPath()
@@ -97,9 +111,11 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	services.Adapter.SetRunner(services.Runner)
 	services.Adapter.SetInstanceRepository(repos.Instance)
 
-	// Reconcile instances left in "initializing" state (e.g. server restarted
-	// mid-install): re-run dependency installation for them.
-	services.reconcileInitializing()
+	// Reconcile instances asynchronously so server startup is not blocked:
+	//   - rebuild missing sandbox copies for pre-existing instances
+	//   - re-run dependency installation for instances left in "initializing"
+	//     state or that never had their dependencies installed.
+	go services.reconcileInitializing()
 
 	logger.Info("Services initialized")
 	return services, nil
@@ -150,12 +166,15 @@ func (s *Services) reconcileInitializing() {
 		// Trigger dependency installation when:
 		//   - the instance is still "initializing" (restart mid-install), or
 		//   - the sandbox was freshly created for a pre-existing instance
-		//     (it has never had its dependencies installed before).
+		//     (it has never had its dependencies installed before), or
+		//   - the previous install attempt failed (state exists with status
+		//     "failed") — retry so a transient failure recovers on restart.
 		if s.Instance.installer != nil && s.Instance.dirs != nil {
 			adapterDir := s.Instance.dirs.AdapterDir(inst.ID)
-			_, stateExists := s.Instance.installer.GetState(inst.ID)
-			if inst.Status == "initializing" || created || !stateExists {
-				s.Instance.installer.InstallDependencies(inst.ID, adapterDir, s.Instance.updateInstanceStatus)
+			state, stateExists := s.Instance.installer.GetState(inst.ID)
+			installFailed := stateExists && state.Status == "failed"
+			if inst.Status == "initializing" || created || !stateExists || installFailed {
+				s.Instance.installer.InstallDependencies(inst.ID, adapterDir, platformCode, s.Instance.updateInstanceStatus)
 				count++
 			}
 		}

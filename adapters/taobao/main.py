@@ -132,8 +132,13 @@ class TaobaoInstance:
             self.live.main(),
         )
 
-    async def _handle_taobao_message(self, websocket, cid, send_user_id, send_user_name, send_message):
-        """淘宝收到消息 -> 通过桥接上报后端。"""
+    async def _handle_taobao_message(self, websocket, cid, send_user_id, send_user_name, send_message,
+                                     raw_message=None, message_chain=None):
+        """淘宝收到消息 -> 通过桥接上报后端。
+
+        现在上报包含完整的原始消息(raw)和消息链(message_chain)，
+        确保后端保存时不会丢失任何信息。
+        """
         if not self.bridge:
             return
         payload = {
@@ -145,6 +150,10 @@ class TaobaoInstance:
             "message_content": send_message,
             "idempotency_key": f"taobao-{send_user_id}-{cid}-{int(time.time()*1000)}",
         }
+        if raw_message is not None:
+            payload["raw"] = raw_message
+        if message_chain is not None:
+            payload["message_chain"] = message_chain
         await self.bridge.send_inbound(payload)
         logger.info(f"[{self.instance_id}] Reported inbound message to backend")
 

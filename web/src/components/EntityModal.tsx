@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import Select from './Select'
 
 export interface FieldConfig {
   key: string
@@ -26,6 +28,13 @@ interface EntityModalProps {
   onValuesChange?: (values: Record<string, any>) => void
 }
 
+// Shared control styling: neutral background, blue border on focus only.
+const CONTROL_CLS =
+  'w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 ' +
+  'rounded-lg text-gray-900 dark:text-gray-100 ' +
+  'focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ' +
+  'placeholder-gray-400 dark:placeholder-gray-500'
+
 // Reusable create/edit modal that renders a form from a field config.
 export default function EntityModal({
   title,
@@ -38,6 +47,7 @@ export default function EntityModal({
   onSubmit,
   onValuesChange,
 }: EntityModalProps) {
+  const { t } = useTranslation()
   const [values, setValues] = useState<Record<string, any>>(
     () => (initialValues ? { ...initialValues } : {})
   )
@@ -100,7 +110,7 @@ export default function EntityModal({
         type="button"
         onClick={() => setField(field.key, !checked)}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          checked ? 'bg-green-500' : 'bg-gray-300'
+          checked ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
         }`}
         role="switch"
         aria-checked={checked}
@@ -121,13 +131,13 @@ export default function EntityModal({
           className="fixed inset-0 bg-black bg-opacity-50"
           onClick={onClose}
         />
-        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
             >
               ✕
             </button>
@@ -136,7 +146,7 @@ export default function EntityModal({
           <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
             {fields.map((field) => (
               <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {field.label}
                   {field.required && <span className="text-red-500"> *</span>}
                 </label>
@@ -145,26 +155,17 @@ export default function EntityModal({
                 ) : field.type === 'switch' ? (
                   <div className="flex items-center space-x-3">
                     {renderSwitch(field)}
-                    <span className="text-sm text-gray-700">
-                      {values[field.key] ? '是' : '否'}
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {values[field.key] ? t('common.yes') : t('common.no')}
                     </span>
                   </div>
                 ) : field.type === 'select' ? (
-                  <select
+                  <Select
                     value={values[field.key] ?? ''}
-                    onChange={(e) => setField(field.key, e.target.value)}
-                    required={field.required}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="" disabled>
-                      {field.placeholder || '--'}
-                    </option>
-                    {field.options?.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setField(field.key, v)}
+                    options={field.options || []}
+                    placeholder={field.placeholder}
+                  />
                 ) : (
                   <input
                     type={
@@ -185,18 +186,18 @@ export default function EntityModal({
                     }
                     placeholder={field.placeholder}
                     required={field.required}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={CONTROL_CLS}
                   />
                 )}
                 {field.helpText && (
-                  <p className="mt-1 text-xs text-gray-500">{field.helpText}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{field.helpText}</p>
                 )}
               </div>
             ))}
 
             {error && (
-              <div className="rounded-md bg-red-50 p-3">
-                <p className="text-sm text-red-800">{error}</p>
+              <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-3">
+                <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
               </div>
             )}
 
@@ -204,16 +205,16 @@ export default function EntityModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
-                {submitting ? 'Saving...' : 'Save'}
+                {submitting ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </form>

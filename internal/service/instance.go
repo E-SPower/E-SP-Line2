@@ -64,12 +64,30 @@ func (s *InstanceService) Stop(id string) error {
 }
 
 // ReadLog returns the instance's adapter process log, optionally filtered by
-// level (debug/info/warning/error). maxLines <= 0 returns the full log.
-func (s *InstanceService) ReadLog(id string, maxLines int, level string) (string, error) {
+// level (debug/info/warning/error), keyword (case-insensitive substring,
+// space-separated words are ANDed) and time range (from/to). maxLines <= 0
+// returns the full log.
+func (s *InstanceService) ReadLog(id string, maxLines int, level, keyword, from, to string) (string, error) {
 	if s.runner == nil {
 		return "", errors.New("python runner is not initialized")
 	}
-	return s.runner.ReadLog(id, maxLines, level)
+	return s.runner.ReadLog(id, maxLines, level, keyword, from, to)
+}
+
+// LogHeatmap returns per-hour log level counts for an instance.
+func (s *InstanceService) LogHeatmap(id, level string) ([]LogHeatmapEntry, error) {
+	if s.runner == nil {
+		return nil, errors.New("python runner is not initialized")
+	}
+	return s.runner.LogHeatmap(id, level)
+}
+
+// ClearLog truncates the instance's log file.
+func (s *InstanceService) ClearLog(id string) (int64, error) {
+	if s.runner == nil {
+		return 0, errors.New("python runner is not initialized")
+	}
+	return s.runner.ClearLog(id)
 }
 
 // CreateInstanceRequest represents a create instance request
@@ -138,7 +156,7 @@ func (s *InstanceService) Create(req *CreateInstanceRequest) (*models.AdapterIns
 	// sandbox copy. The WebUI polls the init status while it is
 	// "initializing".
 	if s.installer != nil {
-		s.installer.InstallDependencies(instance.ID, adapterDir, s.updateInstanceStatus)
+		s.installer.InstallDependencies(instance.ID, adapterDir, platformCode, s.updateInstanceStatus)
 	} else {
 		// No installer attached (e.g. tests): move straight to "stopped".
 		instance.Status = "stopped"

@@ -15,6 +15,21 @@ import (
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
 
+// banner is the ASCII art shown at startup (also echoed by each adapter
+// instance when it starts, so the WebUI instance log shows the same art).
+const banner = `
+  ███████╗   ███████╗██████╗     ██╗     ██╗███╗   ██╗███████╗██████╗
+  ██╔════╝   ██╔════╝██╔══██╗    ██║     ██║████╗  ██║██╔════╝╚════██╗
+  █████╗     ███████╗██████╔╝    ██║     ██║██╔██╗ ██║█████╗    ▄███╔╝
+  ██╔══╝     ╚════██║██╔═══╝     ██║     ██║██║╚██╗██║██╔══╝  ▄▀══╝
+  ███████╗   ███████║██║         ███████╗██║██║ ╚████║███████╗███████╗
+  ╚══════╝   ╚══════╝╚═╝         ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+
+  Power By LangBot-community-team
+
+  --------------------------------------------------------------------
+`
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -26,6 +41,7 @@ func main() {
 	logger.Init(cfg.LogLevel)
 	defer logger.Sync()
 
+	fmt.Print(banner)
 	logger.Info("Starting E-SP-Line2 server...")
 	logger.Infof("Server version: %s", cfg.Version)
 

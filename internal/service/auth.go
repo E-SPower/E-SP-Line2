@@ -13,15 +13,17 @@ import (
 
 // AuthService handles authentication operations
 type AuthService struct {
-	cfg  *config.Config
-	repo *repository.UserRepository
+	cfg      *config.Config
+	repo     *repository.UserRepository
+	settings *repository.SystemSettingRepository
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(cfg *config.Config, repo *repository.UserRepository) *AuthService {
+func NewAuthService(cfg *config.Config, repo *repository.UserRepository, settings *repository.SystemSettingRepository) *AuthService {
 	return &AuthService{
-		cfg:  cfg,
-		repo: repo,
+		cfg:      cfg,
+		repo:     repo,
+		settings: settings,
 	}
 }
 
@@ -55,6 +57,13 @@ type Claims struct {
 
 // Register registers a new user
 func (s *AuthService) Register(req *RegisterRequest) (*AuthResponse, error) {
+	// Respect the registration toggle (default: enabled).
+	if s.settings != nil {
+		if v, err := s.settings.Get(RegistrationEnabledKey); err == nil && v == "false" {
+			return nil, errors.New("registration is disabled")
+		}
+	}
+
 	// Check if username already exists
 	existing, _ := s.repo.FindByUsername(req.Username)
 	if existing != nil {

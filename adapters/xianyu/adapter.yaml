@@ -27,7 +27,7 @@ description: 支持闲鱼平台消息收发，多开多账号
 hidden: false
 
 # 图标（可选，前端展示）
-icon: "🐟"
+icon: ""
 
 # 实例配置字段定义（创建实例时在 WebUI 渲染的表单）
 config_schema:

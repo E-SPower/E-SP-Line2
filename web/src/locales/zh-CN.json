@@ -6,8 +6,9 @@
   "nav": {
     "dashboard": "仪表盘",
     "platforms": "平台管理",
-    "adapters": "接入器管理",
+    "adapters": "bridge 接入器",
     "instances": "实例管理",
+    "adapterGateway": "WebSocket 接入器",
     "messages": "消息管理",
     "routes": "路由规则",
     "docs": "文档中心",
@@ -33,7 +34,13 @@
     "createdAt": "创建时间",
     "updatedAt": "更新时间",
     "refresh": "刷新",
-    "seconds": "秒"
+    "seconds": "秒",
+    "yes": "是",
+    "no": "否",
+    "close": "关闭"
+  },
+  "version": {
+    "mismatch": "前后端版本不一致，部分功能可能受限。请更新后端或前端后重试。"
   },
   "dashboard": {
     "title": "仪表盘",
@@ -71,7 +78,7 @@
     "noPlatforms": "暂无平台，请先创建"
   },
   "adapters": {
-    "title": "接入器管理",
+    "title": "bridge 接入器",
     "create": "创建接入器",
     "edit": "编辑接入器",
     "platform": "消息平台",
@@ -102,7 +109,9 @@
     "noInstances": "暂无实例，请先创建",
     "initializing": "初始化中",
     "initializingHint": "正在自动安装依赖，完成后即可启动运行",
-    "statusError": "异常"
+    "statusError": "异常",
+    "platform": "平台",
+    "subtitle": "管理各平台的接入实例"
   },
   "messages": {
     "title": "消息管理",
@@ -111,7 +120,56 @@
     "sender": "发送者",
     "content": "内容",
     "timestamp": "时间戳",
-    "ack": "确认"
+    "ack": "确认",
+    "statusAcked": "已确认",
+    "statusDelivered": "已送达",
+    "statusPending": "待处理",
+    "noMessages": "暂无消息记录"
+  },
+  "adapterGateway": {
+    "title": "WebSocket 接入器",
+    "subtitle": "创建可配置的 WebSocket 接入器，支持服务端/客户端两种模式，通过访问密钥 (key) 鉴权",
+    "create": "新建接入器",
+    "createServer": "新建服务端",
+    "createClient": "新建客户端",
+    "edit": "编辑接入器",
+    "name": "名称",
+    "namePlaceholder": "例如：客服接入器-1",
+    "mode": "模式",
+    "modeServer": "服务端（监听）",
+    "modeClient": "客户端（主动连接）",
+    "modeHelp": "服务端模式：本系统监听 WebSocket 端口，外部系统携带 key 连接；客户端模式：本系统主动连接外部 WebSocket 地址并携带 key",
+    "listenPath": "监听路径",
+    "listenPathHelp": "服务端模式的监听路径，留空使用默认 /ws",
+    "wsUrl": "目标 WebSocket 地址",
+    "wsUrlHelp": "客户端模式要连接的外部 WebSocket 地址，如 ws://host:port/path",
+    "key": "访问密钥 (key)",
+    "keyPlaceholder": "访问密钥，可点击右侧按钮重新生成",
+    "keyHelp": "外部系统连接时必须携带此密钥进行鉴权，可随时编辑或重新生成",
+    "showKey": "显示密钥",
+    "hideKey": "隐藏密钥",
+    "regenerateKey": "重新生成密钥",
+    "endpoint": "连接端点",
+    "platform": "平台",
+    "allPlatforms": "全部平台",
+    "platformHelp": "选择后仅接收该平台的消息；不选则接收全部平台",
+    "scope": "权限范围",
+    "scopeHelp": "read=只读消息，write=只发送回复，read+write=读写",
+    "enabled": "启用",
+    "active": "有效",
+    "disabled": "已停用",
+    "status": "状态",
+    "online": "在线",
+    "offline": "离线",
+    "connected": "已连接",
+    "createdAt": "创建时间",
+    "viewConnections": "查看连接",
+    "connectionsFor": "连接记录",
+    "noConnections": "暂无连接记录",
+    "noAdapters": "暂无接入器，点击右上角\"新建服务端\"或\"新建客户端\"创建",
+    "remoteAddr": "来源地址",
+    "connectedAt": "连接时间",
+    "messages": "消息数"
   },
   "routes": {
     "title": "路由规则",
@@ -192,6 +250,17 @@
   "settings": {
     "title": "系统设置",
     "saved": "设置已保存",
+    "darkMode": "暗黑模式",
+    "lightMode": "浅色模式",
+    "storage": "存储占用",
+    "storageUsage": "存储占用统计",
+    "dbFile": "数据库文件",
+    "dbSize": "数据库大小",
+    "dataDirSize": "数据目录总占用",
+    "tableRows": "各表记录数",
+    "totalRows": "记录总数",
+    "refreshStorage": "刷新统计",
+    "storageLoading": "正在统计存储占用...",
     "general": "基本设置",
     "siteName": "站点名称",
     "language": "界面语言",
@@ -208,7 +277,13 @@
     "notifications": "通知设置",
     "emailNotifications": "邮件通知",
     "webhookUrl": "Webhook 地址",
-    "alertOnError": "出错时告警"
+    "alertOnError": "出错时告警",
+    "userManagement": "用户管理",
+    "allowRegistration": "允许注册",
+    "allowRegistrationHint": "关闭后新用户将无法自助注册",
+    "noUsers": "暂无用户",
+    "role": "角色",
+    "addUser": "添加用户"
   },
   "auth": {
     "login": "登录",

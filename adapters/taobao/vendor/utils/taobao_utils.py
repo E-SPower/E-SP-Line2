@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import subprocess
 from functools import partial
 
@@ -8,10 +9,12 @@ import blackboxprotobuf
 subprocess.Popen = partial(subprocess.Popen, encoding="utf-8")
 import execjs
 
+# 用基于模块文件的绝对路径定位 static JS，避免依赖进程 CWD
+_TAOBAO_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "taobao_js_20260407.js")
 try:
-    taobao_js = execjs.compile(open(r'../static/taobao_js_20260407.js', 'r', encoding='utf-8').read())
+    taobao_js = execjs.compile(open(_TAOBAO_JS, 'r', encoding='utf-8').read())
 except:
-    taobao_js = execjs.compile(open(r'static/taobao_js_20260407.js', 'r', encoding='utf-8').read())
+    taobao_js = execjs.compile(open(os.path.basename(_TAOBAO_JS), 'r', encoding='utf-8').read())
 
 def trans_cookies(cookies_str):
     cookies = dict()

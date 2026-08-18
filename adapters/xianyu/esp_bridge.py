@@ -120,9 +120,15 @@ def inbound_message_payload(
     message_type: str,
     message_content: str,
     idempotency_key: str = "",
+    raw: Optional[Dict[str, Any]] = None,
+    message_chain: Optional[List[Dict[str, Any]]] = None,
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """构造后端 `persistInboundMessage` 期望的 payload 字段。"""
+    """构造后端 `persistInboundMessage` 期望的 payload 字段。
+
+    包含完整的原始消息（raw）和消息链（message_chain），
+    确保桥上报的所有信息都不会丢失。
+    """
     payload: Dict[str, Any] = {
         "platform_id": "xianyu",
         "conversation_id": conversation_id,
@@ -132,6 +138,12 @@ def inbound_message_payload(
         "message_content": message_content,
         "idempotency_key": idempotency_key,
     }
+    # 保存完整的原始平台消息（不丢失任何信息）
+    if raw is not None:
+        payload["raw"] = raw
+    # 保存消息链（V3 协议标准格式）
+    if message_chain is not None:
+        payload["message_chain"] = message_chain
     if extra:
         payload.update(extra)
     return payload
