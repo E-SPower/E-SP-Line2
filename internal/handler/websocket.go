@@ -67,12 +67,31 @@ func AdapterWebSocket(
 			logger.Debug("Adapter message received",
 				logger.Int("type", messageType),
 				logger.String("message", string(message)))
-
+	
 			// Parse inbound message and persist it
 			var payload map[string]interface{}
 			if err := json.Unmarshal(message, &payload); err == nil {
 				eventID := persistInboundMessage(messageService, instanceID, payload)
-
+	
+				// Inject instance_id into the payload for adapter gateway routing.
+				// The bridge connects with ?instance_id=xxx in the query string, but
+				// the payload it sends does not contain instance_id.  The adapter
+				// gateway (接入器) and downstream frameworks (e.g. LangBot's ESPL
+				// adapter) need instance_id on the event so they can route outbound
+				// (reply) messages back to the correct bridge instance.
+				//
+				// We set both "instance_id" (canonical) and "instance" (legacy
+				// alias used by some external adapters) so routing works regardless
+				// of which key the downstream looks for.
+				if instanceID != "" {
+					if _, exists := payload["instance_id"]; !exists {
+						payload["instance_id"] = instanceID
+					}
+					if _, exists := payload["instance"]; !exists {
+						payload["instance"] = instanceID
+					}
+				}
+	
 				// Fan out the full message to the adapter gateway (接入器).
 				if len(onInbound) > 0 && onInbound[0] != nil {
 					onInbound[0](payload)

@@ -140,8 +140,28 @@ class XianyuInstance:
         """
         if not self.bridge:
             return
+
+        # 从原始消息中提取商品信息（商品标题/价格），并作为结构化字段透传，
+        # 避免 "商品" 字段在后端/下游(如 LangBot)丢失。
+        item_title = ""
+        item_price = ""
+        item_info = {}
+        try:
+            if raw_message and isinstance(raw_message, dict):
+                msg_body = raw_message.get("1", {}).get("10", {})
+                if isinstance(msg_body, dict):
+                    item_info = msg_body.get("itemInfo") or {}
+                    if isinstance(item_info, dict):
+                        item_title = item_info.get("title", "") or ""
+                        item_price = item_info.get("price", "") or ""
+        except Exception:
+            item_title = ""
+            item_price = ""
+            item_info = {}
+
         payload = {
             "platform_id": "xianyu",
+            "instance_id": self.instance_id,
             "conversation_id": cid,
             "sender_id": send_user_id,
             "sender_name": send_user_name,
@@ -149,14 +169,26 @@ class XianyuInstance:
             "message_content": send_message,
             "idempotency_key": f"xianyu-{send_user_id}-{cid}-{int(__import__('time').time()*1000)}",
         }
+        # 商品结构化字段（不丢失商品信息）
+        if item_title or item_price or item_info:
+            payload["item"] = item_info
+            payload["item_title"] = item_title
+            payload["item_price"] = item_price
         # 保存完整的原始平台消息
         if raw_message is not None:
             payload["raw"] = raw_message
-        # 保存消息链
+        # 保存消息链；若商品信息存在，追加商品卡片元素
         if message_chain is not None:
-            payload["message_chain"] = message_chain
+            chain = list(message_chain)
+            if item_title:
+                chain.append({"type": "item", "title": item_title, "price": item_price})
+            payload["message_chain"] = chain
         await self.bridge.send_inbound(payload)
-        logger.info(f"[{self.instance_id}] Reported inbound message to backend")
+        logger.info(
+            f"[{self.instance_id}] Reported inbound message to backend "
+            f"conversation={cid} sender={send_user_name} "
+            f"item_title={item_title or '无'} item_price={item_price or '无'}"
+        )
 
     async def _handle_backend_command(self, data: dict):
         """后端下发指令 -> 调用闲鱼发送。"""

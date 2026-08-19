@@ -58,11 +58,96 @@ type Gateway struct {
 	// clientConnector manages "client" mode adapters (outbound connections).
 	clientConnector *ClientConnector
 
+	// bridgeConns maps bridge instance_id -> live bridge WebSocket connections
+	// (/ws/adapter). Outbound commands from adapter gateway clients (e.g.
+	// LangBot's ESPL adapter replies) are routed back to the correct bridge via
+	// this registry.
+	bridgeMu    sync.RWMutex
+	bridgeConns map[string]*BridgeConn
+
 	// counterMu guards the async message-count flush loop.
 	counterMu   sync.Mutex
 	counterDirty map[string]int64
 	counterStop  chan struct{}
 	counterOnce  sync.Once
+}
+
+// BridgeConn represents a live bridge (接入桥) WebSocket connection. Bridges
+// connect to /ws/adapter?instance_id=xxx and are registered here so that
+// outbound commands can be routed back to them.
+type BridgeConn struct {
+	instanceID string
+	send       chan []byte
+	closeOnce  sync.Once
+}
+
+// newBridgeConn creates a new BridgeConn with a buffered send channel.
+func newBridgeConn(instanceID string) *BridgeConn {
+	return &BridgeConn{
+		instanceID: instanceID,
+		send:       make(chan []byte, 256),
+	}
+}
+
+// RegisterBridge registers (or replaces) a bridge connection for an instance.
+func (g *Gateway) RegisterBridge(instanceID string, bc *BridgeConn) {
+	g.bridgeMu.Lock()
+	defer g.bridgeMu.Unlock()
+	if old, ok := g.bridgeConns[instanceID]; ok {
+		old.close()
+	}
+	g.bridgeConns[instanceID] = bc
+}
+
+// UnregisterBridge removes a bridge connection if it is still the registered
+// one for the instance.
+func (g *Gateway) UnregisterBridge(instanceID string, bc *BridgeConn) {
+	g.bridgeMu.Lock()
+	defer g.bridgeMu.Unlock()
+	if cur, ok := g.bridgeConns[instanceID]; ok && cur == bc {
+		delete(g.bridgeConns, instanceID)
+		bc.close()
+	}
+}
+
+// RouteOutboundToBridge forwards an outbound command frame to the bridge that
+// owns the given instance_id. It returns true if the command was delivered.
+func (g *Gateway) RouteOutboundToBridge(instanceID string, frame map[string]interface{}) bool {
+	if instanceID == "" {
+		return false
+	}
+	g.bridgeMu.RLock()
+	bc, ok := g.bridgeConns[instanceID]
+	g.bridgeMu.RUnlock()
+	if !ok {
+		logger.Warn("Adapter gateway no bridge connection for outbound command",
+			logger.String("instance_id", instanceID))
+		return false
+	}
+
+	data, err := json.Marshal(frame)
+	if err != nil {
+		logger.Error("Adapter gateway marshal outbound command failed",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+		return false
+	}
+
+	select {
+	case bc.send <- data:
+		return true
+	default:
+		logger.Warn("Adapter gateway bridge send buffer full",
+			logger.String("instance_id", instanceID))
+		return false
+	}
+}
+
+// close closes a bridge connection's send channel.
+func (bc *BridgeConn) close() {
+	bc.closeOnce.Do(func() {
+		close(bc.send)
+	})
 }
 
 // NewGateway creates a new adapter gateway.
@@ -81,6 +166,7 @@ func NewGateway(cfg GatewayConfig, svc *service.AdapterGatewayService) *Gateway 
 		cfg:          cfg,
 		service:      svc,
 		connections:  make(map[string]*Client),
+		bridgeConns:  make(map[string]*BridgeConn),
 		counterDirty: make(map[string]int64),
 		counterStop:  make(chan struct{}),
 		upgrader: websocket.Upgrader{
@@ -332,6 +418,14 @@ func (g *Gateway) Close() {
 	if g.clientConnector != nil {
 		g.clientConnector.Close()
 	}
+
+	// Close all registered bridge connections.
+	g.bridgeMu.Lock()
+	for _, bc := range g.bridgeConns {
+		bc.close()
+	}
+	g.bridgeConns = make(map[string]*BridgeConn)
+	g.bridgeMu.Unlock()
 
 	// Stop the counter flusher and flush any remaining counts.
 	select {

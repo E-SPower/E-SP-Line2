@@ -339,6 +339,20 @@ func (s *Server) broadcastToAdapterGateway(payload map[string]interface{}) {
 		platform = getString(inner, "platform")
 	}
 
+	// Ensure instance_id is present on the inner payload for adapter gateway
+	// routing.  If the bridge's websocket handler already injected it (see
+	// AdapterWebSocket in handler/websocket.go), this is a no-op.
+	//
+	// The adapter gateway (接入器) and downstream frameworks (e.g. LangBot's
+	// ESPL adapter) rely on instance_id to route outbound (reply) messages
+	// back to the correct bridge instance.
+	if _, exists := inner["instance_id"]; !exists {
+		inner["instance_id"] = ""
+	}
+	if _, exists := inner["instance"]; !exists {
+		inner["instance"] = inner["instance_id"]
+	}
+
 	envelope := map[string]interface{}{
 		"protocol_version": "v3",
 		"event_id":         models.GenerateID(),
