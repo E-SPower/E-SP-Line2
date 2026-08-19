@@ -266,6 +266,44 @@ func (cc *ClientConnector) writePump(oc *outboundClient, done chan struct{}) {
 	}
 }
 
+// BroadcastInbound sends an inbound message envelope to all connected
+// client-mode outbound connections (e.g. LangBot's ESPL adapter) that match
+// the message platform. The envelope is the full ESPL v3 message envelope
+// with event_type "message.received".
+func (cc *ClientConnector) BroadcastInbound(envelope map[string]interface{}, platform string) {
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		logger.Error("Client connector marshal envelope failed",
+			logger.String("error", err.Error()))
+		return
+	}
+
+	cc.mu.Lock()
+	targets := make([]*outboundClient, 0, len(cc.clients))
+	for _, oc := range cc.clients {
+		if oc.conn == nil {
+			continue
+		}
+		// Only deliver to clients that match the platform (or all platforms).
+		if oc.adapter.Platform == "" || oc.adapter.Platform == platform {
+			targets = append(targets, oc)
+		}
+	}
+	cc.mu.Unlock()
+
+	for _, oc := range targets {
+		select {
+		case oc.send <- data:
+			if oc.connection != nil {
+				cc.gateway.bumpMessageCount(oc.connection.ID)
+			}
+		default:
+			logger.Warn("Client connector send buffer full",
+				logger.String("adapter_id", oc.adapter.ID))
+		}
+	}
+}
+
 // handleInbound handles a message received from the external system.
 func (cc *ClientConnector) handleInbound(oc *outboundClient, message []byte) {
 	var frame map[string]interface{}

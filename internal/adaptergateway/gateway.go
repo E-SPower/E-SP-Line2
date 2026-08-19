@@ -212,9 +212,22 @@ func (g *Gateway) unregister(c *Client) {
 // BroadcastInbound fans out an inbound message (from a bridge) to all
 // connected adapter gateway clients that match the message platform.
 // The payload is the full ESPL v3 message envelope.
+//
+// It delivers to BOTH:
+//   - server-mode clients (connected to E-SP-Line2, held in g.connections)
+//   - client-mode outbound connections (E-SP-Line2 connects to an external
+//     system such as LangBot's ESPL adapter, held in cc.clients)
 func (g *Gateway) BroadcastInbound(envelope map[string]interface{}) {
 	platform, _ := envelope["platform"].(string)
 
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		logger.Error("Adapter gateway marshal envelope failed",
+			logger.String("error", err.Error()))
+		return
+	}
+
+	// 1. Server-mode clients.
 	g.mu.RLock()
 	clients := make([]*Client, 0, len(g.connections))
 	for _, c := range g.connections {
@@ -224,17 +237,6 @@ func (g *Gateway) BroadcastInbound(envelope map[string]interface{}) {
 		}
 	}
 	g.mu.RUnlock()
-
-	if len(clients) == 0 {
-		return
-	}
-
-	data, err := json.Marshal(envelope)
-	if err != nil {
-		logger.Error("Adapter gateway marshal envelope failed",
-			logger.String("error", err.Error()))
-		return
-	}
 
 	for _, c := range clients {
 		select {
@@ -246,6 +248,11 @@ func (g *Gateway) BroadcastInbound(envelope map[string]interface{}) {
 			logger.Warn("Adapter gateway client send buffer full",
 				logger.String("conn_id", c.connection.ID))
 		}
+	}
+
+	// 2. Client-mode outbound connections (e.g. LangBot ESPL adapter).
+	if g.clientConnector != nil {
+		g.clientConnector.BroadcastInbound(envelope, platform)
 	}
 }
 
