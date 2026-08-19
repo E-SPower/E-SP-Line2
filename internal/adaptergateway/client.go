@@ -161,9 +161,19 @@ func (c *Client) handleOutboundMessage(frame map[string]interface{}) {
 		commandType = "send_text"
 	}
 
-	// TODO: route to the bridge via the message hub / dispatcher.
-	// The bridge receives commands over its own /ws/adapter connection;
-	// wiring the hub dispatch is the next step.
+	// Route the outbound command back to the target bridge instance so it can
+	// execute the send (e.g. the 闲鱼 bridge sends the text back on 闲鱼).
+	// The bridge connection is looked up by instance_id in the gateway's
+	// bridge registry (registered by AdapterWebSocket in handler/websocket.go).
+	if !c.gateway.RouteOutboundToBridge(instanceID, frame) {
+		logger.Warn("Adapter gateway outbound command dropped",
+			logger.String("conn_id", c.connection.ID),
+			logger.String("instance_id", instanceID),
+			logger.String("command_type", commandType),
+			logger.String("target_id", getString(payload["target_id"])))
+		return
+	}
+
 	logger.Info("Adapter gateway outbound command",
 		logger.String("conn_id", c.connection.ID),
 		logger.String("instance_id", instanceID),
