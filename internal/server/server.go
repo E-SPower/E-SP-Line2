@@ -247,9 +247,12 @@ func (s *Server) setupRoutes() {
 	{
 		// Bridge (桥) reconnect endpoint. Inbound messages reported by bridges
 		// are persisted AND fanned out to the adapter gateway (接入器).
+		// The gateway is passed so outbound commands can be routed back to the
+		// correct bridge instance.
 		ws.GET("/adapter", handler.AdapterWebSocket(
 			s.services.Adapter,
 			s.services.Message,
+			s.gateway,
 			func(payload map[string]interface{}) {
 				s.broadcastToAdapterGateway(payload)
 			},

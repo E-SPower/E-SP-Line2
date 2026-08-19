@@ -15,6 +15,7 @@ package adaptergateway
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -81,11 +82,28 @@ type BridgeConn struct {
 	closeOnce  sync.Once
 }
 
-// newBridgeConn creates a new BridgeConn with a buffered send channel.
-func newBridgeConn(instanceID string) *BridgeConn {
+// NewBridgeConn creates a new BridgeConn with a buffered send channel.
+func NewBridgeConn(instanceID string) *BridgeConn {
 	return &BridgeConn{
 		instanceID: instanceID,
 		send:       make(chan []byte, 256),
+	}
+}
+
+// Chan returns a receive-only view of the bridge's send channel, for the
+// owning bridge WebSocket to consume outbound command frames from.
+func (bc *BridgeConn) Chan() <-chan []byte {
+	return bc.send
+}
+
+// Send pushes a raw frame onto the bridge's send channel (non-blocking). It
+// reports whether the frame was buffered.
+func (bc *BridgeConn) Send(data []byte) bool {
+	select {
+	case bc.send <- data:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -112,6 +130,21 @@ func (g *Gateway) UnregisterBridge(instanceID string, bc *BridgeConn) {
 
 // RouteOutboundToBridge forwards an outbound command frame to the bridge that
 // owns the given instance_id. It returns true if the command was delivered.
+//
+// The frame is normalized into the bridge command protocol before delivery so
+// bridges (e.g. the 闲鱼 adapter's _handle_backend_command) can consume it:
+//
+//	{
+//	  "command_type": "send_text",          // top-level
+//	  "instance_id": "...",
+//	  "payload": {
+//	    "cid": "<conversation_id>",          // conversation id
+//	    "toid": "<sender_id or target_id>",  // recipient user id
+//	    "text": "...",                       // text content
+//	    "conversation_id": "...",
+//	    ...
+//	  }
+//	}
 func (g *Gateway) RouteOutboundToBridge(instanceID string, frame map[string]interface{}) bool {
 	if instanceID == "" {
 		return false
@@ -125,13 +158,25 @@ func (g *Gateway) RouteOutboundToBridge(instanceID string, frame map[string]inte
 		return false
 	}
 
-	data, err := json.Marshal(frame)
+	cmd := buildBridgeCommand(frame)
+
+	data, err := json.Marshal(cmd)
 	if err != nil {
 		logger.Error("Adapter gateway marshal outbound command failed",
 			logger.String("instance_id", instanceID),
 			logger.String("error", err.Error()))
 		return false
 	}
+
+	// A send on a closed channel would panic (the bridge may have disconnected
+	// between the registry lookup and this send). Guard with a recover.
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Warn("Adapter gateway bridge send panicked",
+				logger.String("instance_id", instanceID),
+				logger.String("error", fmt.Sprint(r)))
+		}
+	}()
 
 	select {
 	case bc.send <- data:
@@ -140,6 +185,74 @@ func (g *Gateway) RouteOutboundToBridge(instanceID string, frame map[string]inte
 		logger.Warn("Adapter gateway bridge send buffer full",
 			logger.String("instance_id", instanceID))
 		return false
+	}
+}
+
+// buildBridgeCommand normalizes an ESPL v3 outbound frame into the bridge
+// command protocol consumed by bridges (send_text / send_image).
+func buildBridgeCommand(frame map[string]interface{}) map[string]interface{} {
+	payload, _ := frame["payload"].(map[string]interface{})
+	if payload == nil {
+		payload = map[string]interface{}{}
+	}
+
+	instanceID, _ := payload["instance_id"].(string)
+	commandType, _ := payload["command_type"].(string)
+	if commandType == "" {
+		commandType = "send_text"
+	}
+	conversationID, _ := payload["conversation_id"].(string)
+	if conversationID == "" {
+		conversationID, _ = payload["target_id"].(string)
+	}
+	targetID, _ := payload["sender_id"].(string)
+	if targetID == "" {
+		targetID, _ = payload["target_id"].(string)
+	}
+	if targetID == "" {
+		targetID = conversationID
+	}
+
+	text := ""
+	if messageChain, ok := payload["message_chain"].([]interface{}); ok {
+		for _, elem := range messageChain {
+			el, ok := elem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if elType, _ := el["type"].(string); elType == "text" {
+				if content, ok := el["content"].(map[string]interface{}); ok {
+					if t, ok := content["text"].(string); ok {
+						text = t
+						break
+					}
+				}
+			}
+		}
+	}
+	if text == "" {
+		text, _ = payload["message_content"].(string)
+	}
+
+	// Preserve the original fields under the bridge payload for bridges that
+	// need the full context (raw chain, images, etc).
+	bridgePayload := map[string]interface{}{
+		"cid":               conversationID,
+		"conversation_id":   conversationID,
+		"toid":              targetID,
+		"target_id":         targetID,
+		"text":              text,
+		"message_content":   text,
+		"command_type":      commandType,
+		"instance_id":       instanceID,
+		"message_chain":     payload["message_chain"],
+	}
+
+	return map[string]interface{}{
+		"command_type":  commandType,
+		"instance_id":   instanceID,
+		"type":          commandType,
+		"payload":       bridgePayload,
 	}
 }
 

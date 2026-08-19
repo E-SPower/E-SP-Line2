@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
@@ -54,17 +55,18 @@ func AdapterWebSocket(
 		logger.Info("Adapter connected", logger.String("instance_id", instanceID))
 
 		// Register the bridge connection with the gateway so outbound commands
-		// can be routed back to it. A goroutine pumps outbound command frames
-		// from the bridge's send channel onto this WebSocket.
+		// can be routed back to it. A single writer goroutine pumps ALL frames
+		// (welcome, acks and outbound commands) onto this WebSocket so we never
+		// have concurrent writes to the same connection.
 		bc := adaptergateway.NewBridgeConn(instanceID)
 		if gateway != nil {
 			gateway.RegisterBridge(instanceID, bc)
 		}
-		outboundDone := make(chan struct{})
+		writeDone := make(chan struct{})
 		go func() {
 			for {
 				select {
-				case data, ok := <-bc.send:
+				case data, ok := <-bc.Chan():
 					if !ok {
 						return
 					}
@@ -72,25 +74,36 @@ func AdapterWebSocket(
 					if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 						return
 					}
-				case <-outboundDone:
+				case <-writeDone:
 					return
 				}
 			}
 		}()
 		defer func() {
-			close(outboundDone)
+			close(writeDone)
 			if gateway != nil {
 				gateway.UnregisterBridge(instanceID, bc)
 			}
 		}()
 
+		// Helper to marshal a JSON frame and push it through the single writer.
+		writeJSON := func(v interface{}) {
+			data, err := json.Marshal(v)
+			if err != nil {
+				return
+			}
+			if !bc.Send(data) {
+				logger.Warn("Adapter bridge send buffer full",
+					logger.String("instance_id", instanceID))
+			}
+		}
+
 		// Send welcome message
-		welcome := map[string]interface{}{
+		writeJSON(map[string]interface{}{
 			"type":      "connected",
 			"timestamp": time.Now().Unix(),
 			"message":   "Adapter WebSocket connected",
-		}
-		conn.WriteJSON(welcome)
+		})
 
 		// Message handling loop
 		for {
@@ -133,22 +146,20 @@ func AdapterWebSocket(
 					onInbound[0](payload)
 				}
 
-				response := map[string]interface{}{
+				writeJSON(map[string]interface{}{
 					"type":      "ack",
 					"timestamp": time.Now().Unix(),
 					"event_id":  eventID,
-				}
-				conn.WriteJSON(response)
+				})
 				continue
 			}
 
 			// Raw text message, acknowledge without persistence
-			response := map[string]interface{}{
+			writeJSON(map[string]interface{}{
 				"type":      "ack",
 				"timestamp": time.Now().Unix(),
 				"data":      string(message),
-			}
-			conn.WriteJSON(response)
+			})
 		}
 
 		logger.Info("Adapter disconnected", logger.String("instance_id", instanceID))

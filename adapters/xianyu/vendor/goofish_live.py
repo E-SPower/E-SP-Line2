@@ -333,38 +333,42 @@ class XianyuLive:
             f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         try:
-            async with _ws_connect(self.base_url, headers) as websocket:
-                logger.info(
-                    f"[闲鱼] WebSocket 已连接: {self.base_url} "
-                    f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-                asyncio.create_task(self.init(websocket))
-                asyncio.create_task(self.heart_beat(websocket))
-                async for message in websocket:
-                    # logger.info(f"message: {message}")
-                    message = json.loads(message)
-                    ack = {
-                        "code": 200,
-                        "headers": {
-                            "mid": message["headers"]["mid"] if "mid" in message["headers"] else generate_mid(),
-                            "sid": message["headers"]["sid"] if "sid" in message["headers"] else '',
-                        }
-                    }
-                    if 'app-key' in message["headers"]:
-                        ack["headers"]["app-key"] = message["headers"]["app-key"]
-                    if 'ua' in message["headers"]:
-                        ack["headers"]["ua"] = message["headers"]["ua"]
-                    if 'dt' in message["headers"]:
-                        ack["headers"]["dt"] = message["headers"]["dt"]
-                    await websocket.send(json.dumps(ack))
-
-                    await self.handle_message(message, websocket)
+        	async with _ws_connect(self.base_url, headers) as websocket:
+        		# 保存 WebSocket 引用，供 _handle_backend_command 发送消息时使用
+        		self.ws = websocket
+        		logger.info(
+        			f"[闲鱼] WebSocket 已连接: {self.base_url} "
+        			f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        		)
+        		asyncio.create_task(self.init(websocket))
+        		asyncio.create_task(self.heart_beat(websocket))
+        		async for message in websocket:
+        			# logger.info(f"message: {message}")
+        			message = json.loads(message)
+        			ack = {
+        				"code": 200,
+        				"headers": {
+        					"mid": message["headers"]["mid"] if "mid" in message["headers"] else generate_mid(),
+        					"sid": message["headers"]["sid"] if "sid" in message["headers"] else '',
+        				}
+        			}
+        			if 'app-key' in message["headers"]:
+        				ack["headers"]["app-key"] = message["headers"]["app-key"]
+        			if 'ua' in message["headers"]:
+        				ack["headers"]["ua"] = message["headers"]["ua"]
+        			if 'dt' in message["headers"]:
+        				ack["headers"]["dt"] = message["headers"]["dt"]
+        			await websocket.send(json.dumps(ack))
+      
+        			await self.handle_message(message, websocket)
         except Exception as e:
-            logger.error(
-                f"[闲鱼] WebSocket 连接断开: {e} "
-                f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            raise
+        	# 断开连接时清除 ws 引用
+        	self.ws = None
+        	logger.error(
+        		f"[闲鱼] WebSocket 连接断开: {e} "
+        		f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        	)
+        	raise
 
     async def handle_message(self, message, websocket):
         import datetime as _dt
@@ -381,19 +385,29 @@ class XianyuLive:
                 send_user_name = raw_message["1"]["10"]["reminderTitle"]
                 send_user_id = raw_message["1"]["10"]["senderUserId"]
                 send_message = raw_message["1"]["10"]["reminderContent"]
-                # 尝试提取商品信息（标题/价格/图片）
+
+                # 过滤自己的消息（不处理自己发送的消息）
+                if send_user_id == self.myid:
+                    logger.debug(
+                        f"[闲鱼] 忽略自己的消息: sender={send_user_name}({send_user_id}) "
+                        f"content={send_message[:20]}"
+                    )
+                    return
+
+                # 从 reminderUrl 提取关联的商品 ID
+                item_id = ''
                 item_title = ''
                 item_price = ''
                 try:
-                    item_info = raw_message["1"]["10"].get("itemInfo") or {}
-                    item_title = item_info.get("title", '') or ''
-                    item_price = item_info.get("price", '') or ''
+                    reminder_url = raw_message["1"]["10"].get("reminderUrl", "")
+                    if 'itemId=' in reminder_url:
+                        item_id = reminder_url.split('itemId=')[1].split('&')[0]
                 except Exception:
                     pass
+
                 logger.info(
                     f"[闲鱼] 收到新消息: 发送者={send_user_name}({send_user_id}) "
-                    f"内容={send_message} 商品={item_title or '无'} "
-                    f"价格={item_price or '无'} "
+                    f"内容={send_message} 商品ID={item_id or '无'} "
                     f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
 
@@ -401,8 +415,15 @@ class XianyuLive:
                 cid = cid.split('@')[0]
                 logger.info(f"[闲鱼] 会话 cid={cid} 发送者={send_user_id}")
 
-                # 构建包含完整原始消息的消息链
+                # 构建消息链：如果有关联商品，追加商品信息元素
                 message_chain = [{"type": "text", "text": send_message}]
+                if item_id:
+                    message_chain.append({
+                        "type": "item",
+                        "title": item_title or '',
+                        "price": item_price or '',
+                        "item_id": item_id,
+                    })
 
                 # 触发外部回调（ESPL 桥接上报 / 业务处理）
                 if self.message_callback:

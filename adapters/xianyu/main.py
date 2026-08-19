@@ -200,14 +200,41 @@ class XianyuInstance:
             logger.warning(f"[{self.instance_id}] No payload or not connected")
             return
 
+        # 兼容两种字段命名：cid/conversation_id、toid/target_id
+        cid = payload.get("cid") or payload.get("conversation_id") or ""
+        toid = payload.get("toid") or payload.get("target_id") or ""
+        if not cid or not toid:
+            logger.warning(
+                f"[{self.instance_id}] 指令缺少 cid/toid: command={command_type} "
+                f"payload_keys={list(payload.keys())}"
+            )
+            return
+
         if command_type in ("send_text", "send"):
+            # 优先取 message_chain 中的文本，其次取 text/message_content
             text = payload.get("text") or payload.get("message_content", "")
-            await self.live.send_msg(self.live.ws, payload["cid"], payload["toid"], {"type": "text", "text": text})
+            chain = payload.get("message_chain") or []
+            if not text and isinstance(chain, list):
+                for elem in chain:
+                    if not isinstance(elem, dict):
+                        continue
+                    if elem.get("type") == "text":
+                        content = elem.get("content")
+                        if isinstance(content, dict):
+                            text = content.get("text", "")
+                        elif isinstance(content, str):
+                            text = content
+                        if text:
+                            break
+            if not text:
+                logger.warning(f"[{self.instance_id}] 指令缺少文本内容: command={command_type}")
+                return
+            await self.live.send_msg(self.live.ws, cid, toid, {"type": "text", "text": text})
         elif command_type == "send_image":
             await self.live.send_msg(
                 self.live.ws,
-                payload["cid"],
-                payload["toid"],
+                cid,
+                toid,
                 {
                     "type": "image",
                     "image_url": payload.get("image_url", ""),
