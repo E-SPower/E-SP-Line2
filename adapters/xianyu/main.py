@@ -37,7 +37,7 @@ from loguru import logger
 
 logger.remove()
 logger.add(
-    sink=lambda msg: print(msg, end=""),
+    sink=lambda msg: print(msg, end="", flush=True),
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
     colorize=False,
 )

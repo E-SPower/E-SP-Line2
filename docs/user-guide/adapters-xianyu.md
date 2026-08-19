@@ -31,6 +31,66 @@ pip install -r requirements.txt   # 或使用 venv: python3 -m venv venv && sour
    - **Device ID**：可选，留空自动生成
    - **心跳间隔 / 重连延迟**：可选参数
 
+## 获取闲鱼 Cookie（重要）
+
+> ⚠️ **Cookie 必须是登录后的完整状态**，否则实例会报「Cookie 无效或已过期」。
+> 匿名 Cookie（只有 `cna`/`sca`/`aui` 等）无法使用，必须包含登录态字段。
+
+### 需要填写的 Cookie 字段
+
+在 WebUI「闲鱼 Cookie」中填写的字符串，**必须包含以下登录态字段**（`Name=Value` 对，用 `; ` 连接）：
+
+| 字段 | 作用 | 是否必需 |
+|------|------|---------|
+| `unb` | 用户 ID（数字） | ✅ 必需 |
+| `cookie2` | 登录令牌 | ✅ 必需 |
+| `tracknick` | 用户名（URL 编码） | ✅ 必需 |
+| `sgcookie` | 会话 Cookie | ✅ 必需 |
+| `_m_h5_tk` | mtop 签名令牌 | ⚠️ 可选（缺失时自动获取） |
+| `_m_h5_tk_enc` | mtop 加密令牌 | ⚠️ 可选（缺失时自动获取） |
+| `cna` | 设备标识 | ⚠️ 可选 |
+| `tfstk` | 风控令牌 | ⚠️ 可选 |
+| `csg` | 风控标识 | ⚠️ 可选 |
+| `t` / `xlly_s` / `mtop_partitioned_detect` 等 | 辅助字段 | 可选 |
+
+**判断标准**：只要 Cookie 里同时有 `unb` + `cookie2` + `tracknick` + `sgcookie`，就是有效的登录 Cookie。
+
+### 方式一：扫码登录（推荐，自动获取完整 Cookie）
+
+项目内置了扫码登录工具，用闲鱼 APP 扫码即可自动获取完整登录 Cookie：
+
+```bash
+cd adapters/xianyu
+python3 qrcode_login.py
+```
+
+运行后：
+1. 终端显示二维码（用闲鱼 APP 左上角「扫一扫」扫码）
+2. 手机确认登录
+3. 脚本自动输出**完整登录 Cookie**（包含 `unb`/`cookie2`/`tracknick`/`sgcookie`），并保存到 `adapters/xianyu/cookie.txt`
+4. 将输出的 Cookie 复制到 WebUI「实例管理 → 编辑实例 → 闲鱼 Cookie」
+
+> 需要安装 `qrcode` 库才能在终端显示二维码（可选）：
+> ```bash
+> pip install qrcode
+> ```
+
+### 方式二：浏览器手动复制
+
+1. 用浏览器登录 [goofish.com](https://www.goofish.com)
+2. 按 `F12` 打开开发者工具 → `Application`（应用）→ `Cookies` → `https://www.goofish.com`
+3. 复制**所有** Cookie（`Name=Value` 对，用 `; ` 连接）
+4. **确认包含 `unb`、`cookie2`、`tracknick`、`sgcookie` 四个登录字段**，否则无效
+5. 将完整 Cookie 填入 WebUI
+
+### 常见错误
+
+| 错误信息 | 原因 | 解决 |
+|---------|------|------|
+| `会话中缺少 _m_h5_tk 令牌` | Cookie 缺少 mtop 签名令牌 | 已自动修复：适配器会自动获取 `_m_h5_tk` |
+| `FAIL_SYS_SESSION_EXPIRED::Session过期` | Cookie 没有登录态（缺少 `unb`/`cookie2`） | 使用扫码登录或复制完整登录 Cookie |
+| `获取token失败：Cookie 无效或已过期` | 登录态失效 | 重新扫码登录获取新 Cookie |
+
 ## 启动与停止（WebUI）
 
 在「实例管理」页面：

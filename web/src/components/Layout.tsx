@@ -65,8 +65,17 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors">
         <div className="p-6">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('app.title')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('app.subtitle')}</p>
+          <div className="flex items-center space-x-3">
+            <img
+              src="/espl-logo.png"
+              alt="E-SP-Line2"
+              className="h-10 w-10 object-contain rounded"
+            />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('app.title')}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('app.subtitle')}</p>
+            </div>
+          </div>
         </div>
         
         <nav className="mt-6">

@@ -288,6 +288,22 @@ class XianyuApis:
         self.item_detail_url = 'https://h5api.m.goofish.com/h5/mtop.taobao.idle.pc.detail/1.0/'
         self.reset_login_info_url = 'https://passport.goofish.com/newlogin/hasLogin.do'
         self.session = requests.Session()
+        # 用户从浏览器复制的 Cookie 通常缺少 _m_h5_tk（mtop 首次请求时
+        # 通过 Set-Cookie 动态下发）。若缺失，先调用 build_initial_cookies()
+        # 发起一次 mtop 请求自动获取 _m_h5_tk / _m_h5_tk_enc 等基础令牌，
+        # 再与用户 Cookie 合并（用户 Cookie 优先，保留登录态）。
+        if '_m_h5_tk' not in cookies:
+            try:
+                base = build_initial_cookies()
+                base_cookies = {}
+                for c in base.cookies:
+                    if c.domain and ('.goofish.com' in c.domain or '.mmstat.com' in c.domain):
+                        base_cookies[c.name] = c.value
+                merged = dict(base_cookies)
+                merged.update(cookies)
+                cookies = merged
+            except Exception:
+                pass
         self.session.cookies.update(cookies)
         self.device_id = device_id
         self.cookies = {}

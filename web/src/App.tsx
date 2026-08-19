@@ -11,6 +11,7 @@ import RoutesPage from './pages/Routes'
 import Monitoring from './pages/Monitoring'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Docs from './pages/Docs'
 import DocViewer from './pages/DocViewer'
 import AdapterGateway from './pages/AdapterGateway'
@@ -24,6 +25,7 @@ function App() {
       <VersionCheck />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route
           path="/"
           element={

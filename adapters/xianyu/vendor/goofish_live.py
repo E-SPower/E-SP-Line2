@@ -8,6 +8,15 @@ from loguru import logger
 import websockets
 from goofish_apis import XianyuApis
 
+# 确保日志立即刷新到文件（E-SP-Line2 通过重定向 stdout 收集日志，
+# Python 默认块缓冲会导致日志延迟/丢失，这里强制 flush）。
+logger.remove()
+logger.add(
+    sink=lambda msg: print(msg, end="", flush=True),
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    colorize=False,
+)
+
 from utils.goofish_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, \
     get_session_cookies_str
 from message import Message, make_text, make_image
@@ -238,6 +247,18 @@ class XianyuLive:
         if not token:
             logger.error('获取token失败：Cookie 无效或已过期，请重新填写闲鱼 Cookie')
             raise RuntimeError("获取token失败：Cookie 无效或已过期")
+        # 登录成功日志：显示用户信息与时间
+        import datetime as _dt
+        tracknick = self.cookies.get('tracknick', '')
+        try:
+            import urllib.parse
+            tracknick = urllib.parse.unquote(tracknick)
+        except Exception:
+            pass
+        logger.info(
+            f"[闲鱼] 登录成功: 用户={tracknick or '未知'} unb={self.myid} "
+            f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
         msg = {
             "lwp": "/reg",
             "headers": {
@@ -306,30 +327,47 @@ class XianyuLive:
             "Accept-Language": "zh-CN,zh;q=0.9",
         }
         threading.Thread(target=self.user_alive).start()
-        async with _ws_connect(self.base_url, headers) as websocket:
-            asyncio.create_task(self.init(websocket))
-            asyncio.create_task(self.heart_beat(websocket))
-            async for message in websocket:
-                # logger.info(f"message: {message}")
-                message = json.loads(message)
-                ack = {
-                    "code": 200,
-                    "headers": {
-                        "mid": message["headers"]["mid"] if "mid" in message["headers"] else generate_mid(),
-                        "sid": message["headers"]["sid"] if "sid" in message["headers"] else '',
+        import datetime as _dt
+        logger.info(
+            f"[闲鱼] 正在连接 WebSocket: {self.base_url} "
+            f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        try:
+            async with _ws_connect(self.base_url, headers) as websocket:
+                logger.info(
+                    f"[闲鱼] WebSocket 已连接: {self.base_url} "
+                    f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                asyncio.create_task(self.init(websocket))
+                asyncio.create_task(self.heart_beat(websocket))
+                async for message in websocket:
+                    # logger.info(f"message: {message}")
+                    message = json.loads(message)
+                    ack = {
+                        "code": 200,
+                        "headers": {
+                            "mid": message["headers"]["mid"] if "mid" in message["headers"] else generate_mid(),
+                            "sid": message["headers"]["sid"] if "sid" in message["headers"] else '',
+                        }
                     }
-                }
-                if 'app-key' in message["headers"]:
-                    ack["headers"]["app-key"] = message["headers"]["app-key"]
-                if 'ua' in message["headers"]:
-                    ack["headers"]["ua"] = message["headers"]["ua"]
-                if 'dt' in message["headers"]:
-                    ack["headers"]["dt"] = message["headers"]["dt"]
-                await websocket.send(json.dumps(ack))
+                    if 'app-key' in message["headers"]:
+                        ack["headers"]["app-key"] = message["headers"]["app-key"]
+                    if 'ua' in message["headers"]:
+                        ack["headers"]["ua"] = message["headers"]["ua"]
+                    if 'dt' in message["headers"]:
+                        ack["headers"]["dt"] = message["headers"]["dt"]
+                    await websocket.send(json.dumps(ack))
 
-                await self.handle_message(message, websocket)
+                    await self.handle_message(message, websocket)
+        except Exception as e:
+            logger.error(
+                f"[闲鱼] WebSocket 连接断开: {e} "
+                f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            raise
 
     async def handle_message(self, message, websocket):
+        import datetime as _dt
         try:
             data = message["body"]["syncPushPackage"]["data"][0]["data"]
             data = json.loads(data)
@@ -343,9 +381,20 @@ class XianyuLive:
                 send_user_name = raw_message["1"]["10"]["reminderTitle"]
                 send_user_id = raw_message["1"]["10"]["senderUserId"]
                 send_message = raw_message["1"]["10"]["reminderContent"]
+                # 尝试提取商品信息（标题/价格/图片）
+                item_title = ''
+                item_price = ''
+                try:
+                    item_info = raw_message["1"]["10"].get("itemInfo") or {}
+                    item_title = item_info.get("title", '') or ''
+                    item_price = item_info.get("price", '') or ''
+                except Exception:
+                    pass
                 logger.info(
                     f"[闲鱼] 收到新消息: 发送者={send_user_name}({send_user_id}) "
-                    f"内容={send_message}"
+                    f"内容={send_message} 商品={item_title or '无'} "
+                    f"价格={item_price or '无'} "
+                    f"时间={_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
 
                 cid = raw_message["1"]["2"]
