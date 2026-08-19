@@ -26,9 +26,14 @@ var upgrader = websocket.Upgrader{
 // inbound messages. Each reported message is persisted (with its full
 // payload) and, if a broadcast callback is provided, fanned out to the
 // adapter gateway (接入器) so external frameworks receive it.
+//
+// The bridge connection is also registered with the adapter gateway so that
+// outbound commands (replies from external frameworks like LangBot) can be
+// routed back to the correct bridge.
 func AdapterWebSocket(
 	adapterService *service.AdapterService,
 	messageService *service.MessageService,
+	gateway *adaptergateway.Gateway,
 	onInbound ...func(payload map[string]interface{}),
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -47,6 +52,37 @@ func AdapterWebSocket(
 		}
 
 		logger.Info("Adapter connected", logger.String("instance_id", instanceID))
+
+		// Register the bridge connection with the gateway so outbound commands
+		// can be routed back to it. A goroutine pumps outbound command frames
+		// from the bridge's send channel onto this WebSocket.
+		bc := adaptergateway.NewBridgeConn(instanceID)
+		if gateway != nil {
+			gateway.RegisterBridge(instanceID, bc)
+		}
+		outboundDone := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case data, ok := <-bc.send:
+					if !ok {
+						return
+					}
+					_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+					if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+						return
+					}
+				case <-outboundDone:
+					return
+				}
+			}
+		}()
+		defer func() {
+			close(outboundDone)
+			if gateway != nil {
+				gateway.UnregisterBridge(instanceID, bc)
+			}
+		}()
 
 		// Send welcome message
 		welcome := map[string]interface{}{
@@ -67,12 +103,12 @@ func AdapterWebSocket(
 			logger.Debug("Adapter message received",
 				logger.Int("type", messageType),
 				logger.String("message", string(message)))
-	
+
 			// Parse inbound message and persist it
 			var payload map[string]interface{}
 			if err := json.Unmarshal(message, &payload); err == nil {
 				eventID := persistInboundMessage(messageService, instanceID, payload)
-	
+
 				// Inject instance_id into the payload for adapter gateway routing.
 				// The bridge connects with ?instance_id=xxx in the query string, but
 				// the payload it sends does not contain instance_id.  The adapter
@@ -91,7 +127,7 @@ func AdapterWebSocket(
 						payload["instance"] = instanceID
 					}
 				}
-	
+
 				// Fan out the full message to the adapter gateway (接入器).
 				if len(onInbound) > 0 && onInbound[0] != nil {
 					onInbound[0](payload)
