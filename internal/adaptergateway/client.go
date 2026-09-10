@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
+	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 	"github.com/gorilla/websocket"
 )
@@ -18,7 +19,9 @@ type Client struct {
 	send       chan []byte
 }
 
-// sendConnected sends the connected handshake to the client.
+// sendConnected sends the connected handshake to the client, followed by the
+// gateway's current inactive-field tool catalog so that the external framework
+// immediately learns which tools it may invoke.
 func (c *Client) sendConnected() {
 	msg := map[string]interface{}{
 		"type":            "connected",
@@ -34,6 +37,30 @@ func (c *Client) sendConnected() {
 	select {
 	case c.send <- data:
 	default:
+	}
+	c.sendToolCatalog()
+}
+
+// sendToolCatalog pushes the gateway's registered inactive-field tools to the
+// external framework. This lets an access framework (e.g. LangBot) discover the
+// callable tools without an extra HTTP round-trip.
+func (c *Client) sendToolCatalog() {
+	tools := c.gateway.ListTools()
+	msg := map[string]interface{}{
+		"type":      "tool_catalog",
+		"id":        c.connection.ID,
+		"timestamp": time.Now().UnixMilli(),
+		"tools":     tools,
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	select {
+	case c.send <- data:
+	default:
+		logger.Warn("Adapter gateway tool catalog send buffer full",
+			logger.String("conn_id", c.connection.ID))
 	}
 }
 
@@ -125,11 +152,62 @@ func (c *Client) handleMessage(message []byte) {
 			logger.String("conn_id", c.connection.ID))
 	case "message":
 		c.handleOutboundMessage(frame)
+	case "tool_call":
+		c.handleToolCall(frame)
+	case "tool_catalog":
+		// The external framework declares the inactive-field tools it can
+		// serve. They are merged into the gateway registry so bridges may
+		// invoke them in the reverse direction as well.
+		n := c.gateway.RegisterToolsFromCatalogFrame(frame)
+		c.sendAck(frame)
+		if n > 0 {
+			logger.Info("Adapter gateway client registered tools",
+				logger.String("conn_id", c.connection.ID),
+				logger.Int("count", n))
+		}
 	case "subscribe":
 		// Optional: client subscribes to a specific platform/instance.
 		c.sendAck(frame)
 	default:
 		c.sendError("40001", "unsupported message type")
+	}
+}
+
+// handleToolCall handles an inactive-field tool invocation from the external
+// system. It resolves the tool, enforces permissions, routes the call to the
+// owning bridge, waits for the result and returns a tool_result frame.
+func (c *Client) handleToolCall(frame map[string]interface{}) {
+	req := buildToolCallRequestFromFrame(frame)
+
+	// query_action tools perform state changes and therefore require write
+	// permission; query_only tools only need read permission.
+	if c.gateway.ToolRequiresWrite(req) &&
+		c.adapter.Scope != "write" && c.adapter.Scope != "read+write" {
+		c.sendToolResult(&v3.ToolCallResponse{
+			CallID:    req.CallID,
+			Tool:      req.Tool,
+			Success:   false,
+			Error:     v3.ToolErrorMessage(v3.ToolErrPermission),
+			ErrorCode: v3.ToolErrPermission,
+		})
+		return
+	}
+
+	resp := c.gateway.CallTool(req)
+	c.sendToolResult(resp)
+}
+
+// sendToolResult sends a tool_result frame to the external system.
+func (c *Client) sendToolResult(resp *v3.ToolCallResponse) {
+	data, err := json.Marshal(buildToolResultFrame(resp))
+	if err != nil {
+		return
+	}
+	select {
+	case c.send <- data:
+	default:
+		logger.Warn("Adapter gateway tool result send buffer full",
+			logger.String("conn_id", c.connection.ID))
 	}
 }
 

@@ -180,6 +180,17 @@ func (s *Server) setupRoutes() {
 			messages.POST("/:id/ack", handler.AckMessage(s.services.Message))
 		}
 
+		// Inactive-field tool routes (非活动字段工具). These expose the
+		// actively-queryable e-commerce fields (商品/订单/物流/活动) declared by
+		// the adapter gateway, mirroring LangBot's tool registration mechanism.
+		tools := v1.Group("/tools")
+		tools.Use(middleware.AuthRequired())
+		{
+			tools.GET("", handler.ListTools(s.gateway))
+			tools.POST("/call", handler.CallTool(s.gateway))
+			tools.PUT("/:name/enabled", handler.SetToolEnabled(s.gateway))
+		}
+
 		// Adapter gateway (接入器) entity & connection routes
 		adapterGateways := v1.Group("/adapter-gateways")
 		adapterGateways.Use(middleware.AuthRequired())
@@ -307,8 +318,8 @@ func (s *Server) handleGatewayWithID() gin.HandlerFunc {
 func (s *Server) registerVersionCheck() {
 	s.router.GET("/api/version", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"version": "1.0.0",
-			"backend": "1.0.0",
+			"version":  "1.0.0",
+			"backend":  "1.0.0",
 			"frontend": "1.0.0",
 		})
 	})
@@ -356,13 +367,25 @@ func (s *Server) broadcastToAdapterGateway(payload map[string]interface{}) {
 		inner["instance"] = inner["instance_id"]
 	}
 
+	// The bridge may report an explicit event_type (e.g. order.shipped,
+	// logistics.updated, activity.received) so downstream frameworks receive
+	// activity/event information instead of a plain message. It may be given
+	// either on the outer payload or inside the unwrapped inner payload.
+	eventType := getString(payload, "event_type")
+	if eventType == "" {
+		eventType = getString(inner, "event_type")
+	}
+	if eventType == "" {
+		eventType = string(v3.EventMessageReceived)
+	}
+
 	envelope := map[string]interface{}{
 		"protocol_version": "v3",
 		"event_id":         models.GenerateID(),
 		"trace_id":         models.GenerateTraceID(),
 		"timestamp":        time.Now().UnixMilli(),
 		"platform":         platform,
-		"event_type":       "message.received",
+		"event_type":       eventType,
 		"payload":          inner,
 	}
 
@@ -430,18 +453,18 @@ func (s *Server) storageStats(c *gin.Context) {
 
 		// Per-table row counts.
 		tables := map[string]interface{}{
-			"users":               &models.User{},
-			"platforms":           &models.Platform{},
-			"adapter_packages":    &models.AdapterPackage{},
+			"users":                &models.User{},
+			"platforms":            &models.Platform{},
+			"adapter_packages":     &models.AdapterPackage{},
 			"adapter_capabilities": &models.AdapterCapability{},
-			"adapter_instances":   &models.AdapterInstance{},
-			"adapter_sessions":    &models.AdapterSession{},
-			"inbound_events":      &models.InboundEvent{},
-			"outbound_commands":   &models.OutboundCommand{},
-			"route_rules":         &models.RouteRule{},
-			"audit_logs":          &models.AuditLog{},
-			"adapters":            &models.Adapter{},
-			"adapter_connections": &models.AdapterConnection{},
+			"adapter_instances":    &models.AdapterInstance{},
+			"adapter_sessions":     &models.AdapterSession{},
+			"inbound_events":       &models.InboundEvent{},
+			"outbound_commands":    &models.OutboundCommand{},
+			"route_rules":          &models.RouteRule{},
+			"audit_logs":           &models.AuditLog{},
+			"adapters":             &models.Adapter{},
+			"adapter_connections":  &models.AdapterConnection{},
 		}
 		counts := gin.H{}
 		for name, model := range tables {

@@ -51,6 +51,39 @@ const (
 	EventCommandRetrying EventType = "command.retrying"
 	EventCommandExpired  EventType = "command.expired"
 
+	// Tool (inactive field) events. These carry LangBot's "非活动字段" tool
+	// invocation lifecycle: a downstream framework requests an active query,
+	// and the result is reported back.
+	EventToolCallRequested EventType = "tool.call.requested"
+	EventToolCallCompleted EventType = "tool.call.completed"
+	EventToolCallFailed    EventType = "tool.call.failed"
+	// EventToolCatalog reports the adapter's available tool definitions.
+	EventToolCatalog EventType = "tool.catalog"
+
+	// E-commerce lifecycle events (activity/event information reception).
+	EventOrderCreated     EventType = "order.created"
+	EventOrderPaid        EventType = "order.paid"
+	EventOrderShipped     EventType = "order.shipped"
+	EventOrderDelivered   EventType = "order.delivered"
+	EventOrderCancelled   EventType = "order.cancelled"
+	EventOrderRefunded    EventType = "order.refunded"
+	EventLogisticsUpdate  EventType = "logistics.updated"
+	EventProductUpdated   EventType = "product.updated"
+	EventActivityReceived EventType = "activity.received"
+
+	// XianYuApis 原版兼容事件（发布 / 改价 / 会话 / 交易卡片 / 媒体 / 登录态）.
+	EventItemPublished       EventType = "item.published"       // 商品发布成功
+	EventItemUpdated         EventType = "item.updated"         // 商品信息更新
+	EventItemPriceUpdated    EventType = "item.price_updated"   // 商品改价
+	EventItemOffShelf        EventType = "item.off_shelf"       // 商品下架
+	EventConversationCreated EventType = "conversation.created" // 会话创建
+	EventTradeCardReceived   EventType = "trade.card.received"  // 交易卡片消息（dxCard）
+	EventMediaUploaded       EventType = "media.uploaded"       // 媒体上传完成
+	EventTokenRefreshed      EventType = "token.refreshed"      // 登录态刷新
+	EventCategoryRecommended EventType = "category.recommended" // 分类推荐返回
+	EventAddressDefault      EventType = "address.default"      // 默认地址返回
+	EventLoginQRCode         EventType = "login.qrcode"         // 扫码登录状态
+
 	// System events
 	EventSystemError       EventType = "system.error"
 	EventSystemHealthCheck EventType = "system.health_check"

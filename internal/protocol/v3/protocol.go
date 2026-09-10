@@ -239,3 +239,28 @@ func IsSystemEvent(eventType EventType) bool {
 		return false
 	}
 }
+
+// IsToolEvent checks if the event type belongs to the tool (inactive field)
+// invocation family.
+func IsToolEvent(eventType EventType) bool {
+	switch eventType {
+	case EventToolCallRequested, EventToolCallCompleted, EventToolCallFailed,
+		EventToolCatalog:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsEcommerceEvent checks if the event type is an e-commerce lifecycle event
+// (order / logistics / product / activity information reception).
+func IsEcommerceEvent(eventType EventType) bool {
+	switch eventType {
+	case EventOrderCreated, EventOrderPaid, EventOrderShipped,
+		EventOrderDelivered, EventOrderCancelled, EventOrderRefunded,
+		EventLogisticsUpdate, EventProductUpdated, EventActivityReceived:
+		return true
+	default:
+		return false
+	}
+}

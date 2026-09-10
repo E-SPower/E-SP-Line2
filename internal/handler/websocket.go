@@ -120,6 +120,37 @@ func AdapterWebSocket(
 			// Parse inbound message and persist it
 			var payload map[string]interface{}
 			if err := json.Unmarshal(message, &payload); err == nil {
+				// Tool (inactive field) result frames are NOT messages: they
+				// carry the answer to an outstanding tool_call and must be
+				// handed back to the gateway's pending-call registry.
+				if frameType, _ := payload["type"].(string); frameType == "tool_result" {
+					if gateway != nil {
+						result := payload
+						if p, ok := payload["payload"].(map[string]interface{}); ok {
+							result = p
+						}
+						gateway.HandleToolResult(instanceID, result)
+					}
+					writeJSON(map[string]interface{}{
+						"type":      "ack",
+						"timestamp": time.Now().Unix(),
+					})
+					continue
+				}
+
+				// Tool catalog frames let a bridge declare/advertise its own
+				// inactive-field tools. They are registered but not persisted.
+				if frameType, _ := payload["type"].(string); frameType == "tool_catalog" {
+					if gateway != nil {
+						registerToolsFromFrame(gateway, payload)
+					}
+					writeJSON(map[string]interface{}{
+						"type":      "ack",
+						"timestamp": time.Now().Unix(),
+					})
+					continue
+				}
+
 				eventID := persistInboundMessage(messageService, instanceID, payload)
 
 				// Inject instance_id into the payload for adapter gateway routing.
@@ -355,4 +386,28 @@ func getStringField(payload map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// registerToolsFromFrame parses a bridge "tool_catalog" frame and registers the
+// declared tools with the gateway. The frame may carry the tool list either at
+// the top level ("tools") or inside "payload" ("tools").
+//
+// Accepted tool shape (JSON):
+//
+//	{
+//	  "name": "get_product",
+//	  "semantic_id": "get_product",
+//	  "category": "query_only",
+//	  "description": "...",
+//	  "parameters": [{"name":"item_id","type":"string","required":true}],
+//	  "enabled": true
+//	}
+func registerToolsFromFrame(gateway *adaptergateway.Gateway, frame map[string]interface{}) {
+	if gateway == nil {
+		return
+	}
+	if n := gateway.RegisterToolsFromCatalogFrame(frame); n > 0 {
+		logger.Info("Bridge registered tools",
+			logger.Int("count", n))
+	}
 }

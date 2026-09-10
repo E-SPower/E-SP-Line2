@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
+	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 	"github.com/gorilla/websocket"
@@ -66,8 +67,17 @@ type Gateway struct {
 	bridgeMu    sync.RWMutex
 	bridgeConns map[string]*BridgeConn
 
+	// tools holds the "inactive field" tool definitions this gateway exposes
+	// (the ESPL2 built-in catalog plus any adapter-registered tools).
+	tools *v3.ToolRegistry
+
+	// pendingMu guards pendingTools, the in-flight tool-call registry keyed by
+	// "<instance_id>|<call_id>".
+	pendingMu    sync.Mutex
+	pendingTools map[string]*pendingToolCall
+
 	// counterMu guards the async message-count flush loop.
-	counterMu   sync.Mutex
+	counterMu    sync.Mutex
 	counterDirty map[string]int64
 	counterStop  chan struct{}
 	counterOnce  sync.Once
@@ -237,22 +247,22 @@ func buildBridgeCommand(frame map[string]interface{}) map[string]interface{} {
 	// Preserve the original fields under the bridge payload for bridges that
 	// need the full context (raw chain, images, etc).
 	bridgePayload := map[string]interface{}{
-		"cid":               conversationID,
-		"conversation_id":   conversationID,
-		"toid":              targetID,
-		"target_id":         targetID,
-		"text":              text,
-		"message_content":   text,
-		"command_type":      commandType,
-		"instance_id":       instanceID,
-		"message_chain":     payload["message_chain"],
+		"cid":             conversationID,
+		"conversation_id": conversationID,
+		"toid":            targetID,
+		"target_id":       targetID,
+		"text":            text,
+		"message_content": text,
+		"command_type":    commandType,
+		"instance_id":     instanceID,
+		"message_chain":   payload["message_chain"],
 	}
 
 	return map[string]interface{}{
-		"command_type":  commandType,
-		"instance_id":   instanceID,
-		"type":          commandType,
-		"payload":       bridgePayload,
+		"command_type": commandType,
+		"instance_id":  instanceID,
+		"type":         commandType,
+		"payload":      bridgePayload,
 	}
 }
 
@@ -280,6 +290,8 @@ func NewGateway(cfg GatewayConfig, svc *service.AdapterGatewayService) *Gateway 
 		service:      svc,
 		connections:  make(map[string]*Client),
 		bridgeConns:  make(map[string]*BridgeConn),
+		tools:        v3.NewToolRegistry(),
+		pendingTools: make(map[string]*pendingToolCall),
 		counterDirty: make(map[string]int64),
 		counterStop:  make(chan struct{}),
 		upgrader: websocket.Upgrader{
@@ -290,6 +302,14 @@ func NewGateway(cfg GatewayConfig, svc *service.AdapterGatewayService) *Gateway 
 			},
 		},
 	}
+
+	// Seed the registry with the built-in ESPL2 inactive-field tool catalog
+	// (商品/订单/物流/活动) plus the XianYuApis-compatible catalog
+	// (发布/改价/分类/地址/媒体/登录 + lwp 会话与消息). Adapters may register
+	// additional tools at runtime via a tool_catalog frame.
+	g.tools.RegisterAll(v3.DefaultESPL2Tools())
+	g.tools.RegisterAll(v3.DefaultXianYuTools())
+
 	g.clientConnector = NewClientConnector(g)
 	g.startCounterFlusher()
 	return g

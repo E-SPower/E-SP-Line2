@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
+	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 	"github.com/gorilla/websocket"
 )
@@ -26,6 +27,7 @@ type ClientConnector struct {
 
 // outboundClient represents a single outbound WebSocket connection.
 type outboundClient struct {
+	connector  *ClientConnector
 	adapter    *models.Adapter
 	conn       *websocket.Conn
 	connection *models.AdapterConnection
@@ -66,9 +68,10 @@ func (cc *ClientConnector) startAdapterLocked(adapter *models.Adapter) {
 	}
 
 	oc := &outboundClient{
-		adapter: adapter,
-		send:    make(chan []byte, 256),
-		stop:    make(chan struct{}),
+		connector: cc,
+		adapter:   adapter,
+		send:      make(chan []byte, 256),
+		stop:      make(chan struct{}),
 	}
 	cc.clients[adapter.ID] = oc
 
@@ -318,10 +321,58 @@ func (cc *ClientConnector) handleInbound(oc *outboundClient, message []byte) {
 	case "message":
 		// Outbound message (reply) from the external system.
 		cc.handleOutbound(oc, frame)
+	case "tool_call":
+		// Inactive-field tool invocation from the external system.
+		cc.handleToolCall(oc, frame)
+	case "tool_catalog":
+		// The external framework (e.g. LangBot) declares the inactive-field
+		// tools it can serve. Merge them into the gateway registry.
+		if n := cc.gateway.RegisterToolsFromCatalogFrame(frame); n > 0 {
+			logger.Info("Adapter client connector registered tools",
+				logger.String("adapter_id", oc.adapter.ID),
+				logger.Int("count", n))
+		}
+		oc.sendAck(frame)
 	case "ack":
 		// Acknowledgment; nothing to do.
 	default:
 		// Ignore unknown frames.
+	}
+}
+
+// handleToolCall handles an inactive-field tool invocation arriving over a
+// client-mode outbound connection (e.g. LangBot's ESPL adapter calling back
+// into E-SP-Line2).
+func (cc *ClientConnector) handleToolCall(oc *outboundClient, frame map[string]interface{}) {
+	req := buildToolCallRequestFromFrame(frame)
+
+	if cc.gateway.ToolRequiresWrite(req) &&
+		oc.adapter.Scope != "write" && oc.adapter.Scope != "read+write" {
+		oc.sendToolResult(&v3.ToolCallResponse{
+			CallID:    req.CallID,
+			Tool:      req.Tool,
+			Success:   false,
+			Error:     v3.ToolErrorMessage(v3.ToolErrPermission),
+			ErrorCode: v3.ToolErrPermission,
+		})
+		return
+	}
+
+	resp := cc.gateway.CallTool(req)
+	oc.sendToolResult(resp)
+}
+
+// sendToolResult sends a tool_result frame over the outbound connection.
+func (oc *outboundClient) sendToolResult(resp *v3.ToolCallResponse) {
+	data, err := json.Marshal(buildToolResultFrame(resp))
+	if err != nil {
+		return
+	}
+	select {
+	case oc.send <- data:
+	default:
+		logger.Warn("Client connector tool result send buffer full",
+			logger.String("adapter_id", oc.adapter.ID))
 	}
 }
 
@@ -370,7 +421,9 @@ func (cc *ClientConnector) handleOutbound(oc *outboundClient, frame map[string]i
 	oc.sendAck(frame)
 }
 
-// sendConnected sends the connected handshake.
+// sendConnected sends the connected handshake, followed by the gateway's
+// current inactive-field tool catalog so the external framework can discover
+// the callable tools immediately after connecting.
 func (oc *outboundClient) sendConnected() {
 	msg := map[string]interface{}{
 		"type":            "connected",
@@ -386,6 +439,33 @@ func (oc *outboundClient) sendConnected() {
 	select {
 	case oc.send <- data:
 	default:
+	}
+	oc.sendToolCatalog()
+}
+
+// sendToolCatalog pushes the gateway's registered inactive-field tools over the
+// outbound connection (client mode), so a framework such as LangBot learns the
+// full catalog without an HTTP round-trip.
+func (oc *outboundClient) sendToolCatalog() {
+	if oc.connector == nil || oc.connector.gateway == nil {
+		return
+	}
+	tools := oc.connector.gateway.ListTools()
+	msg := map[string]interface{}{
+		"type":      "tool_catalog",
+		"id":        oc.connection.ID,
+		"timestamp": time.Now().UnixMilli(),
+		"tools":     tools,
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	select {
+	case oc.send <- data:
+	default:
+		logger.Warn("Client connector tool catalog send buffer full",
+			logger.String("adapter_id", oc.adapter.ID))
 	}
 }
 

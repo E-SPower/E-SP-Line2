@@ -41,10 +41,12 @@ var docIndex = []docIndexEntry{
 	{Key: "protocol-overview", Title: "协议体系总览", Path: "developer-guide/protocol-overview.md", Group: "api"},
 	{Key: "protocol", Title: "ESPL v3 协议", Path: "developer-guide/protocol-v3.md", Group: "api"},
 	{Key: "bridge-protocol", Title: "桥（Bridge）协议", Path: "developer-guide/bridge-protocol.md", Group: "api"},
+	{Key: "tools-api", Title: "非活动字段 / 工具 API", Path: "developer-guide/inactive-fields.md", Group: "api"},
 
 	// ── 开发者指南 ──
 	{Key: "adapter-development", Title: "接入器开发", Path: "developer-guide/adapter-development.md", Group: "dev"},
 	{Key: "adapter-yaml", Title: "adapter.yaml 字段规则", Path: "developer-guide/adapter-yaml.md", Group: "dev"},
+	{Key: "inactive-fields", Title: "非活动字段注册机制", Path: "developer-guide/inactive-fields.md", Group: "dev"},
 	{Key: "contributing", Title: "参与贡献", Path: "developer-guide/contributing.md", Group: "dev"},
 }
 
