@@ -1,4 +1,6 @@
-allowBuilds:
-  esbuild: set this to true or false
+# pnpm build-script approvals.
+# esbuild ships a native postinstall that must run, otherwise Vite cannot start.
 onlyBuiltDependencies:
   - esbuild
+allowBuilds:
+  esbuild: true

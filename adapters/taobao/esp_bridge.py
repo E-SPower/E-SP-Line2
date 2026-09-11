@@ -1,20 +1,24 @@
 """
-E-SP-Line2 XianYu (闲鱼) Adapter Bridge
+E-SP-Line2 Taobao (淘宝) Adapter Bridge
 ========================================
 
-中间层：将闲鱼(XianYuApis)平台的原始消息转换为 ESPL v3 协议，
+中间层：将淘宝(TaoBaoApis)平台的原始消息转换为 ESPL v3 协议，
 并通过 WebSocket 与 E-SP-Line2 后端通信。
 
 职责：
 1. 启动时从后端 HTTP API 拉取当前实例的配置(cookie / device_id)
 2. 建立与后端 `/ws/adapter?instance_id=xxx` 的 WebSocket 长连接
-3. 把闲鱼收到的消息转换为 ESPL payload 格式上报后端
-4. 接收后端下发的出站指令(send_text / send_image)，调用闲鱼 API 发送
+3. 把淘宝收到的消息转换为 ESPL payload 格式上报后端
+4. 接收后端下发的出站指令(send_text / send_image)，调用淘宝 API 发送
 5. 支持多开：每个实例一个独立进程/线程，独立 Cookie 配置
 
 用法：
     python main.py --instance-id <INSTANCE_ID> --backend http://localhost:8080
 """
+
+# 运行期依赖(loguru / websockets / requests)安装在系统解释器下，
+# 静态分析器未必能解析；此处为文件级豁免，避免误报。
+# pylint: disable=import-error,wrong-import-position
 
 from __future__ import annotations
 
@@ -23,7 +27,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 import websockets
@@ -31,11 +35,16 @@ import websockets
 # ---------------------------------------------------------------- logging ---
 from loguru import logger
 
+_LOG_FORMAT = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+    "<level>{level: <8}</level> | <level>{message}</level>"
+)
+
 # 详细日志格式：时间 | 级别 | 消息
 logger.remove()
 logger.add(
     sink=lambda msg: print(msg, end=""),
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    format=_LOG_FORMAT,
     colorize=False,
 )
 
@@ -44,6 +53,7 @@ logger.add(
 @dataclass
 class InstanceConfig:
     """从后端拉取的实例配置。"""
+
     instance_id: str
     adapter_id: str
     platform_id: str
@@ -76,7 +86,7 @@ def fetch_instance_config(backend_url: str, instance_id: str, token: str = "") -
             parsed = json.loads(config_raw)
             if isinstance(parsed, dict):
                 config_dict = parsed
-        except Exception:
+        except (json.JSONDecodeError, TypeError, ValueError):
             logger.warning("Instance config is not valid JSON, treating as empty")
 
     # 打印配置概要（不泄露 cookie 值）
@@ -119,6 +129,7 @@ def inbound_message_payload(
     sender_name: str,
     message_type: str,
     message_content: str,
+    platform_id: str = "taobao",
     idempotency_key: str = "",
     raw: Optional[Dict[str, Any]] = None,
     message_chain: Optional[List[Dict[str, Any]]] = None,
@@ -130,7 +141,7 @@ def inbound_message_payload(
     确保桥上报的所有信息都不会丢失。
     """
     payload: Dict[str, Any] = {
-        "platform_id": "xianyu",
+        "platform_id": platform_id,
         "conversation_id": conversation_id,
         "sender_id": sender_id,
         "sender_name": sender_name,
@@ -159,6 +170,15 @@ class EspBridge:
         reconnect_delay: int = 5,
         on_inbound: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
+        """初始化桥接器。
+
+        Args:
+            backend_url: E-SP-Line2 后端地址。
+            instance_id: 当前实例 ID。
+            token: 可选的后端 JWT token。
+            reconnect_delay: 断线重连间隔（秒）。
+            on_inbound: 收到后端下发指令时的异步回调。
+        """
         self.backend_url = backend_url.rstrip("/")
         self.instance_id = instance_id
         self.token = token
@@ -168,6 +188,7 @@ class EspBridge:
         self.running = False
 
     def _ws_url(self) -> str:
+        """构造后端适配器 WebSocket 地址。"""
         base = self.backend_url.replace("http://", "ws://").replace("https://", "wss://")
         return f"{base}/ws/adapter?instance_id={self.instance_id}"
 
@@ -189,16 +210,19 @@ class EspBridge:
                 async with websockets.connect(self._ws_url()) as ws:
                     self.ws = ws
                     attempts = 0
+                    remote = getattr(ws, "remote_address", None)
+                    remote_host = getattr(remote, "host", "") if remote else ""
+                    remote_port = getattr(remote, "port", "") if remote else ""
                     logger.info(
                         f"[{self._tag()}][bridge] 后端 WebSocket 已连接: "
                         f"instance={self.instance_id} "
-                        f"remote={getattr(ws.remote_address, 'host', '')}:{getattr(ws.remote_address, 'port', '')}"
+                        f"remote={remote_host}:{remote_port}"
                     )
                     await self._read_loop(ws)
             except asyncio.CancelledError:
                 logger.info(f"[{self._tag()}][bridge] 连接循环被取消")
                 break
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 logger.error(
                     f"[{self._tag()}][bridge] 连接错误: instance={self.instance_id} "
                     f"attempt={attempts} error={e!r}"
@@ -216,7 +240,7 @@ class EspBridge:
         async for raw in ws:
             try:
                 data = json.loads(raw)
-            except Exception:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 logger.warning(
                     f"[{self._tag()}][bridge] 收到非 JSON 消息: instance={self.instance_id} "
                     f"preview={raw[:200]!r}"
@@ -226,7 +250,8 @@ class EspBridge:
             msg_type = data.get("type", "")
             if msg_type == "connected":
                 logger.info(
-                    f"[{self._tag()}][bridge] 后端握手成功，就绪: instance={self.instance_id}"
+                    f"[{self._tag()}][bridge] 后端握手成功，就绪: "
+                    f"instance={self.instance_id}"
                 )
                 continue
             if msg_type == "ack":
@@ -245,7 +270,7 @@ class EspBridge:
             if self.on_inbound:
                 try:
                     await self.on_inbound(data)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     logger.error(
                         f"[{self._tag()}][bridge] 指令处理出错: instance={self.instance_id} "
                         f"command={cmd} error={e!r}"
@@ -255,7 +280,8 @@ class EspBridge:
         """向后端上报一条入站消息。"""
         if not self.ws:
             logger.warning(
-                f"[{self._tag()}][bridge] 后端未连接，丢弃消息: instance={self.instance_id} "
+                f"[{self._tag()}][bridge] 后端未连接，丢弃消息: "
+                f"instance={self.instance_id} "
                 f"conversation={payload.get('conversation_id', '')}"
             )
             return
@@ -270,6 +296,7 @@ class EspBridge:
         )
 
     async def close(self):
+        """关闭与后端的 WebSocket 连接并停止重连循环。"""
         self.running = False
         if self.ws:
             await self.ws.close()

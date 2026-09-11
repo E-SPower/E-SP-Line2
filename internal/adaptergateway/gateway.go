@@ -305,10 +305,13 @@ func NewGateway(cfg GatewayConfig, svc *service.AdapterGatewayService) *Gateway 
 
 	// Seed the registry with the built-in ESPL2 inactive-field tool catalog
 	// (商品/订单/物流/活动) plus the XianYuApis-compatible catalog
-	// (发布/改价/分类/地址/媒体/登录 + lwp 会话与消息). Adapters may register
-	// additional tools at runtime via a tool_catalog frame.
+	// (发布/改价/分类/地址/媒体/登录 + lwp 会话与消息) and the TaoBaoApis
+	// catalog (淘宝 token/商品解析/媒体/会话/消息, names prefixed with
+	// "taobao_" so they do not collide with the XianYu tools). Adapters may
+	// register additional tools at runtime via a tool_catalog frame.
 	g.tools.RegisterAll(v3.DefaultESPL2Tools())
 	g.tools.RegisterAll(v3.DefaultXianYuTools())
+	g.tools.RegisterAll(v3.DefaultTaoBaoTools())
 
 	g.clientConnector = NewClientConnector(g)
 	g.startCounterFlusher()

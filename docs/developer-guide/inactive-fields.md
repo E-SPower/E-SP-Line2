@@ -6,12 +6,13 @@
 
 本文覆盖：
 
-- 工具目录（内置 **19 个**非活动字段工具：基础 7 个 + XianYuApis 兼容 12 个）
+- 工具目录（内置 **25 个**非活动字段工具：基础 7 个 + XianYuApis 兼容 12 个 + TaoBaoApis 兼容 6 个）
 - 协议帧：`tool_catalog` / `tool_call` / `tool_result`
 - HTTP API 调用方式
 - 桥（Bridge）如何实现工具
 - LangBot 适配器如何调用（`call_tool` 与便捷包装方法）
 - XianYuApis 原版兼容：商品发布字段、会话/消息字段、交易卡片、音频消息
+- TaoBaoApis 原版兼容：登录 token、商品链接解析、媒体上传、会话/消息（`taobao_*` 前缀工具）
 - 活动 / 事件信息接收（`order.*` / `logistics.*` / `item.*` / `trade.card.received` / `activity.received` 等 **20 个**事件）
 - 四层权限模型与错误码
 
@@ -31,8 +32,9 @@
 ```
 
 - **注册**：工具定义（`ToolDefinition`）注册到网关的 `ToolRegistry`。内置目录由
-  [`DefaultESPL2Tools()`](../internal/protocol/v3/tool.go)（基础电商）与
-  [`DefaultXianYuTools()`](../internal/protocol/v3/tool.go)（XianYuApis 原版兼容）提供；
+  [`DefaultESPL2Tools()`](../internal/protocol/v3/tool.go)（基础电商）、
+  [`DefaultXianYuTools()`](../internal/protocol/v3/tool.go)（XianYuApis 原版兼容）与
+  [`DefaultTaoBaoTools()`](../internal/protocol/v3/tool.go)（TaoBaoApis 原版兼容，`taobao_` 前缀）提供；
   接入器（Bridge/适配器）可在连接建立后通过 `tool_catalog` 帧动态注册自己的工具。
 - **发现**：下游框架通过 HTTP `GET /api/v1/tools` 或 WS `tool_catalog` 帧获取工具清单。
 - **调用**：下游框架发 `tool_call`（或 HTTP `POST /api/v1/tools/call`）→ 网关路由到持有该
@@ -85,6 +87,27 @@
 > `!` 心跳等底层命令（见 [`command.go`](../internal/protocol/v3/command.go) 的
 > `CommandTypeRegister` / `CommandTypeAckDiff` / `CommandTypeHeartbeat`），它们由桥在连接
 > 生命周期内自动发送，无需下游显式调用。
+
+### 2.4 TaoBaoApis 原版兼容工具（`DefaultTaoBaoTools`，6 个）
+
+对应 [`TaoBaoApis/taobao_apis.py`](../../../TaoBaoApis/taobao_apis.py) 的 HTTP（mtop / upload）
+接口与 [`TaoBaoApis/taobao_live.py`](../../../TaoBaoApis/taobao_live.py) 的 lwp 命令。
+淘宝与闲鱼的**语义 ID 相同**（同样的业务意图可跨平台解析），但工具名统一加 `taobao_` 前缀，
+以避免与 XianYuApis 工具在网关的 `ToolRegistry`（按 name 索引）中互相覆盖；同时每个定义都
+带 `"platform": "taobao"`，调用方可按平台过滤。
+
+| 工具名 | 语义 ID | 类别 | 对应原版接口/命令 | 关键参数 |
+| --- | --- | --- | --- | --- |
+| `taobao_get_token` | `get_token` | query_only | `mtop.taobao.login.token.get.h5` | `cookies`(必填) |
+| `taobao_get_goods_info` | `get_goods_info` | query_only | 商品链接解析（itemInfo） | `goods_url`(必填) |
+| `taobao_upload_media` | `upload_media` | query_action | `stream-upload.taobao.com/api/upload.api` | `file_path`(必填) |
+| `taobao_get_conversation_history` | `get_conversation_history` | query_only | `/r/MessageManager/listUserMessages` | `cid`(必填)、`next_cursor`、`count` |
+| `taobao_create_conversation` | `create_conversation` | query_action | `/r/SingleChatConversation/create` | `encrypt_uid`(必填) |
+| `taobao_send_message` | `send_message` | query_action | `/r/MessageSend/sendByReceiverScope` | `cid`/`toid`(必填)、`content_type`、`text`/`image_url`/`file_id`、`sender_nick` 等 |
+
+> 与闲鱼的差异：淘宝的会话标识域为 `@cntaobao`（闲鱼为 `@goofish`），发送者昵称为
+> `cntaobao{_nk_}`；创建会话使用 `encryptUid`（闲鱼使用 `pair_first`/`pair_second`）。
+> lwp 基址为 `wss://wss-cntaobao.dingtalk.com/`。
 
 **类别语义**
 
@@ -162,7 +185,7 @@
 > 收到后网关回一个 `ack` 帧（`{"type":"ack","id":<原帧 id>}`）。
 
 > LangBot 适配器 [`espl.py`](../../../esplplatfrom/espl.py) 在 `connected` 握手后**立即**发送
-> `tool_catalog`，内容取自 `ESPL_TOOL_DEFINITIONS`（基础 7 + 兼容 12，共 19 个）。
+> `tool_catalog`，内容取自 `ESPL_TOOL_DEFINITIONS`（基础 7 + XianYuApis 兼容 12 + TaoBaoApis 兼容 6，共 25 个）。
 
 #### 3.1.2 网关 → 连接方（下发）
 
@@ -528,7 +551,30 @@ history = await adapter.get_conversation_history("cid_abc", count=20)
 await adapter.send_chat_message("cid_abc", content_type=1, text="您好，商品还在的")
 ```
 
-### 6.2 出站消息组件映射
+### 6.2 TaoBao 便捷包装方法
+
+淘宝工具名带 `taobao_` 前缀，因此包装方法也以 `taobao_` 命名（内部同样调用 `call_tool`）：
+
+| 方法 | 等价工具 | 签名要点 |
+| --- | --- | --- |
+| `taobao_get_token(cookies)` | `taobao_get_token` | 只读 |
+| `taobao_get_goods_info(goods_url)` | `taobao_get_goods_info` | 只读 |
+| `taobao_upload_media(file_path)` | `taobao_upload_media` | 自动 `confirm=True` |
+| `taobao_get_conversation_history(cid, next_cursor='', count=20)` | `taobao_get_conversation_history` | 只读 |
+| `taobao_create_conversation(encrypt_uid)` | `taobao_create_conversation` | 自动 `confirm=True` |
+| `taobao_send_message(cid, toid, **kwargs)` | `taobao_send_message` | 自动 `confirm=True` |
+
+```python
+# 解析商品页 → 建会话 → 发消息
+info = await adapter.taobao_get_goods_info("https://item.taobao.com/item.htm?id=...")
+conv = await adapter.taobao_create_conversation(info["data"]["encryptUid"])
+await adapter.taobao_send_message(
+    cid=conv["data"]["cid"], toid=info["data"]["userId"],
+    content_type=1, text="您好，请问还在吗？",
+)
+```
+
+### 6.3 出站消息组件映射
 
 `_emit_outbound` 会把 LangBot `platform_message` 组件转换为 ESPL v3 `MessageChain` 元素：
 
@@ -751,6 +797,8 @@ Go 侧构造方法：`AddText` / `AddImage` / `AddAudio` / `AddProductCard` / `A
 有副作用的工具还需 **`confirm=true`**（`40407`），用于防止误操作。XianYuApis 兼容工具中，
 `publish_item` / `update_item` / `update_item_price` / `upload_media` / `refresh_token` /
 `login_qrcode` / `create_conversation` / `send_message` 均为 `query_action`，必须显式确认。
+淘宝侧对应的 `taobao_upload_media` / `taobao_create_conversation` / `taobao_send_message`
+同理（`taobao_get_token` / `taobao_get_goods_info` / `taobao_get_conversation_history` 为只读）。
 
 ---
 
@@ -772,7 +820,7 @@ Go 侧构造方法：`AddText` / `AddImage` / `AddAudio` / `AddProductCard` / `A
 ## 11. 相关源码
 
 - 工具声明 / 注册表：[`internal/protocol/v3/tool.go`](../internal/protocol/v3/tool.go)
-  （`DefaultESPL2Tools` 基础 7 + `DefaultXianYuTools` 兼容 12）
+  （`DefaultESPL2Tools` 基础 7 + `DefaultXianYuTools` 兼容 12 + `DefaultTaoBaoTools` 兼容 6）
 - 工具路由 / 挂起匹配：[`internal/adaptergateway/tool_router.go`](../internal/adaptergateway/tool_router.go)
 - 事件类型：[`internal/protocol/v3/envelope.go`](../internal/protocol/v3/envelope.go)
 - 命令类型（含 lwp `reg`/`ackDiff`/`heartbeat`）：[`internal/protocol/v3/command.go`](../internal/protocol/v3/command.go)

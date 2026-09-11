@@ -70,6 +70,10 @@ const (
 	SemanticCreateConversation SemanticID = "create_conversation"
 	// 发送消息：/r/MessageSend/sendByReceiverScope
 	SemanticSendMessage SemanticID = "send_message"
+
+	// ── TaoBaoApis 专用语义 ─────────────────────────────────────────
+	// 从商品 URL 解析用户信息：userId / encryptUid
+	SemanticGetGoodsInfo SemanticID = "get_goods_info"
 )
 
 // ToolParameterType enumerates the JSON-schema-like parameter types a tool
@@ -690,6 +694,137 @@ func DefaultXianYuTools() []ToolDefinition {
 				{Name: "actual_receivers", Type: ToolParamArray, Description: "实际接收人 actualReceivers[]"},
 			},
 			Returns:        "SendMessageResult{ uuid,msg_id,sent_at }",
+			Enabled:        true,
+			RequireConfirm: true,
+		},
+	}
+}
+
+// DefaultTaoBaoTools returns the tool catalog that mirrors the original
+// TaoBaoApis (taobao_apis.py / taobao_live.py) surface. These cover every
+// callable "inactive field" the reference implementation exposes so a LangBot
+// adapter can drive the full 淘宝 workflow: 获取 IM Token / 解析商品用户 /
+// 上传媒体 / 会话历史 / 建会话 / 发消息.
+//
+// Tool names carry a "taobao_" prefix so they never collide with the
+// XianYuApis-compatible tools of the same intent. The gateway keeps a single
+// ToolRegistry keyed by name, and a bridge is selected by instance_id, so the
+// names must be globally unique even though both catalogs intentionally share
+// the same SemanticID. The Platform field is set to "taobao" so callers can
+// filter by platform.
+//
+// Bridges register this catalog in addition to DefaultESPL2Tools(); tools that
+// a particular bridge cannot serve should be left disabled so the gateway
+// reports them as ToolErrDisabled instead of failing at call time.
+func DefaultTaoBaoTools() []ToolDefinition {
+	return []ToolDefinition{
+		{
+			Name:        "taobao_get_token",
+			SemanticID:  SemanticGetToken,
+			Category:    ToolCategoryQueryOnly,
+			Platform:    "taobao",
+			Description: "使用淘宝登录态换取 IM token（mtop.taobao.login.token.get.h5）。",
+			DescriptionI18n: map[string]string{
+				"zh_Hans": "使用淘宝登录态换取 IM token（mtop.taobao.login.token.get.h5）。",
+				"en_US":   "Exchange the Taobao login session for an IM token (mtop.taobao.login.token.get.h5).",
+			},
+			Parameters: []ToolParameter{
+				{Name: "cookies", Type: ToolParamString, Description: "当前 cookies 字符串", Required: true},
+			},
+			Returns: "TokenResult{ cookies, user_id, access_token }",
+			Enabled: true,
+		},
+		{
+			Name:        "taobao_get_goods_info",
+			SemanticID:  SemanticGetGoodsInfo,
+			Category:    ToolCategoryQueryOnly,
+			Platform:    "taobao",
+			Description: "解析淘宝商品页面，提取卖家 userId 与 data-encryptuid（用于建会话）。",
+			DescriptionI18n: map[string]string{
+				"zh_Hans": "解析淘宝商品页面，提取卖家 userId 与 data-encryptuid（用于建会话）。",
+				"en_US":   "Parse a Taobao item page to extract seller userId and data-encryptuid (used to create conversations).",
+			},
+			Parameters: []ToolParameter{
+				{Name: "goods_url", Type: ToolParamString, Description: "淘宝/天猫商品详情页 URL", Required: true},
+			},
+			Returns: "GoodsInfo{ uid, encrypt_uid }",
+			Enabled: true,
+		},
+		{
+			Name:        "taobao_upload_media",
+			SemanticID:  SemanticUploadMedia,
+			Category:    ToolCategoryQueryAction,
+			Platform:    "taobao",
+			Description: "上传图片到淘宝 CDN（stream-upload.taobao.com），返回 fileId / url / pix。",
+			DescriptionI18n: map[string]string{
+				"zh_Hans": "上传图片到淘宝 CDN（stream-upload.taobao.com），返回 fileId / url / pix。",
+				"en_US":   "Upload an image to the Taobao CDN (stream-upload.taobao.com), returning fileId / url / pix.",
+			},
+			Parameters: []ToolParameter{
+				{Name: "file_path", Type: ToolParamString, Description: "本地图片文件路径", Required: true},
+			},
+			Returns:        "MediaUpload{ object{url,fileId,pix,size,width,height} }",
+			Enabled:        true,
+			RequireConfirm: true,
+		},
+		{
+			Name:        "taobao_get_conversation_history",
+			SemanticID:  SemanticGetConversationHistory,
+			Category:    ToolCategoryQueryOnly,
+			Platform:    "taobao",
+			Description: "拉取淘宝会话历史消息（/r/MessageManager/listUserMessages，支持游标分页）。",
+			DescriptionI18n: map[string]string{
+				"zh_Hans": "拉取淘宝会话历史消息（/r/MessageManager/listUserMessages，支持游标分页）。",
+				"en_US":   "Fetch Taobao conversation history (/r/MessageManager/listUserMessages, cursor paginated).",
+			},
+			Parameters: []ToolParameter{
+				{Name: "cid", Type: ToolParamString, Description: "会话 ID（cid）", Required: true},
+				{Name: "next_cursor", Type: ToolParamString, Description: "分页游标 nextCursor"},
+				{Name: "count", Type: ToolParamNumber, Description: "拉取条数", Default: 20},
+			},
+			Returns: "ConversationHistory{ has_more, next_cursor, messages[] }",
+			Enabled: true,
+		},
+		{
+			Name:        "taobao_create_conversation",
+			SemanticID:  SemanticCreateConversation,
+			Category:    ToolCategoryQueryAction,
+			Platform:    "taobao",
+			Description: "创建/打开与指定淘宝用户的单聊会话（/r/SingleChatConversation/create，需要 encryptUid）。",
+			DescriptionI18n: map[string]string{
+				"zh_Hans": "创建/打开与指定淘宝用户的单聊会话（/r/SingleChatConversation/create，需要 encryptUid）。",
+				"en_US":   "Create/open a single chat conversation with a Taobao user (/r/SingleChatConversation/create, requires encryptUid).",
+			},
+			Parameters: []ToolParameter{
+				{Name: "encrypt_uid", Type: ToolParamString, Description: "接收方 encryptUid（从 taobao_get_goods_info 获得）", Required: true},
+			},
+			Returns:        "ConversationCreate{ cid, conversation_type, created_at }",
+			Enabled:        true,
+			RequireConfirm: true,
+		},
+		{
+			Name:        "taobao_send_message",
+			SemanticID:  SemanticSendMessage,
+			Category:    ToolCategoryQueryAction,
+			Platform:    "taobao",
+			Description: "发送淘宝消息（/r/MessageSend/sendByReceiverScope，支持文本/图片）。",
+			DescriptionI18n: map[string]string{
+				"zh_Hans": "发送淘宝消息（/r/MessageSend/sendByReceiverScope，支持文本/图片）。",
+				"en_US":   "Send a Taobao message (/r/MessageSend/sendByReceiverScope; text/image).",
+			},
+			Parameters: []ToolParameter{
+				{Name: "cid", Type: ToolParamString, Description: "会话 ID（cid）", Required: true},
+				{Name: "toid", Type: ToolParamString, Description: "接收方用户 ID", Required: true},
+				{Name: "sender_nick", Type: ToolParamString, Description: "发送方昵称（如 cntaobao{_nk_}）"},
+				{Name: "content_type", Type: ToolParamNumber, Description: "内容类型 contentType", Default: 1,
+					Enum: []string{ContentTypeText, "101"}},
+				{Name: "text", Type: ToolParamString, Description: "文本内容（contentType=1 时）"},
+				{Name: "image_url", Type: ToolParamString, Description: "图片 URL（contentType=101 时）"},
+				{Name: "file_id", Type: ToolParamString, Description: "上传媒体后得到的 fileId"},
+				{Name: "width", Type: ToolParamNumber, Description: "图片宽度"},
+				{Name: "height", Type: ToolParamNumber, Description: "图片高度"},
+			},
+			Returns:        "SendMessageResult{ uuid, msg_id, sent_at }",
 			Enabled:        true,
 			RequireConfirm: true,
 		},
