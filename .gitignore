@@ -3,9 +3,13 @@ data/
 
 # Compiled binaries
 bin/
+dist/
 *.exe
 *.test
 *.out
+
+# Build staging
+dist/_stage-*/
 
 # Logs
 logs/
@@ -14,6 +18,18 @@ logs/
 # Frontend build artifacts
 web/dist/
 web/node_modules/
+
+# Embedded adapters copy (generated from adapters/ by the build scripts;
+# the placeholder README.md is kept so //go:embed always compiles)
+internal/adapters/adapters/*
+!internal/adapters/adapters/README.md
+
+# Desktop build: embedded frontend copy (kept only as an empty .gitkeep)
+pkg/webui/dist/*
+!pkg/webui/dist/.gitkeep
+
+# Generated pkg-config shim (.pc mapping) for desktop builds
+scripts/pkgconfig/
 
 # Environment / local config
 .env

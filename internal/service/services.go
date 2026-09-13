@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 
+	"github.com/e-spl/e-sp-line2/internal/adapters"
 	"github.com/e-spl/e-sp-line2/internal/config"
 	"github.com/e-spl/e-sp-line2/internal/repository"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
@@ -67,6 +68,25 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	}
 	services.Options = options
 
+	// Resolve the effective adapters directory.
+	//
+	// The adapters are embedded in the binary at build time and extracted on
+	// demand, so a shipped executable does not need an external adapters/ tree.
+	// An existing external adapters/ directory is still honoured as a developer
+	// override (edits there take effect without rebuilding).
+	adaptersDir, err := adapters.EffectiveDir(cfg.Adapter.AdaptersDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare adapters directory: %w", err)
+	}
+	if adaptersDir != cfg.Adapter.AdaptersDir {
+		logger.Infof("Adapters resolved to embedded bundle: %s", adaptersDir)
+	} else {
+		logger.Infof("Adapters resolved to external directory: %s", adaptersDir)
+	}
+	// Keep the resolved path in the config so every downstream consumer
+	// (runner, catalog, sandbox manager, installer) agrees on one location.
+	cfg.Adapter.AdaptersDir = adaptersDir
+
 	// Initialize the Python adapter process manager (WebUI start/stop control).
 	backendURL := fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port)
 	if cfg.Host == "0.0.0.0" {
@@ -74,7 +94,7 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	}
 	services.Runner = NewPythonRunner(
 		cfg.Adapter.PythonBin,
-		cfg.Adapter.AdaptersDir,
+		adaptersDir,
 		backendURL,
 		cfg.Adapter.AutoRestart,
 		repos.Instance,
@@ -83,7 +103,7 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	)
 
 	// Initialize the adapter catalog by scanning adapters/*/adapter.yaml.
-	catalog, err := NewAdapterCatalog(cfg.Adapter.AdaptersDir)
+	catalog, err := NewAdapterCatalog(adaptersDir)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +114,11 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	services.Runner.SetJWTSecret(cfg.JWT.Secret)
 
 	// Initialize the instance sandbox manager (data/instances/<id>/adapter).
-	dirs := NewInstanceDirManager(cfg.Adapter.AdaptersDir)
+	dirs := NewInstanceDirManager(adaptersDir)
 
 	// Initialize the dependency installer and attach it to the runner and the
 	// instance service so new instances auto-install adapter dependencies.
-	installer := NewDependencyInstaller(cfg.Adapter.PythonBin, cfg.Adapter.AdaptersDir)
+	installer := NewDependencyInstaller(cfg.Adapter.PythonBin, adaptersDir)
 	services.Runner.SetInstaller(installer)
 	services.Instance.SetInstaller(installer)
 	services.Runner.SetDirManager(dirs)

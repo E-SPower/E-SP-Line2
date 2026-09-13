@@ -139,7 +139,10 @@ func (r *PythonRunner) IsRunning(instanceID string) bool {
 
 // logDir returns the directory where per-instance logs are stored.
 func (r *PythonRunner) logDir() string {
-	return filepath.Join(r.dir, "..", "data", "logs")
+	// Derived from the data root so logs stay in data/logs whether the adapters
+	// are external (adapters/) or extracted from the embedded bundle
+	// (data/adapters/).
+	return filepath.Join(dataRootDir(r.dir), "logs")
 }
 
 // logPath returns the log file path for an instance.
@@ -715,17 +718,65 @@ func (r *PythonRunner) resolvePlatformCode(instanceID string) (string, error) {
 	return "", errors.New("platform code not resolvable for adapter")
 }
 
-// sandboxDir returns the instance's sandboxed adapter copy directory, or ""
-// if the sandbox manager is not attached or the directory does not exist.
+// sandboxDir returns the instance's sandboxed adapter copy directory.
+//
+// The sandbox is normally created when the instance is created, but it can be
+// missing for legitimate reasons that have nothing to do with the instance
+// being invalid:
+//
+//   - the data/ directory was deleted or moved (e.g. the user copied the
+//     executable elsewhere, or ran from a different working directory);
+//   - the database was kept while data/instances was cleaned up;
+//   - the server was upgraded across a layout change.
+//
+// Because the adapter sources are embedded in the binary (or available in the
+// external adapters/ directory), the sandbox can always be rebuilt. Previously
+// this returned "" and the user was told to "recreate the instance", which
+// throws away their configuration for no good reason.
+//
+// It now self-heals: if the sandbox copy (or its manifest) is absent, it is
+// restored from the adapter source.
 func (r *PythonRunner) sandboxDir(instanceID, platformCode string) string {
 	if r.dirs == nil {
 		return ""
 	}
 	dir := r.dirs.AdapterDir(instanceID)
-	if _, err := os.Stat(dir); err != nil {
+	if sandboxUsable(dir) {
+		return dir
+	}
+
+	// Attempt to restore the sandbox from the adapter source.
+	if platformCode == "" {
 		return ""
 	}
-	return dir
+	restored, err := r.dirs.CopyAdapter(instanceID, platformCode)
+	if err != nil {
+		logger.Warn("Failed to rebuild instance sandbox",
+			logger.String("instance_id", instanceID),
+			logger.String("platform_code", platformCode),
+			logger.String("error", err.Error()))
+		return ""
+	}
+	logger.Info("Rebuilt missing instance sandbox",
+		logger.String("instance_id", instanceID),
+		logger.String("adapter_dir", restored))
+	return restored
+}
+
+// sandboxUsable reports whether dir holds a complete sandbox copy: main.py
+// present and a manifest written (the manifest is required by the integrity
+// check performed before start).
+func sandboxUsable(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main.py")); err != nil {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), "manifest.json")); err != nil {
+		return false
+	}
+	return true
 }
 
 // Start launches the Python adapter process for the given instance.
@@ -770,7 +821,13 @@ func (r *PythonRunner) Start(instanceID string) error {
 	// adapters/ directory. Verify the copy is unmodified before starting.
 	workDir := r.sandboxDir(instanceID, platformCode)
 	if workDir == "" {
-		return errors.New("instance sandbox is not initialized; please recreate the instance")
+		// Self-healing was attempted but failed. Report something actionable
+		// instead of asking the user to recreate the instance (which would
+		// discard their configuration).
+		return fmt.Errorf("instance sandbox unavailable for platform %q and could not "+
+			"be rebuilt: the adapter source was not found. Ensure the built-in adapter "+
+			"is available (it is embedded in the binary and extracted to data/adapters), "+
+			"then restart the application", platformCode)
 	}
 	if r.dirs != nil {
 		if err := r.dirs.VerifyIntegrity(instanceID); err != nil {

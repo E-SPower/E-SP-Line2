@@ -26,17 +26,61 @@ import (
 // matches its digest, the instance is refused to start (integrity check).
 type InstanceDirManager struct {
 	root       string // e.g. data/instances
-	adaptersDir string // e.g. adapters
+	adaptersDir string // e.g. adapters or data/adapters
 }
 
-// NewInstanceDirManager creates a manager rooted at data/instances. The base
-// dir is derived from the adapters dir location so it stays next to the DB
-// (data/...).
+// NewInstanceDirManager creates a manager rooted at data/instances.
+//
+// The data root is derived from the adapters directory, but the previous naive
+// `adaptersDir/../data` derivation breaks once the adapters live *inside* data
+// (the embedded bundle is extracted to data/adapters), which would yield
+// data/data/instances. The logic below therefore:
+//
+//   - reuses the existing data/ directory when the adapters dir is nested in
+//     one (e.g. data/adapters -> data/instances);
+//   - otherwise falls back to adaptersDir/../data (e.g. adapters -> data/...).
 func NewInstanceDirManager(adaptersDir string) *InstanceDirManager {
 	return &InstanceDirManager{
-		root:        filepath.Join(adaptersDir, "..", "data", "instances"),
+		root:        dataInstancesDir(adaptersDir),
 		adaptersDir: adaptersDir,
 	}
+}
+
+// dataInstancesDir resolves the data/instances directory for a given adapters
+// directory, keeping the layout stable whether the adapters are external
+// (adapters/) or extracted from the embedded bundle (data/adapters/).
+func dataInstancesDir(adaptersDir string) string {
+	return filepath.Join(dataRootDir(adaptersDir), "instances")
+}
+
+// dataRootDir resolves the runtime "data" directory that holds the database,
+// instance sandboxes, logs and dependency markers.
+//
+// Historically every caller derived it as `adaptersDir/../data`, which assumed
+// the adapters live outside data/. That assumption breaks for the embedded
+// bundle, which is extracted to data/adapters and would then produce
+// data/data/... . Resolving the data root once, in one place, keeps all
+// consumers (sandbox manager, runner, dependency installer) consistent.
+func dataRootDir(adaptersDir string) string {
+	clean := filepath.Clean(adaptersDir)
+
+	// Case 1: the adapters directory is nested inside a "data" directory,
+	// e.g. data/adapters -> data.
+	slash := filepath.ToSlash(clean)
+	if idx := strings.LastIndex("/"+slash+"/", "/data/"); idx >= 0 {
+		prefix := ("/" + slash + "/")[:idx+len("/data")]
+		prefix = strings.TrimPrefix(prefix, "/")
+		if prefix != "" {
+			return filepath.FromSlash(prefix)
+		}
+		return "data"
+	}
+	if slash == "data" || strings.HasPrefix(slash, "data/") {
+		return "data"
+	}
+
+	// Case 2: external adapters (e.g. "adapters") -> sibling data directory.
+	return filepath.Join(clean, "..", "data")
 }
 
 // instanceDir returns the sandbox root for a single instance.

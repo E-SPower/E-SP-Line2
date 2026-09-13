@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=E-SP-Line2
+Name[zh_CN]=E-SP-Line2 接入器管理
+Comment=Platform Adapter Management System
+Comment[zh_CN]=平台化接入器管理系统
+# Terminal=false 是关键：从应用菜单/文件管理器启动时不弹出终端窗口，
+# 程序以原生窗口（WebKitGTK）形式运行。
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true
+StartupWMClass=E-SP-Line2
+
+# %k 展开为 .desktop 文件自身路径，用 sh -c 切换到所在目录后再启动，
+# 这样 config/ 与 data/ 都能相对可执行文件正确定位。
+# 注意：桌面包内的可执行文件名为 e-sp-line2-desktop（与网页版区分）。
+Exec=sh -c 'cd "$(dirname "$1")" && exec ./e-sp-line2-desktop' sh %k
+
+Icon=espl-logo

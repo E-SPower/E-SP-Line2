@@ -11,6 +11,16 @@
 - pnpm 或 npm
 - Redis (可选)
 
+### 两种运行形态
+
+| 形态 | 说明 | 命令 |
+| --- | --- | --- |
+| **网页版**（默认） | 后端只提供 API，前端由独立静态服务 + 反代 `/api`、`/ws` | `make run` |
+| **桌面窗口版**（编译后） | 前端内嵌进二进制，启动即弹出原生窗口 | `make build-desktop` |
+
+> 桌面窗口版使用原生 WebView（Windows: WebView2 / Linux: WebKitGTK），
+> 编译依赖与跨平台打包详见 [编译指南](docs/BUILD.md)。
+
 ### 后端启动
 
 ```bash

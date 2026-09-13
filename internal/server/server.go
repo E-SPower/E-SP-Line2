@@ -17,6 +17,7 @@ import (
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
+	"github.com/e-spl/e-sp-line2/pkg/webui"
 	"github.com/gin-gonic/gin"
 )
 
@@ -85,6 +86,15 @@ func New(cfg *config.Config) (*Server, error) {
 
 	s.setupRoutes()
 	s.registerVersionCheck()
+
+	// When compiled with the `desktop` build tag the frontend is embedded into
+	// the binary (pkg/webui). Register it as the catch-all route so unmatched
+	// (non-API) paths serve the SPA. API/WS routes registered above always win
+	// because NoRoute only matches routes that were not otherwise handled.
+	if webui.Available {
+		s.router.NoRoute(gin.WrapH(webui.Handler()))
+		logger.Info("Embedded WebUI enabled (desktop build)")
+	}
 
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

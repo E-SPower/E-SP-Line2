@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,35 @@ import (
 
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
+
+// errStorePythonStub marks the Microsoft Store "python" placeholder as
+// unusable. It is not a real failure of the install itself: the cascade simply
+// moves on to the next installer (pip3/pip/pipx).
+var errStorePythonStub = errors.New("python on PATH is the Microsoft Store stub")
+
+// isStorePythonStub reports whether bin behaves like the Windows Store
+// placeholder for Python.
+//
+// Windows ships an App Execution Alias named python.exe that, when no real
+// interpreter is installed, prints
+//
+//	Python was not found but can be installed from the Microsoft Store: https://...
+//
+// and exits non-zero. Running `python -m pip` against it produces a confusing
+// error, so it is detected and skipped.
+func isStorePythonStub(bin string) bool {
+	if bin == "" {
+		return false
+	}
+	out, err := exec.Command(bin, "-c", "print(1)").CombinedOutput()
+	if err == nil {
+		return false // a working interpreter
+	}
+	lower := strings.ToLower(string(out))
+	return strings.Contains(lower, "microsoft store") ||
+		strings.Contains(lower, "was not found") ||
+		strings.Contains(lower, "app execution alias")
+}
 
 // DependencyInstaller installs Python dependencies (requirements.txt) for
 // adapter instances. When a new instance is created, its sandboxed adapter
@@ -98,7 +128,9 @@ func (d *DependencyInstaller) saveState(instanceID string, s *installState) {
 // were already installed once system-wide, so new instances of the same
 // platform skip re-installation.
 func (d *DependencyInstaller) dependencyMarkerDir() string {
-	return filepath.Join(d.dirs.root, "..", "deps")
+	// Derived from the data root so it stays data/deps whether the adapters are
+	// external (adapters/) or extracted from the embedded bundle (data/adapters/).
+	return filepath.Join(dataRootDir(d.dirs.adaptersDir), "deps")
 }
 
 // markerPath returns the marker path for a platform code.
@@ -153,6 +185,26 @@ func (d *DependencyInstaller) InstallDependencies(instanceID, adapterDir, platfo
 	d.states[instanceID] = st
 	d.saveState(instanceID, st)
 	d.mu.Unlock()
+
+	// InstallDependencies returns immediately: pip can take tens of seconds
+	// (downloading/building wheels), and callers invoke it straight from an
+	// HTTP handler. Running it inline blocked POST /instances long enough for
+	// the browser to time out, and left the UI stuck on "initializing" with no
+	// visible progress. The WebUI polls the init status, so the work is done in
+	// the background and reported through installState.
+	go d.install(instanceID, adapterDir, platformCode, updateStatus)
+}
+
+// install performs the actual dependency installation in the background.
+func (d *DependencyInstaller) install(instanceID, adapterDir, platformCode string, updateStatus func(string, string) error) {
+	defer func() {
+		if r := recover(); r != nil {
+			d.finish(instanceID, "failed", 100, "依赖安装异常终止", fmt.Sprintf("%v", r))
+			logger.Error("dependency install panicked",
+				logger.String("instance_id", instanceID),
+				logger.String("error", fmt.Sprintf("%v", r)))
+		}
+	}()
 
 	// Write an initial log line so the WebUI can show install progress.
 	d.appendLog(instanceID, "开始安装适配器依赖...")
@@ -387,6 +439,16 @@ func (d *DependencyInstaller) runInstall(at installAttempt, adapterDir string) (
 		return string(out), err
 	}
 
+	// A "python" found on PATH on Windows is frequently the Microsoft Store
+	// stub, which is not a real interpreter: it prints an advertisement and
+	// exits non-zero. Detect it up front so the cascade moves on to a working
+	// pip instead of reporting a confusing pip error.
+	if !at.isPipx && strings.HasPrefix(at.name, "python") && isStorePythonStub(d.python) {
+		return "python on PATH is the Microsoft Store stub, not a real interpreter; " +
+			"skipping this installer. Install Python from https://www.python.org/downloads/ " +
+			"and ensure it is on PATH.", errStorePythonStub
+	}
+
 	// For pipx, make sure the dedicated "pip" venv exists before running.
 	if at.isPipx {
 		// pipx install pip — if already present it prints "already installed"
@@ -472,7 +534,7 @@ func (d *DependencyInstaller) finish(instanceID, status string, progress int, me
 // logDir returns the directory where per-instance logs are stored (kept in
 // sync with PythonRunner.logDir).
 func (d *DependencyInstaller) logDir() string {
-	return filepath.Join(d.dirs.root, "..", "logs")
+	return filepath.Join(dataRootDir(d.dirs.adaptersDir), "logs")
 }
 
 // appendLog appends a line to the instance's log file (so install progress is
