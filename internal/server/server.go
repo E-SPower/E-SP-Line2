@@ -75,6 +75,10 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	})
 
+	// Command retry sweep: re-dispatches anything parked in retrying while a
+	// bridge was away, so a reconnect drains the backlog instead of losing it.
+	services.Command.StartRetryLoop(context.Background(), 30*time.Second)
+
 	// Start outbound connections for enabled client-mode adapters.
 	if adapters, _, err := services.AdapterGateway.List(1000, 0); err == nil {
 		ptrs := make([]*models.Adapter, len(adapters))
@@ -194,6 +198,10 @@ func (s *Server) setupRoutes() {
 		messages := v1.Group("/messages")
 		messages.Use(middleware.AuthRequired())
 		{
+			// POST is the ingest entry point (B3): it stores the event and routes
+			// it. It has to exist before anything can produce a message, because
+			// the bridge socket is not an ingestion API of its own.
+			messages.POST("", handler.CreateMessage(s.services.Message))
 			messages.GET("", handler.ListMessages(s.services.Message))
 			messages.GET("/:id", handler.GetMessage(s.services.Message))
 			messages.POST("/:id/ack", handler.AckMessage(s.services.Message))
@@ -280,6 +288,7 @@ func (s *Server) setupRoutes() {
 		// The gateway is passed so outbound commands can be routed back to the
 		// correct bridge instance.
 		ws.GET("/adapter", handler.AdapterWebSocket(
+			s.services.Hub,
 			s.services.Adapter,
 			s.services.Message,
 			s.gateway,
@@ -287,7 +296,7 @@ func (s *Server) setupRoutes() {
 				s.broadcastToAdapterGateway(payload)
 			},
 		))
-		ws.GET("/app", handler.AppWebSocket(s.services.Message))
+		ws.GET("/app", handler.AppWebSocket(s.services.Hub, s.services.Message))
 
 		// Adapter gateway (接入器) — external systems connect here with ?key=xxx
 		// Default listen path is simply /ws (简洁).

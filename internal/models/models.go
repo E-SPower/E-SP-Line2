@@ -63,16 +63,22 @@ type AdapterSession struct {
 
 // InboundEvent represents an inbound message event
 type InboundEvent struct {
-	ID             string    `json:"id" gorm:"primaryKey"`
-	PlatformID     string    `json:"platform_id" gorm:"index;not null"`
-	InstanceID     string    `json:"instance_id" gorm:"index;not null"`
-	ConversationID string    `json:"conversation_id" gorm:"index"`
-	SenderID       string    `json:"sender_id"`
-	SenderName     string    `json:"sender_name"`
-	MessageType    string    `json:"message_type"` // text, image, audio, product_card
-	MessageContent string    `json:"message_content" gorm:"type:text"`
-	RawMessage     string    `json:"raw_message" gorm:"type:text"`
-	IdempotencyKey string    `json:"idempotency_key" gorm:"uniqueIndex"`
+	ID             string `json:"id" gorm:"primaryKey"`
+	PlatformID     string `json:"platform_id" gorm:"index;not null"`
+	InstanceID     string `json:"instance_id" gorm:"index;not null"`
+	ConversationID string `json:"conversation_id" gorm:"index"`
+	SenderID       string `json:"sender_id"`
+	SenderName     string `json:"sender_name"`
+	MessageType    string `json:"message_type"` // text, image, audio, product_card
+	MessageContent string `json:"message_content" gorm:"type:text"`
+	RawMessage     string `json:"raw_message" gorm:"type:text"`
+	// IdempotencyKey is a pointer so "no key supplied" can be stored as NULL
+	// instead of "". SQLite's UNIQUE treats NULLs as distinct but allows only a
+	// single "", so with a plain string the second keyless message collided with
+	// the first (UNIQUE constraint failed) the moment an ingest route existed.
+	// MessageService.Create still generates a fallback key for every writer, so
+	// the unique index below stays meaningful rather than becoming dead weight.
+	IdempotencyKey *string   `json:"idempotency_key" gorm:"uniqueIndex"`
 	TraceID        string    `json:"trace_id" gorm:"index"`
 	Status         string    `json:"status" gorm:"default:'received'"` // received, routed, delivered, acked, retry_pending, dead_letter
 	CreatedAt      time.Time `json:"created_at"`

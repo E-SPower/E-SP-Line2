@@ -485,6 +485,42 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 ## Message endpoints
 
+### Create (ingest) a message
+
+**POST** `/messages`
+
+The entry point for a message arriving from outside the bridge socket. The event
+is persisted and then routed: if a rule matches and a target is connected the
+frame is delivered, and the stored `status` records how far it got
+(`received` → no rule matched, `routed` → matched but nobody connected,
+`delivered` → at least one connection accepted it).
+
+**Request body**:
+```json
+{
+  "platform_id": "xianyu",
+  "instance_id": "instance-001",
+  "conversation_id": "conv-001",
+  "sender_id": "user-123",
+  "sender_name": "Buyer A",
+  "message_type": "text",
+  "message_content": "Hello",
+  "idempotency_key": "xianyu-msg-001"
+}
+```
+
+`idempotency_key` is optional. When it is omitted a key is generated, so repeated
+keyless messages never collide.
+
+**Responses**:
+
+| Code | Meaning |
+| --- | --- |
+| `201` | Created and (attempted) routed; body is the event |
+| `200` | Same `idempotency_key` already stored; body is the **original** event |
+| `400` | `platform_id` / `instance_id` / `message_type` missing |
+| `401` | No valid token |
+
 ### List messages
 
 **GET** `/messages`
