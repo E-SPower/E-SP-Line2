@@ -222,7 +222,7 @@ export default function Layout() {
             <Button
               variant="ghost"
               size="sm"
-              className="mt-1 w-full min-w-0 justify-start gap-2 text-text-tertiary"
+              className="mt-1 w-full min-w-0 justify-start gap-1.5 px-1 py-1 text-text-tertiary"
               onClick={() => setCollapsed((value) => !value)}
               aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
               title={collapsed ? t('nav.expand') : t('nav.collapse')}
@@ -231,7 +231,7 @@ export default function Layout() {
               {/* `truncate`: the label is `nowrap`, so a long one (English at a
                   large root size) used to paint straight over the main column
                   instead of ellipsising inside the sidebar. */}
-              {!collapsed && <span className="min-w-0 truncate">{t('nav.collapse')}</span>}
+              {!collapsed && <span className="min-w-0 break-words">{t('nav.collapse')}</span>}
             </Button>
           )}
         </div>
@@ -346,7 +346,7 @@ export default function Layout() {
               steps 24/32/48: at phone width the horizontal gutter is also 24,
               but from a desktop bar down the page needs more air than the
               sides or the `h1` reads as glued to the top bar. */}
-          <div className="shell-rail stack py-6 sm:py-8 lg:py-20">
+          <div className="shell-rail stack py-6 sm:py-8 lg:py-[clamp(56px,5vw,96px)]">
             <Outlet />
           </div>
         </main>

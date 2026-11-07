@@ -129,7 +129,7 @@
      * sidebar at its familiar 240px on default type and lets it give way —
      * never the content — when the reader's base size grows.
      */
-    --sidebar-width: min(15rem, 22vw);
+    --sidebar-width: clamp(288px, 24vw, 17rem);
     --sidebar-width-collapsed: 4.25rem;
     --topbar-height: 3.5rem;
   }
