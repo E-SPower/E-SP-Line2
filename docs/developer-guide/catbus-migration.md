@@ -16,10 +16,10 @@ E-SP-Line2 had two adapters, Taobao and Xianyu, with capabilities written out as
 
 ## What moved
 
-- **Platform registry** `backend/internal/platformspec`: 15 platforms, per-command support for 102 commands, login methods, config fields, capability lists and inline limitation notes, all generated from the capability matrix.
-- **Adapter package** `backend/internal/adapter`: `BuiltinAdapterInfo` translates a registry entry into `AdapterInfo`, a config JSON Schema, both locales, and the operation and security policies. `RegisterBuiltinAdapters` registers the 12 active platforms; the three upcoming ones are registered as `inactive`.
-- **Message field contract** `backend/internal/messagefields`: fields, types, nullability, enums and meaning for 17 normalized objects and 11 message element kinds, served by `GET /api/v1/message-fields`.
-- **Startup sync** `backend/internal/adapter/sync.go`: writes the active platforms and their adapter packages into the database, idempotently, so the existing platform and adapter APIs work without hand-entry.
+- **Platform registry** `internal/platformspec`: 15 platforms, per-command support for 102 commands, login methods, config fields, capability lists and inline limitation notes, all generated from the capability matrix.
+- **Adapter package** `internal/adapter`: `BuiltinAdapterInfo` translates a registry entry into `AdapterInfo`, a config JSON Schema, both locales, and the operation and security policies. `RegisterBuiltinAdapters` registers the 12 active platforms; the three upcoming ones are registered as `inactive`.
+- **Message field contract** `internal/messagefields`: fields, types, nullability, enums and meaning for 17 normalized objects and 11 message element kinds, served by `GET /api/v1/message-fields`.
+- **Startup sync** `internal/adapter/sync.go`: writes the active platforms and their adapter packages into the database, idempotently, so the existing platform and adapter APIs work without hand-entry.
 - **Docs**: this page, [message-fields.md](./message-fields.md), [platform-capabilities.md](./platform-capabilities.md).
 
 ## Generated, do not hand-edit
@@ -28,7 +28,7 @@ The capability matrix is the single source of truth. `matrix.json` is an export 
 
 ```bash
 # regenerate the platform registry
-python3 scripts/gen_platformspec.py matrix.json backend/internal/platformspec
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
 # regenerate the capability matrix doc
 python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
 ```

@@ -1,6 +1,6 @@
 # golangci-lint config — https://golangci-lint.run/usage/configuration/
 #
-# Used by `make -C backend lint` and by the `format-lint` CI job. Keep the two
+# Used by `make lint` and by the `format-lint` CI job. Keep the two
 # identical in shape: a rule only CI knows, or only local knows, turns a green
 # local run into a red PR.
 version: "2"

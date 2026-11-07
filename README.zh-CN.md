@@ -37,18 +37,17 @@ E-SP-Line2 是一个基于平台化架构的接入器管理系统，支持多平
 
 ```
 E-SP-Line2/
-├── backend/              # Go 后端服务
-│   ├── cmd/             # 命令行工具
-│   ├── internal/        # 内部包
-│   │   ├── config/     # 配置管理
-│   │   ├── handler/    # HTTP 处理器
-│   │   ├── middleware/ # 中间件
-│   │   ├── models/     # 数据模型
-│   │   ├── repository/ # 数据访问层
-│   │   ├── server/     # 服务器
-│   │   └── service/    # 业务逻辑层
-│   ├── pkg/            # 公共包
-│   └── config/         # 配置文件
+├── cmd/                # 命令行工具
+├── internal/           # Go 后端服务
+│   ├── config/         # 配置管理
+│   ├── handler/        # HTTP 处理器
+│   ├── middleware/     # 中间件
+│   ├── models/         # 数据模型
+│   ├── repository/     # 数据访问层
+│   ├── server/         # 服务器
+│   └── service/        # 业务逻辑层
+├── pkg/                # 公共包
+├── config/             # 配置文件
 ├── web/                # React 前端
 │   ├── src/
 │   │   ├── components/ # 组件
@@ -71,8 +70,6 @@ E-SP-Line2/
 ### 后端启动
 
 ```bash
-cd backend
-
 # 安装依赖
 make deps
 
@@ -154,7 +151,7 @@ pnpm dev
 平台是数据。在 `matrix.json` 里加一列，并在 `scripts/gen_platformspec.py` 的 `META` / `CONFIG` 里加一项，然后重新生成：
 
 ```bash
-python3 scripts/gen_platformspec.py matrix.json backend/internal/platformspec
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
 python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
 ```
 

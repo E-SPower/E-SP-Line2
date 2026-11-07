@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -60,11 +61,17 @@ func AckMessage(messageService *service.MessageService) gin.HandlerFunc {
 // the hub. Idempotency is the service's job: a repeated idempotency_key returns
 // the stored event with 200 instead of inserting a second row, and a missing key
 // is replaced with a generated one (B4) so the UNIQUE index never sees "" twice.
+//
+// BodyTooLarge answers 413 for an over-cap body; without it the read error from
+// MaxBytesReader surfaces as a plain 400 "unexpected end of JSON input" and the
+// sender goes hunting for a syntax problem instead of shrinking the payload.
 func CreateMessage(messageService *service.MessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req service.CreateMessageRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 

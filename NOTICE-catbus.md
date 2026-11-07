@@ -34,6 +34,6 @@ SOFTWARE.
 
 | Content | Original location | Location here |
 |---|---|---|
-| Platform registry, login methods, config fields, capability matrix, inline limits | `src/platforms/*/index.ts`, `docs/capabilities.md` | `backend/internal/platformspec`, `docs/developer-guide/platform-capabilities.md` |
-| Normalized types and field rules | `src/core/schemas.ts`, `AGENTS.md` 6.2 | `backend/internal/messagefields`, `docs/developer-guide/message-fields.md` |
+| Platform registry, login methods, config fields, capability matrix, inline limits | `src/platforms/*/index.ts`, `docs/capabilities.md` | `internal/platformspec`, `docs/developer-guide/platform-capabilities.md` |
+| Normalized types and field rules | `src/core/schemas.ts`, `AGENTS.md` 6.2 | `internal/messagefields`, `docs/developer-guide/message-fields.md` |
 | Output envelope, error codes, paging, exit codes | `docs/guide/output.md`, `src/core/errors.ts` | `docs/developer-guide/message-fields.md` |

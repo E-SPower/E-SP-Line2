@@ -23,7 +23,7 @@ Component versions matter: `go.mod` and `web/package.json` pin what maintainers 
 
 ```bash
 git clone https://github.com/E-SPower/E-SP-Line2.git
-cd E-SP-Line2/backend
+cd E-SP-Line2
 go mod download
 go run main.go   # reads ./config/config.yaml, then ./config.yaml, then /etc/e-sp-line2
 ```

@@ -2,7 +2,7 @@
 
 审查对象：`E-SP-Line2`（`/home/typer/ESPL2/E-SP-Line2`，版本 `1.0.0` 加一批未提交改动）。
 审查方式：静态通读 + 实际起服务验证（`PORT=18xxx` 临时端口、独立 SQLite 库、真实 HTTP/WebSocket 客户端）。
-审查日期：2026-11-07。
+审查日期：2026-11-07。P0/P1/P2 修复后在 PR #3 的 head 上重跑过一轮，结论与命令结果都按当前树更新。
 
 ## 0. 结论速览
 
@@ -18,13 +18,13 @@
 
 | 命令 | 结果 |
 | --- | --- |
-| `CGO_ENABLED=1 go test ./...` | **通过**（`adapter` / `messagefields` / `platformspec` 三包有测试） |
+| `CGO_ENABLED=1 go test ./...` | **通过**（全部包，含新增的 handler / server / websocket 用例） |
 | `CGO_ENABLED=0 go test ./...` | **失败**，`adapter` 包两个用例 `requires cgo to work. This is a stub` |
 | `go vet ./...` | 通过（仅 go-sqlite3 的 C 警告） |
-| `npx tsc --noEmit` | 通过 |
+| `npx tsc --noEmit` | 通过（须先 `cd web && npm ci`） |
 | `python3 scripts/check_generated.py matrix.json` | 通过（生成物未过期） |
-| `npm run lint` | 通过（`--max-warnings 23`，23 条全是 `no-explicit-any`） |
-| `gofmt -l backend` | 无输出 |
+| `npm run lint` | 通过（`--max-warnings 68`，68 条全是 `no-explicit-any`；P1 的三条已计入预算） |
+| `gofmt -l .` | 无输出 |
 | `npx vite build`（仓库只读时） | **失败** `EROFS ... vite.config.ts.timestamp-*.mjs`；拷到可写目录后通过（m19） |
 | `npm run build` | 同上（内含 `vite build`） |
 
@@ -77,7 +77,7 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 `instance_id` / `app_id` 两个 query 参数只用于打日志，从未参与任何注册。
 
-**根因**：`message.NewHub()`（`internal/message/hub.go:22`）**在全仓没有调用点**。`Dispatcher` / `Router` / `Hub` 三个类型连同 `RegisterConnection`、`ProcessMessage`、`SendCommand` 全是死代码——`grep -rln 'internal/message"' backend` 的结果是**没有任何包导入 `internal/message`**。`service.Services`（`internal/service/services.go:10-21`）里也没有 `Hub` 字段。
+**根因**：`message.NewHub()`（`internal/message/hub.go:22`）**在全仓没有调用点**。`Dispatcher` / `Router` / `Hub` 三个类型连同 `RegisterConnection`、`ProcessMessage`、`SendCommand` 全是死代码——`grep -rln 'internal/message"'` 的结果是**没有任何包导入 `internal/message`**。`service.Services`（`internal/service/services.go:10-21`）里也没有 `Hub` 字段。
 
 **定位**：
 - `internal/handler/websocket.go:60` 与 `:112` — 两处 `// Echo back for now (implement actual message processing)`
@@ -397,7 +397,7 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 `grep '\.Transaction(\|Begin()'` 无命中。多步写（如 B5 的"落库+派发+改状态"）目前靠运气，不是原子。
 
 ### m13. Redis 只配置不使用
-`config` 有完整的 `RedisConfig`、`config.yaml:20-25` 也写了，`grep -rn redis backend --include=*.go` 除 `config.go` 外零命中。README 却把 Redis 列进技术栈。
+`config` 有完整的 `RedisConfig`、`config.yaml:20-25` 也写了，`grep -rn redis --include=*.go` 除 `config.go` 外零命中。README 却把 Redis 列进技术栈。
 
 ### m14. 列表接口无上限
 `limit` 直接透传 `Limit(limit)`，`?limit=999999` 回 200（实测）。`limit=abc` 被 `strconv.Atoi` 吞成 0 后落到默认值，行为能接受但没报错。
@@ -405,15 +405,19 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 ### m15. 端口/健康检查信息暴露
 `GET /health`（`server.go:169-174`）无鉴权回 `{"status":"ok","version":"1.0.0"}`，版本号可用于对号入座已知问题。属可接受的设计取舍，但建议生产环境收敛。
 
-### m16. 前端 23 条 `no-explicit-any` 靠 `--max-warnings 23` 顶着
-`package.json` 的 lint 脚本把闸门抬到 23（`web/package.json:12`）。规则是只许降（`web/.eslintrc.cjs:18-20`）——**新增一条 any 就会红**，但删掉一条后要人工把 23 调回 22，否则预算永远虚高。`api/client.ts` 通篇 `request<any[]>`，是最该先补类型的地方。
+### m16. 前端任何一条 `no-explicit-any` 都靠 `--max-warnings` 顶着
+`package.json` 的 lint 脚本把闸门钉在一个固定数（`web/package.json:12`，审查时 23，现 68）。规则是只许降（`web/.eslintrc.cjs:18-20`）——**新增一条 any 就会红**，但删掉一条后要人工把预算调回去，否则数字永远虚高。`api/client.ts` 通篇 `request<any[]>`，是最该先补类型的地方。
 
 ### m17. 前端没有任何测试，`DOCS.md` 却声称有
 `web/package.json` 的 `scripts` 只有 `dev`/`build`/`lint`/`preview`，**没有测试脚本、没有 vitest/jest 依赖**，`web/src` 下也没有一个 `*.test.*`/`*.spec.*`。
 而 `web/DOCS.md:11` 写着"`docs.link*` 键在两个语言包里必须同步（**web 构建里有一个测试会比对它们**）"——那个测试不存在。两包一旦漂移不会有人发现。
 
-### m18. `node_modules` 被提交进仓库
-`git ls-files web/node_modules | wc -l` = **11077**，占全仓 `11170` 个受版本控制文件的 99%。克隆体积和 diff 噪音都很大。仓库根目录没有 `.gitignore`，`web/.gitignore` 只有 `dist` 和 `*.timestamp-*.mjs` 两行（`web/.gitignore:1-2`），没有任何地方忽略 `node_modules`——即使想 ignore 也得先 `git rm -r --cached`。
+### m18. ~~`node_modules` 被提交进仓库~~（本分支已移出）
+`git ls-files web/node_modules | wc -l` 原本是 **6021**（不是 11077，那是 `git ls-files` 的全仓行数），占全仓 `6244` 个受版本控制文件的 **96%**。
+
+**本分支现状：0 个**，`git diff --name-status main...HEAD` 里 6021 条全是 `D`，`web/.gitignore` 也补了 `dist` 和 `*.timestamp-*.mjs`（根 `.gitignore` 第 25 行本来就有 `web/node_modules/`）。干净检出上 `npx tsc` 会退回到「装了个同名空壳 `tsc` 包」的老路，必须先 `npm ci`——`pr-qa.md` 和 PR 模板已改成 `npm ci && npx tsc`。
+
+**一个要盯住的坑**：这 6021 条不是被一个显式 `git rm` 提交删掉的，是在合并 `main` 的 merge commit 里被 rename 检测判成删除的——两个父提交都还带着这些文件，`web/.gitignore` 三个版本逐字一致。也就是说 `main` 上仍然跟踪着它们，**后续再合并 `main` 有可能把它们原样带回来**；每次从 `main` 合并后跑一次 `git ls-tree -r HEAD web/node_modules | wc -l`，得到非 0 就说明回来了。
 
 ### m19. ~~`npm run build` 在只读工作树上直接失败，PR-QA 却让人跑它~~（已修复）
 
@@ -455,7 +459,7 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 - **`jwt.expiration` 是小时数**：`config.yaml:33` 的注释写清了，`auth.go:133` 也是按小时乘的，没有单位歧义。
 - **`/docs` 产线需要额外部署动作**：`web/DOCS.md:6` 明确写了"生产构建必须把 `docs/` 拷到 `dist/` 旁边或前置反代"——也就是说这是已知的部署动作，不是缺陷；m8 只是提醒别漏了这一步。
 - **`golangci-lint` 已启用，`errcheck` 被有意关掉**：`ci.yml:135-139` 把它作为 `format-lint` 的一步跑（`v2.1.6`，配置在 `.golangci.yml`），配置里写明关掉 `errcheck` 的理由（实测 25 处：非测试 22、测试 3，都是 `Close`/`rand.Read`/`logger.Sync` 这类失败无可恢复路径的调用；开在今天只会得到一条开局即红的门）。
-- **`--max-warnings 23` 是刻意的债务预算**：`web/.eslintrc.cjs:18-20` 说明了它只许降不许升，不是把报警压掉。
+- **`--max-warnings` 是刻意的债务预算**：`web/.eslintrc.cjs:18-20` 说明了它只许降不许升，不是把报警压掉。
 
 ---
 
@@ -493,6 +497,6 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 19. **M16**：实现 `migrate`/`--dev` 或修正 Makefile 与 `migrations/README.md`。
 20. **m4**：统一文档与实现（WS 字段名 `event_type`、409 表、限流说明、平台写接口）。
 21. **m3/m5/m6/m7/m8/m9/m10/m11/m12/m13/m14/m15** 逐条处理；其中 **m5（签名不可重入）** 建议优先，因为它会在 B2 接通后被真实流量踩到。
-22. **m16/m17/m18**：`client.ts` 补类型把 any 清掉、回收 `--max-warnings`；补一个语言包键对齐的测试（把 `DOCS.md` 的声称补实）；`node_modules` 移出版本控制并补 `.gitignore`。
+22. **m16/m17/m18**：`client.ts` 补类型把 any 清掉、回收 `--max-warnings`；补一个语言包键对齐的测试（把 `DOCS.md` 的声称补实）；`node_modules` 移出版本控制（`.gitignore` 已有，缺的是 `git rm -r --cached` 及其提交）。
 23. **m20**：已完成（`CONTRIBUTING.md:16` 已是 `20.11+`，全文无 `18+` 残留）。建议再补一句“改 `engines` 要同步这两处文档”。
 24. **m19**：已完成（`pr-qa.md:97-99` 已注明产物目录须可写；原引用行号 `:97` 现为 `:100`）。

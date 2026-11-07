@@ -92,12 +92,16 @@ export CGO_ENABLED=1
 make test          # CGO_ENABLED=1 is mandatory, see below
 go vet ./...                  # the Go module root is the repository root
 make lint                     # golangci-lint, config in .golangci.yml
-gofmt -l backend              # must print nothing
+gofmt -l .                    # must print nothing; the module moved to the root
 
 # `vite build` writes a `vite.config.ts.timestamp-*.mjs` next to the config, so run
 # it in a writable tree. On a read-only mount it dies with EROFS before bundling;
 # CI checks out writable and is unaffected.
-(cd web && npx tsc --noEmit && npm run lint && npm run build)
+#
+# `web/node_modules` is not tracked, so `npx tsc` on a fresh clone installs a
+# `tsc` stub from the registry and prints "This is not the tsc command you are
+# looking for". `npm ci` first, as the frontend CI job does.
+(cd web && npm ci && npx tsc --noEmit && npm run lint && npm run build)
 
 python3 scripts/check_generated.py matrix.json   # only if matrix.json or a generator changed
 ```

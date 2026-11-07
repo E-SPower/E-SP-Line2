@@ -53,7 +53,7 @@ Out of scope:
 ### Backend
 
 - Passwords are stored as bcrypt hashes, never in plaintext.
-- API tokens are JWTs signed with HS256 and carry an expiry (`jwt.expiration`, 24 hours by default). Rotate `jwt.secret` in `backend/config/config.yaml` per deployment.
+- API tokens are JWTs signed with HS256 and carry an expiry (`jwt.expiration`, 24 hours by default). Rotate `jwt.secret` in `config/config.yaml` per deployment.
 - The `/api/v1` surface except `/auth/register` and `/auth/login` sits behind `AuthRequired`. `AdminRequired` exists but is not wired into any route yet.
 - Both WebSocket routes (`/ws/adapter`, `/ws/app`) require a valid JWT at the handshake (`?token=`) and reject an unlisted `Origin` before upgrading. The gateway routes (`/ws`, `/ws/adapter-gateway/...`) keep their own per-adapter `?key=`.
 - CORS and the WebSocket `CheckOrigin` read one allow-list, `server.allowed_origins`. The accepted origin is echoed rather than sent as `*`, which is the only form where the accompanying `Access-Control-Allow-Credentials` has an effect.
@@ -79,5 +79,5 @@ Be aware of these when you deploy, and please send a report if one of them bites
 ### Repository hygiene
 
 - Never commit real Cookies, tokens or JWT secrets in code, fixtures or logs.
-- `backend/data/e-sp-line2.db` is tracked and holds the seeded data of the dev instance — check it for real credentials before you push.
-- `backend/bin/e-sp-line2` is a tracked build artifact; rebuild it rather than trusting the committed binary to match the source.
+- `data/e-sp-line2.db` is written at first start and holds the seeded dev data — check it for real credentials before you push.
+- `esp-desktop` at the repository root is a tracked build artifact; rebuild it rather than trusting the committed binary to match the source.

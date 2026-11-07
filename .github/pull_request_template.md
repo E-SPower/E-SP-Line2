@@ -24,10 +24,10 @@ runs the same commands offline; a green run here should predict a green CI.
 For a UI change, attach before/after screenshots or a short recording.
 -->
 
-- [ ] `cd backend && CGO_ENABLED=1 go test ./...` (cgo + gcc are required, see pr-qa.md)
-- [ ] `cd backend && go vet ./... && go build ./...`
-- [ ] `gofmt -l backend` printed nothing
-- [ ] `cd web && npx tsc --noEmit && npm run build`
+- [ ] `CGO_ENABLED=1 go test ./...` from the repository root (cgo + gcc are required, see pr-qa.md)
+- [ ] `go vet ./... && go build ./...`
+- [ ] `gofmt -l .` printed nothing
+- [ ] `cd web && npm ci && npx tsc --noEmit && npm run build`
 - [ ] `cd web && npm run lint`
 - [ ] `python3 scripts/check_generated.py matrix.json` (if `matrix.json` or a generator changed)
 

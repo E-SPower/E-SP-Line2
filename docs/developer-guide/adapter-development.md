@@ -19,8 +19,8 @@ This guide explains how to develop a new platform adapter for E-SP-Line2. An ada
 An adapter has two halves: static metadata that is generated from the platform registry, and a runtime that is written by hand.
 
 ```
-backend/internal/platformspec/     static metadata, generated from matrix.json
-backend/internal/adapter/          AdapterInfo / manifest / registry, generated per platform
+internal/platformspec/     static metadata, generated from matrix.json
+internal/adapter/          AdapterInfo / manifest / registry, generated per platform
 adapters/<platform>/               runtime: client, api, normalize, resolve
 ```
 
@@ -70,10 +70,10 @@ type Instance struct {
 
 ### Step 1: Add the platform to the registry
 
-Platforms are data, not hand-written code. Everything static about a platform — its name, item noun, aliases, upstream source, login methods, config fields, capability list and per-command support — lives in `backend/internal/platformspec`, generated from `matrix.json`:
+Platforms are data, not hand-written code. Everything static about a platform — its name, item noun, aliases, upstream source, login methods, config fields, capability list and per-command support — lives in `internal/platformspec`, generated from `matrix.json`:
 
 ```bash
-python3 scripts/gen_platformspec.py matrix.json backend/internal/platformspec
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
 python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
 ```
 

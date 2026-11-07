@@ -14,7 +14,6 @@ The schema is created automatically on startup by GORM `AutoMigrate`.
 
 ```bash
 # Run all migrations
-cd backend
 go run main.go migrate
 
 # Run one specific version

@@ -2,7 +2,7 @@
 
 | Script | Purpose |
 |---|---|
-| `gen_platformspec.py` | Builds `backend/internal/platformspec` from `matrix.json`. |
+| `gen_platformspec.py` | Builds `internal/platformspec` from `matrix.json`. |
 | `gen_capabilities.py` | Builds `docs/developer-guide/platform-capabilities.md` from `matrix.json`. |
 | `check_generated.py` | Fails when either generated output is stale. |
 
@@ -11,7 +11,7 @@
 Regenerate after any matrix change:
 
 ```bash
-python3 scripts/gen_platformspec.py matrix.json backend/internal/platformspec
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
 python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
 python3 scripts/check_generated.py matrix.json
 ```

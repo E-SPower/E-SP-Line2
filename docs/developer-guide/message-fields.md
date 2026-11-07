@@ -2,7 +2,7 @@
 
 Every field of inbound messages, outbound commands and pushed events: meaning, type, allowed values and where it comes from.
 
-- Defined in `backend/internal/messagefields`; `GET /api/v1/message-fields` serves the same contract and `fields_test.go` checks the docs against it.
+- Defined in `internal/messagefields`; `GET /api/v1/message-fields` serves the same contract and `fields_test.go` checks the docs against it.
 - Migrated from [catbus](https://github.com/cv-cat/catbus) `src/core/schemas.ts` and `AGENTS.md` 6.2 "normalized types". See the [catbus migration notes](./catbus-migration.md).
 
 ## Common rules

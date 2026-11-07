@@ -5,7 +5,7 @@ Platform adapter management system for e-commerce customer service.
 **English** · [简体中文](README.zh-CN.md)
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
-[![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8)](backend/go.mod)
+[![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8)](go.mod)
 [![React](https://img.shields.io/badge/react-18-61DAFB)](web/package.json)
 [![Protocol](https://img.shields.io/badge/protocol-v3-8A2BE2)](docs/developer-guide/protocol-v3.md)
 
@@ -46,18 +46,17 @@ E-SP-Line2 is an adapter management system built on a platform-oriented architec
 
 ```
 E-SP-Line2/
-├── backend/              # Go backend service
-│   ├── cmd/             # Command-line tools
-│   ├── internal/        # Internal packages
-│   │   ├── config/     # Configuration
-│   │   ├── handler/    # HTTP handlers
-│   │   ├── middleware/ # Middleware
-│   │   ├── models/     # Data models
-│   │   ├── repository/ # Data access layer
-│   │   ├── server/     # Server
-│   │   └── service/    # Business logic
-│   ├── pkg/            # Shared packages
-│   └── config/         # Configuration files
+├── cmd/                # Command-line tools
+├── internal/           # Go backend service
+│   ├── config/         # Configuration
+│   ├── handler/        # HTTP handlers
+│   ├── middleware/     # Middleware
+│   ├── models/         # Data models
+│   ├── repository/     # Data access layer
+│   ├── server/         # Server
+│   └── service/        # Business logic
+├── pkg/                # Shared packages
+├── config/             # Configuration files
 ├── web/                # React front end
 │   ├── src/
 │   │   ├── components/ # Components
@@ -80,8 +79,6 @@ E-SP-Line2/
 ### Run the backend
 
 ```bash
-cd backend
-
 # Install dependencies
 make deps
 
@@ -167,7 +164,7 @@ The wire format is documented in [Protocol v3](docs/developer-guide/protocol-v3.
 Platforms are data. Add a column to `matrix.json` and an entry to the `META`/`CONFIG` tables in `scripts/gen_platformspec.py`, then regenerate:
 
 ```bash
-python3 scripts/gen_platformspec.py matrix.json backend/internal/platformspec
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
 python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
 ```
 

@@ -10,28 +10,28 @@
 area:backend:
   - changed-files:
       - any-glob-to-any-file:
-          - backend/internal/handler/**
-          - backend/internal/service/**
-          - backend/internal/repository/**
-          - backend/internal/server/**
-          - backend/internal/middleware/**
-          - backend/internal/models/**
-          - backend/internal/config/**
-          - backend/main.go
+          - internal/handler/**
+          - internal/service/**
+          - internal/repository/**
+          - internal/server/**
+          - internal/middleware/**
+          - internal/models/**
+          - internal/config/**
+          - main.go
 
 area:adapter:
   - changed-files:
       - any-glob-to-any-file:
-          - backend/internal/adapter/**
+          - internal/adapter/**
           - docs/developer-guide/adapter-development.md
           - docs/user-guide/adapters.md
 
 area:protocol-v3:
   - changed-files:
       - any-glob-to-any-file:
-          - backend/internal/protocol/**
-          - backend/internal/message/**
-          - backend/internal/messagefields/**
+          - internal/protocol/**
+          - internal/message/**
+          - internal/messagefields/**
           - docs/developer-guide/protocol-v3.md
           - docs/developer-guide/message-fields.md
 
@@ -63,14 +63,14 @@ area:ci:
 database:
   - changed-files:
       - any-glob-to-any-file:
-          - backend/migrations/**
-          - backend/internal/repository/**
-          - backend/internal/models/**
+          - migrations/**
+          - internal/repository/**
+          - internal/models/**
 
 dependencies:
   - changed-files:
       - any-glob-to-any-file:
-          - backend/go.mod
-          - backend/go.sum
+          - go.mod
+          - go.sum
           - web/package.json
           - web/package-lock.json

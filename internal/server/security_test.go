@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -187,5 +188,35 @@ func TestOversizeBodyGets413(t *testing.T) {
 
 	if resp.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413", resp.StatusCode)
+	}
+}
+
+// TestOversizeBodyGets413OnIngestRoutes is the same guarantee for the two
+// handlers that were written after BodyTooLarge became the convention and
+// skipped it: message ingest and the instance command runner answered 400 with
+// the raw MaxBytesReader text, so a client could not tell "too big" from
+// "malformed". Both are 413 again.
+func TestOversizeBodyGets413OnIngestRoutes(t *testing.T) {
+	ts, token := testServer(t)
+
+	big := `{"pad":"` + strings.Repeat("x", 3<<20) + `"}`
+	for _, path := range []string{"/api/v1/messages", "/api/v1/instances/i1/command"} {
+		req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(big))
+		if err != nil {
+			t.Fatalf("%s: new request: %v", path, err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%s: post: %v", path, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Fatalf("%s: status = %d, want 413 (body %q)", path, resp.StatusCode, body)
+		}
 	}
 }

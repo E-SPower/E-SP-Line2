@@ -199,7 +199,9 @@ func RunInstanceCommand(instanceService *service.InstanceService) gin.HandlerFun
 			TimeoutMS   int                    `json:"timeout_ms"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
