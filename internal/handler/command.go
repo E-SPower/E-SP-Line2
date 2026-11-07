@@ -41,7 +41,7 @@ func GetCommand(commandService *service.CommandService) gin.HandlerFunc {
 	}
 }
 
-// CreateCommand creates a new command
+// CreateCommand creates a new command and dispatches it to its adapter (B5).
 func CreateCommand(commandService *service.CommandService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req service.CreateCommandRequest
@@ -50,7 +50,7 @@ func CreateCommand(commandService *service.CommandService) gin.HandlerFunc {
 			return
 		}
 
-		command, err := commandService.Create(&req)
+		command, err := commandService.CreateAndDispatch(&req)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return

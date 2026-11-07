@@ -6,6 +6,7 @@ import (
 	"github.com/e-spl/e-sp-line2/internal/adapter"
 	"github.com/e-spl/e-sp-line2/internal/adapters"
 	"github.com/e-spl/e-sp-line2/internal/config"
+	"github.com/e-spl/e-sp-line2/internal/message"
 	"github.com/e-spl/e-sp-line2/internal/repository"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
@@ -23,6 +24,10 @@ type Services struct {
 	Options  *OptionService
 	Runner   *PythonRunner
 	Catalog  *AdapterCatalog
+
+	// Hub is the routing/dispatch layer the message and command services feed.
+	// It owns the live /ws connections; nothing else may route into them.
+	Hub *message.Hub
 
 	// Adapter gateway (接入器) service
 	AdapterGateway *AdapterGatewayService
@@ -55,9 +60,17 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	services.Platform = NewPlatformService(repos.Platform)
 	services.Adapter = NewAdapterService(repos.Adapter, repos.AdapterPackage, repos.AdapterSession)
 	services.Instance = NewInstanceService(repos.Instance, repos.AdapterSession)
+	// One hub per process: it is the in-memory routing table + connection
+	// registry. Created before the services that route through it.
+	services.Hub = message.NewHub()
 	services.Message = NewMessageService(repos.InboundEvent, repos.Instance)
+	services.Message.SetHub(services.Hub)
 	services.Command = NewCommandService(repos.OutboundCommand)
+	services.Command.SetHub(services.Hub)
 	services.Route = NewRouteService(repos.RouteRule)
+	// Any rule write re-syncs the hub's in-memory table, so an edit takes effect
+	// on the next message instead of at the next restart (m1).
+	services.Route.SetOnChangeCallback(services.syncRouteRules)
 
 	// Initialize the adapter gateway (接入器) service.
 	services.AdapterGateway = NewAdapterGatewayService(
@@ -137,6 +150,10 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	services.Adapter.SetRunner(services.Runner)
 	services.Adapter.SetInstanceRepository(repos.Instance)
 
+	// Load the persisted rules into the hub once, before the server accepts
+	// traffic, so routing works from the first message of a cold start.
+	services.syncRouteRules()
+
 	// Reconcile instances asynchronously so server startup is not blocked:
 	//   - rebuild missing sandbox copies for pre-existing instances
 	//   - re-run dependency installation for instances left in "initializing"
@@ -210,11 +227,32 @@ func (s *Services) reconcileInitializing() {
 	}
 }
 
+// syncRouteRules reloads the enabled route rules into the hub's routing table.
+func (s *Services) syncRouteRules() {
+	if s.Hub == nil {
+		return
+	}
+	rules, err := s.repos.RouteRule.ListEnabled()
+	if err != nil {
+		logger.Warn("Failed to load route rules", logger.String("error", err.Error()))
+		return
+	}
+	s.Hub.SyncRules(rules)
+}
+
 // Close closes all service resources
 func (s *Services) Close() error {
 	// Stop all managed Python adapter processes.
 	if s.Runner != nil {
 		s.Runner.StopAll()
+	}
+	if s.Command != nil {
+		s.Command.StopRetryLoop()
+	}
+	if s.Hub != nil {
+		if err := s.Hub.Close(); err != nil {
+			logger.Warn("Failed to close message hub", logger.String("error", err.Error()))
+		}
 	}
 	return s.repos.Close()
 }
