@@ -137,6 +137,23 @@ func (r *OutboundCommandRepository) List(limit, offset int) ([]models.OutboundCo
 	return commands, total, err
 }
 
+// ClaimForDispatch moves a command to `sending` if nobody else has claimed it.
+//
+// Both the create path and the retry sweep dispatch commands, so the same row can
+// be picked up twice: the sweep scans `created`, which is exactly how a command
+// starts life. Without a claim both actors send the frame and the slower one
+// overwrites the other's final status. The conditional UPDATE is the arbiter —
+// RowsAffected == 0 means another actor got it and this one must stand down.
+func (r *OutboundCommandRepository) ClaimForDispatch(id string) (bool, error) {
+	result := r.db.Model(&models.OutboundCommand{}).
+		Where("id = ? AND status IN ?", id, []string{"created", "queued", "retrying"}).
+		Update("status", "sending")
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 // ListPending lists pending commands for sending
 func (r *OutboundCommandRepository) ListPending(limit int) ([]models.OutboundCommand, error) {
 	var commands []models.OutboundCommand

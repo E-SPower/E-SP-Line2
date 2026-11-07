@@ -148,6 +148,14 @@ ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>&token=<JWT>
 | `send_image` | 发送图片消息 | `cid`、`toid`、`image_url` 等 |
 
 > 桥进程收到指令后调用电商平台 API 发送，发送结果通过日志记录。
+>
+> **字段形状是扁平的一级 `command_type`/`type` 加 `payload.cid`/`payload.toid`/`payload.text`**，
+> 不是 ESPL v3 信封。桥的解析见 `adapters/xianyu/main.py:197-220` 与
+> `adapters/taobao/main.py:228-250`：它在顶层取 `command_type`，再取 `payload`，
+> 缺 `cid`/`toid` 直接告警丢弃。后端由 `hub.SendCommand` 按本形状组帧。
+>
+> 下发失败（该实例没有连接）时命令进入 `retrying` 并由 30 秒的扫描重试，
+> 不会静默停在 `created`。
 
 ## 4. 心跳与重连
 

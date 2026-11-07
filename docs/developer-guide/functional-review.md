@@ -60,9 +60,11 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 **建议**：`AuthRequired` 改为接收 `*service.AuthService`，取 `parts[1]` 调 `ValidateToken`，失败回 401，成功则把 `claims.UserID/Username/Role` 写进 context。`server.go` 里 11 处 `middleware.AuthRequired()` 同步改传参。注意 gin 的 group 中间件在 `Use` 之前注册的路由不生效（见 `server.go:75-86` 的现有写法），改签名时要一并核对这些位置。
 
-### B2. 两条 WebSocket 链路都是回显，没有接进 `message.Dispatcher` / `message.Router`
+### B2. ~~两条 WebSocket 链路都是回显，没有接进 `message.Dispatcher` / `message.Router`~~（ESPL-19 已修复）
 
-**现象**：`/ws/adapter` 和 `/ws/app` 读完一条消息后，包一层 `{"type":"ack","data":"<原样字符串>"}` 写回**同一个连接**，注释就写着 "Echo back for now"。
+> **已修复**：`Services` 持有 `Hub`，`/ws/app` 交给 hub 的 `readPump`/`writePump`，`/ws/adapter` 用 `RegisterAdapterConnection`（socket 仍归 handler 独占，避免双读者），bridge 帧落库后经 hub 路由。集成用例 `TestAdapterFrameRoutedToAppSocket` 覆盖"发一帧 → 库里多一行 → 对端收到"。
+
+**现象：`/ws/adapter` 和 `/ws/app` 读完一条消息后，包一层 `{"type":"ack","data":"<原样字符串>"}` 写回**同一个连接**，注释就写着 "Echo back for now"。
 
 实测（真实 WebSocket 握手 + 发一帧 v3 envelope）：
 
@@ -87,9 +89,11 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 **建议**：`Services` 增加 `Hub *message.Hub` 并在 `NewServices` 里 `message.NewHub()`；`Close` 里关掉。两条 handler 改为 `hub.RegisterAdapter/RegisterApp(&message.Connection{...})` 后不再自己读循环，交给 `dispatcher` 的 `readPump`/`writePump`（它们已经写好且带 ping/pong 与心跳）。路由 key 用登录/握手身份，不要用 query 明文。
 
-### B3. 没有消息入库的任意入口，`MessageService.Create` 不可达
+### B3. ~~没有消息入库的任意入口，`MessageService.Create` 不可达~~（ESPL-19 已修复）
 
-**现象**：`messages` 组只注册了 `GET ""`、`GET "/:id"`、`POST "/:id/ack"`。`POST /api/v1/messages` 实测 **404 page not found**。
+> **已修复**：新增 `POST /api/v1/messages`（`handler.CreateMessage`），落库后 `MessageService.Route` 交给 hub 派发。201 新入库、200 重放同一 `idempotency_key`。
+
+**现象：`messages` 组只注册了 `GET ""`、`GET "/:id"`、`POST "/:id/ack"`。`POST /api/v1/messages` 实测 **404 page not found**。
 
 `MessageService.Create`（`internal/service/message.go:35`）写好了幂等、trace、状态，但**没有任何 handler 调它**。
 
@@ -101,9 +105,11 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 **建议**：补 `POST /api/v1/messages`（或独立的 `/api/v1/ingest`），绑定 `CreateMessageRequest`，落库后调 `hub.ProcessMessage`。给 `platform_id`+`idempotency_key` 做唯一约束配合现有 `FindByIdempotencyKey`。
 
-### B4. `inbound_events.idempotency_key` 唯一索引 + 空串，第二条不带 key 的消息必然失败
+### B4. ~~`inbound_events.idempotency_key` 唯一索引 + 空串，第二条不带 key 的消息必然失败~~（ESPL-19 已修复）
 
-**现象**：`IdempotencyKey` 标了 `uniqueIndex`，但 SQLite 的 `UNIQUE` 允许**多行 NULL、只允许一行空串**。Go 的 `string` 零值是 `""` 而非 NULL，所以第二条 `idempotency_key` 为空的插入直接撞唯一约束。
+> **已修复**：字段改 `*string`，`Create` 在调用方没给 key 时用 `GenerateIdempotencyKey` 兜底，并补了并发撞键的补偿查询；`migrations/003_idempotency_key_nullable.sql` 把历史空串迁成 NULL。用例 `TestCreateWithoutIdempotencyKeyTwice` / `TestCreateMessageTwiceWithoutKey`。
+
+**现象：`IdempotencyKey` 标了 `uniqueIndex`，但 SQLite 的 `UNIQUE` 允许**多行 NULL、只允许一行空串**。Go 的 `string` 零值是 `""` 而非 NULL，所以第二条 `idempotency_key` 为空的插入直接撞唯一约束。
 
 已用最小复现验证：
 
@@ -124,9 +130,11 @@ second insert with empty idempotency_key:
 
 **建议**：改成 `*string` 让空值为 NULL；或在 `Create` 里生成一个兜底 key（如 `models.GenerateIdempotencyKey(platform, instance, GenerateID())`）。配合唯一索引改成 `uniqueIndex` + 非空更稳。
 
-### B5. 建命令只落库不派发，`MarkSent` / `MarkFailed` 无处调用
+### B5. ~~建命令只落库不派发，`MarkSent` / `MarkFailed` 无处调用~~（ESPL-19 已修复）
 
-**现象**：`POST /api/v1/commands` 写一行 `status:"created"` 就返回 201，之后没有任何东西把它推给适配器，也没有东西推进状态。实测建完命令后 status 一直是 `created`。
+> **已修复**：`CreateCommand` 落库后 `dispatch`（`ClaimForDispatch` 抢占 → `hub.SendCommand` → `MarkSent`），无连接/失败走 `MarkFailed` 进 `retrying`，并加了 30s 重试扫描 `StartRetryLoop`。
+
+**现象：`POST /api/v1/commands` 写一行 `status:"created"` 就返回 201，之后没有任何东西把它推给适配器，也没有东西推进状态。实测建完命令后 status 一直是 `created`。
 
 `CommandService` 里 `MarkSent`、`MarkFailed`、`ListPending` 三个方法全仓无调用方。
 
@@ -347,7 +355,9 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 
 ## 3. Minor
 
-### m1. 路由规则的修改进不了内存路由表（接通后也不生效）
+### m1. ~~路由规则的修改进不了内存路由表（接通后也不生效）~~（ESPL-19 已修复）
+
+> **已修复**：`Services.syncRouteRules` 在启动时装载已启用规则，`RouteService` 增删改后回调重同步（`Hub.SyncRules`）。
 `RouteService` 只写库，`message.Router.AddRule`（`router.go:42`）**零调用**，`ListEnabled`（`service/route.go:121`）也无调用方。B2 修好之后，规则仍然只在库里——除非再加一层"启动加载 + 变更同步"。优先级排序是手写冒泡（`router.go:89-95`），规则多时会慢。
 
 ### m2. 路由 `priority: 0` 改不动
@@ -453,12 +463,12 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 
 ### P0 — 不做就等于没有产品（建议同一批提交）
 
-1. **B1 鉴权**：`AuthRequired` 接 `AuthService.ValidateToken`，写真实 claims；`server.go` 11 处调用点改传参。给 `middleware` 补四个表驱动用例（空头 / 坏格式 / 过期 / 有效）。
-2. **B2 WebSocket 接线**：`Services` 持有 `Hub`；两条 handler 改为向 hub 注册并把读循环交给 `readPump`/`writePump`；key 不再用 query 明文。
-3. **B3 消息入口**：新增 `POST /messages`（或 `/ingest`），落库后 `hub.ProcessMessage`。
-4. **B4 幂等键**：`IdempotencyKey` 改 `*string`（或落库前生成兜底值），迁移改成 `uniqueIndex` + 非空。**必须与 B3 同批**，否则接上入口即 500。
-5. **B5 命令派发**：`CreateCommand` 落库后 `hub.SendCommand` + `MarkSent`，失败走 `MarkFailed`；补 `ListPending` 重试扫描。
-6. **M1 归属隔离**：列表/写操作按 `userID` 收窄，越权回 403。
+1. ~~**B1 鉴权**~~ 已完成（主干修好）。
+2. ~~**B2 WebSocket 接线**~~ 已完成（ESPL-19）。
+3. ~~**B3 消息入口**~~ 已完成（ESPL-19）。
+4. ~~**B4 幂等键**~~ 已完成（ESPL-19，与 B3 同批）。
+5. ~~**B5 命令派发**~~ 已完成（ESPL-19）。
+6. **M1 归属隔离**：列表/写操作按 `userID` 收窄，越权回 403。**仍未做**。
 
 ### P1 — 安全与可部署性
 
@@ -476,7 +486,7 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 15. **M13 测试**：handler 状态码用例已完成；仍欠鉴权四态与 WS 端到端，`CGO_ENABLED=0` 下用探测 + `t.Skip` 兜底。
 16. **M14**：已完成（`sync.Once` + 五个用例）。剩余只需把 `logger` 未初始化就 nil 的问题在 `pkg/logger` 兜掉，免得每个包写一遍 `TestMain`。
 17. **M15**：补四类超时 + `MaxBytesReader`。
-18. **m1/m2**：`Hub` 建好后加载已启用规则并在增删改时同步内存；`Priority`/`Enabled` 改指针类型。
+18. ~~**m1**~~ 已完成（ESPL-19：启动装载 + 写后重同步）。剩 `m2`：`Priority`/`Enabled` 改指针类型。
 
 ### P3 — 文档与卫生
 

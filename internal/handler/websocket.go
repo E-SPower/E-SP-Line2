@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
+	"github.com/e-spl/e-sp-line2/internal/message"
 	"github.com/e-spl/e-sp-line2/internal/middleware"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
@@ -14,17 +16,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// wsUpgrader builds the upgrader for this server's origin policy. It is a
-// constructor, not a package-level var, because the allow-list comes from
-// config; both WS handlers take the result.
-//
-// CheckOrigin runs before the handshake completes, so a cross-site socket is
-// closed with 403 and never reaches the read loop.
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins for development
+	},
+}
+
+// wsUpgrader builds an upgrader bound to the origin policy. The same policy
+// answers CORS, so a browser origin cannot be trusted by one surface and
+// refused by the other.
 func wsUpgrader(policy *middleware.OriginPolicy) websocket.Upgrader {
+	check := func(*http.Request) bool { return true }
+	if policy != nil {
+		check = policy.CheckOrigin
+	}
 	return websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
-		CheckOrigin:     policy.CheckOrigin,
+		CheckOrigin:     check,
 	}
 }
 
@@ -38,15 +49,16 @@ func wsUpgrader(policy *middleware.OriginPolicy) websocket.Upgrader {
 // outbound commands (replies from external frameworks like LangBot) can be
 // routed back to the correct bridge.
 func AdapterWebSocket(
+	hub *message.Hub,
 	adapterService *service.AdapterService,
 	messageService *service.MessageService,
 	gateway *adaptergateway.Gateway,
 	policy *middleware.OriginPolicy,
 	onInbound ...func(payload map[string]interface{}),
 ) gin.HandlerFunc {
-	upgrader := wsUpgrader(policy)
+	up := wsUpgrader(policy)
 	return func(c *gin.Context) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		conn, err := up.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			logger.Error("WebSocket upgrade failed", logger.String("error", err.Error()))
 			return
@@ -61,7 +73,6 @@ func AdapterWebSocket(
 		}
 
 		logger.Info("Adapter connected", logger.String("instance_id", instanceID))
-		messageService.RecordHeartbeat(instanceID)
 
 		// Register the bridge connection with the gateway so outbound commands
 		// can be routed back to it. A single writer goroutine pumps ALL frames
@@ -71,6 +82,35 @@ func AdapterWebSocket(
 		if gateway != nil {
 			gateway.RegisterBridge(instanceID, bc)
 		}
+
+		// Register with the hub too, so routed messages can reach this instance.
+		// The socket is already owned here (this loop reads, the goroutine
+		// writes), hence the "only" variant: no second reader/writer.
+		hubConn := &message.Connection{
+			ID:         "adapter:" + instanceID,
+			Conn:       conn,
+			InstanceID: instanceID,
+			Send:       make(chan []byte, 64),
+			CreatedAt:  time.Now(),
+		}
+		hub.RegisterAdapterConn(hubConn)
+		hubWriteDone := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case data, ok := <-hubConn.Send:
+					if !ok {
+						return
+					}
+					if !bc.Send(data) {
+						logger.Warn("Adapter bridge send buffer full",
+							logger.String("instance_id", instanceID))
+					}
+				case <-hubWriteDone:
+					return
+				}
+			}
+		}()
 		writeDone := make(chan struct{})
 		go func() {
 			for {
@@ -90,6 +130,8 @@ func AdapterWebSocket(
 		}()
 		defer func() {
 			close(writeDone)
+			close(hubWriteDone)
+			hub.UnregisterConnection("adapter:" + instanceID)
 			if gateway != nil {
 				gateway.UnregisterBridge(instanceID, bc)
 			}
@@ -160,8 +202,6 @@ func AdapterWebSocket(
 					continue
 				}
 
-				eventID := persistInboundMessage(messageService, instanceID, payload)
-
 				// Inject instance_id into the payload for adapter gateway routing.
 				// The bridge connects with ?instance_id=xxx in the query string, but
 				// the payload it sends does not contain instance_id.  The adapter
@@ -180,6 +220,10 @@ func AdapterWebSocket(
 						payload["instance"] = instanceID
 					}
 				}
+
+				// Persist first: the stored row is the durable record and its ID
+				// is what the ACK and the routing status refer to.
+				eventID := persistInboundMessage(messageService, instanceID, payload)
 
 				// Fan out the full message to the adapter gateway (接入器).
 				if len(onInbound) > 0 && onInbound[0] != nil {
@@ -206,67 +250,67 @@ func AdapterWebSocket(
 	}
 }
 
-// AppWebSocket handles app WebSocket connections
-func AppWebSocket(messageService *service.MessageService, policy *middleware.OriginPolicy) gin.HandlerFunc {
-	upgrader := wsUpgrader(policy)
+// AppWebSocket handles downstream app WebSocket connections.
+//
+// Unlike the bridge route, this socket is handed to the hub: the dispatcher's
+// readPump/writePump own it end to end, so routed messages, ACKs and the welcome
+// frame all leave through a single writer. Every inbound frame is persisted and
+// then routed back through the hub, which is what closes the loop — before this,
+// the app socket also only echoed.
+func AppWebSocket(hub *message.Hub, messageService *service.MessageService, policy *middleware.OriginPolicy) gin.HandlerFunc {
+	up := wsUpgrader(policy)
 	return func(c *gin.Context) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		conn, err := up.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			logger.Error("WebSocket upgrade failed", logger.String("error", err.Error()))
 			return
 		}
-		defer conn.Close()
 
 		// Get app ID from query params
 		appID := c.Query("app_id")
 		if appID == "" {
-			conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"app_id required"}`))
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"app_id required"}`))
+			conn.Close()
 			return
 		}
 
 		logger.Info("App connected", logger.String("app_id", appID))
 
-		// Send welcome message
-		welcome := map[string]interface{}{
+		// Persistence hook: store the frame, then let the read pump ACK with the
+		// event ID. Not every frame is a v3 envelope, so it is handed the raw
+		// bytes and simply ignores anything that is not a JSON object.
+		hub.SetMessageHandler(func(c *message.Connection, raw []byte) string {
+			var payload map[string]interface{}
+			if err := json.Unmarshal(raw, &payload); err != nil {
+				return ""
+			}
+			return persistInboundMessage(messageService, c.InstanceID, payload)
+		})
+
+		hubConn := &message.Connection{
+			ID:        "app:" + appID,
+			AppID:     appID,
+			Conn:      conn,
+			Send:      make(chan []byte, 64),
+			CreatedAt: time.Now(),
+		}
+
+		// Registering starts the pumps; queue the welcome behind the channel so
+		// it goes out through the same writer as everything else.
+		hub.RegisterAppConn(hubConn)
+		if welcome, err := json.Marshal(map[string]interface{}{
 			"type":      "connected",
 			"timestamp": time.Now().Unix(),
 			"message":   "App WebSocket connected",
+		}); err == nil {
+			select {
+			case hubConn.Send <- welcome:
+			default:
+			}
 		}
-		conn.WriteJSON(welcome)
 
-		// Message handling loop
-		for {
-			messageType, message, err := conn.ReadMessage()
-			if err != nil {
-				logger.Error("App read error", logger.String("error", err.Error()))
-				break
-			}
-
-			logger.Debug("App message received",
-				logger.Int("type", messageType),
-				logger.String("message", string(message)))
-
-			// Parse inbound message and persist it
-			var payload map[string]interface{}
-			if err := json.Unmarshal(message, &payload); err == nil {
-				eventID := persistInboundMessage(messageService, "", payload)
-				response := map[string]interface{}{
-					"type":      "ack",
-					"timestamp": time.Now().Unix(),
-					"event_id":  eventID,
-				}
-				conn.WriteJSON(response)
-				continue
-			}
-
-			// Raw text message, acknowledge without persistence
-			response := map[string]interface{}{
-				"type":      "ack",
-				"timestamp": time.Now().Unix(),
-				"data":      string(message),
-			}
-			conn.WriteJSON(response)
-		}
+		// Block until the read pump tears the socket down; it unregisters itself.
+		<-hubConn.Done()
 
 		logger.Info("App disconnected", logger.String("app_id", appID))
 	}
@@ -336,16 +380,12 @@ func persistInboundMessage(messageService *service.MessageService, instanceID st
 		req.MessageType = extractChainType(messageChain)
 	}
 
-	event, err := messageService.Create(req)
+	event, err := messageService.CreateAndRoute(req)
 	if err != nil {
 		logger.Warn("Failed to persist inbound message",
 			logger.String("error", err.Error()))
-		messageService.RecordError(instanceID)
 		return ""
 	}
-	// Keep the instance-level counters the Monitoring page reads in step with
-	// what actually got stored.
-	messageService.RecordInbound(instanceID)
 	return event.ID
 }
 
