@@ -33,7 +33,7 @@ func GetRoute(routeService *service.RouteService) gin.HandlerFunc {
 		id := c.Param("id")
 		route, err := routeService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -52,7 +52,7 @@ func CreateRoute(routeService *service.RouteService) gin.HandlerFunc {
 
 		route, err := routeService.Create(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -72,7 +72,7 @@ func UpdateRoute(routeService *service.RouteService) gin.HandlerFunc {
 
 		route, err := routeService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -80,12 +80,13 @@ func UpdateRoute(routeService *service.RouteService) gin.HandlerFunc {
 	}
 }
 
-// DeleteRoute deletes a route rule
+// DeleteRoute deletes a route rule. Deleting a route that does not exist is a
+// 404, not a 200.
 func DeleteRoute(routeService *service.RouteService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := routeService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 

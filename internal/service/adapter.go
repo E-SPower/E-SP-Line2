@@ -95,7 +95,11 @@ func (s *AdapterService) Create(req *CreateAdapterRequest) (*models.AdapterPacka
 
 // GetByID gets an adapter by ID
 func (s *AdapterService) GetByID(id string) (*models.AdapterPackage, error) {
-	return s.repo.FindByID(id)
+	adapter, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "adapter %s", id)
+	}
+	return adapter, nil
 }
 
 // GetByPlatformID gets adapters by platform ID
@@ -107,7 +111,7 @@ func (s *AdapterService) GetByPlatformID(platformID string) ([]models.AdapterPac
 func (s *AdapterService) Update(id string, req *UpdateAdapterRequest) (*models.AdapterPackage, error) {
 	adapter, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, wrapNotFound(err, "adapter %s", id)
 	}
 
 	if req.Name != "" {
@@ -149,7 +153,10 @@ func (s *AdapterService) Delete(id string) error {
 			}
 		}
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return wrapNotFound(err, "adapter %s", id)
+	}
+	return nil
 }
 
 // List lists all adapters
@@ -167,11 +174,11 @@ func (s *AdapterService) List(limit, offset int) ([]models.AdapterPackage, int64
 func (s *AdapterService) StartAdapter(id string) error {
 	adapter, err := s.repo.FindByID(id)
 	if err != nil {
-		return err
+		return wrapNotFound(err, "adapter %s", id)
 	}
 
 	if adapter.Status == "active" {
-		return errors.New("adapter is already active")
+		return validationf("adapter %s is already active", id)
 	}
 
 	// Upsert a running session for the adapter instance

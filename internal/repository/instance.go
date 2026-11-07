@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/e-spl/e-sp-line2/internal/models"
 	"gorm.io/gorm"
 )
@@ -51,7 +53,37 @@ func (r *InstanceRepository) Update(instance *models.AdapterInstance) error {
 
 // Delete deletes an instance
 func (r *InstanceRepository) Delete(id string) error {
-	return r.db.Delete(&models.AdapterInstance{}, "id = ?", id).Error
+	result := r.db.Delete(&models.AdapterInstance{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// MarkHeartbeat records "the instance is alive" on the instance row. Missing
+// ids are not an error here: heartbeats are best-effort and race with deletes.
+func (r *InstanceRepository) MarkHeartbeat(id string) error {
+	return r.db.Model(&models.AdapterInstance{}).Where("id = ?", id).
+		UpdateColumn("last_heartbeat", time.Now()).Error
+}
+
+// RecordInbound counts one inbound message and refreshes the heartbeat in a
+// single UPDATE, so the hot path stays one statement.
+func (r *InstanceRepository) RecordInbound(id string) error {
+	return r.db.Model(&models.AdapterInstance{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"message_count":  gorm.Expr("message_count + 1"),
+			"last_heartbeat": time.Now(),
+		}).Error
+}
+
+// IncrementErrorCount counts one adapter error for the instance.
+func (r *InstanceRepository) IncrementErrorCount(id string) error {
+	return r.db.Model(&models.AdapterInstance{}).Where("id = ?", id).
+		UpdateColumn("error_count", gorm.Expr("error_count + 1")).Error
 }
 
 // List lists all instances
@@ -96,7 +128,14 @@ func (r *AdapterSessionRepository) Update(session *models.AdapterSession) error 
 
 // Delete deletes a session
 func (r *AdapterSessionRepository) Delete(id string) error {
-	return r.db.Delete(&models.AdapterSession{}, "id = ?", id).Error
+	result := r.db.Delete(&models.AdapterSession{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // UpdateHeartbeat updates the last heartbeat time

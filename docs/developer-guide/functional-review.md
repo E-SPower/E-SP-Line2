@@ -249,7 +249,7 @@ second insert with empty idempotency_key:
 
 **建议**：`/` 外包一层读 token 的 `RequireAuth`，无 token 重定向 `/login`。
 
-### M10. Monitoring 读的字段在实例模型上不存在，指标恒为 0
+### M10. ~~Monitoring 读的字段在实例模型上不存在，指标恒为 0~~（已修复）
 
 **现象**：`Monitoring.tsx` 映射 `instance.last_heartbeat`、`instance.message_count`、`instance.error_count`；而 `models.AdapterInstance`（`models.go:41-51`）只有 `id/adapter_id/platform_id/name/config/status/user_id/created_at/updated_at`，这三个字段一个都没有。
 
@@ -261,7 +261,9 @@ second insert with empty idempotency_key:
 
 **建议**：给 `AdapterInstance` 补上三个统计字段（或改读 `adapter_sessions` + 聚合查询）；实例级启停走 `InstanceService` 而不是 `AdapterService`。
 
-### M11. 空操作也回 200，"删了不存在的资源"是假成功
+**现已修复**：`models.AdapterInstance` 补了 `last_heartbeat`（可空）/ `message_count` / `error_count`，迁移在 `migrations/003_instance_monitoring_counters.sql`（`IF NOT EXISTS`，回填旧会话的心跳，带回滚）。计数在 WS 入库成功/失败与网关 `PersistInboundMessage` 处维护，握手与进程启动刷新心跳（`handler/websocket.go`、`service/python_runner.go:updateInstanceStatus`）。实测 `GET /instances/i1` 返回 `{"last_heartbeat":"2026-01-02T03:04:05Z","message_count":7,"error_count":2}`，此前三个键都不存在。实例级启停已由 `InstanceService` 持有（`Start`/`Stop` 走 runner），未再新增 `AdapterService` 依赖。
+
+### M11. ~~空操作也回 200，"删了不存在的资源"是假成功~~（已修复）
 
 **现象**：
 
@@ -276,7 +278,9 @@ DELETE /routes/nope                 → 200 {"message":"route deleted"}
 
 **建议**：`UpdateStatus`/`Delete` 判 `RowsAffected == 0` 回 `gorm.ErrRecordNotFound`，handler 统一映射 404。
 
-### M12. 错误码语义混乱：找不到是 400/404，内部错误也是 400
+**现已修复**：8 个 `Delete`（route / instance / adapter / adapter package / platform / user / gateway adapter / session）与 `InboundEventRepository.UpdateStatus` / `OutboundCommandRepository.UpdateStatus` 都判 `RowsAffected`，为 0 时回 `gorm.ErrRecordNotFound`，service 包成 `ErrNotFound`，handler 映射 404。实测 `DELETE /routes/nope`、`POST /messages/nope/ack`、`DELETE /platforms/nope`、`DELETE /instances/nope` 全部从 200 变 404，删存在的资源仍是 200。
+
+### M12. ~~错误码语义混乱：找不到是 400/404，内部错误也是 400~~（已修复）
 
 **现象**：`gorm.ErrRecordNotFound` 全仓无人识别（`grep -rn ErrRecordNotFound` 无命中）。结果是 handler 把 service 返回的一切错误都当同一类。
 
@@ -293,13 +297,17 @@ DELETE /routes/nope                 → 200 {"message":"route deleted"}
 
 **建议**：引入 `errors.Is(err, gorm.ErrRecordNotFound)` 辅助函数统一映射 404；重名/重复走 409；service 层包一层哨兵错误，别把 `record not found` 直接当 400 文案返回。
 
-### M13. 真实功能几乎零测试：`handler`、`service`、`server`、`protocol/v3`、`middleware` 全无测试文件
+**现已修复**：`service/errors.go` 定义 `ErrNotFound` / `ErrConflict` / `ErrValidation` 哨兵与 `wrapNotFound`/`conflictf`/`validationf`；handler 侧只有一处 `respondError`（`handler/errors.go`）做映射：404 / 409 / 400 / 500，404 与 500 回通用文案，409/400 回具体原因（去掉哨兵前缀）。原来"一切错误当 400"的分支全部改走它，共 30 余处。实测：`PUT /instances/nope` 400→404，注册重名 400→409 且 body 为 `username already exists`，`DELETE /routes/nope` 的 service 错误不再变 500。
+
+### M13. ~~真实功能几乎零测试：`handler`、`service`、`server`、`protocol/v3`、`middleware` 全无测试文件~~（部分修复）
 
 **现象**：这五个包都没有 `_test.go`（`ls` 计数均为 0）。有测试的只有 `adapter`、`messagefields`、`platformspec`，加上审查期间刚补的 `message`（仅覆盖 shutdown，见 M14）——前者是注册表/字段表类纯数据校验，后者只有连接关闭。
 
 **影响**：B1（鉴权）和 B2（WS 不路由）任何一条都能被一个 httptest 用例抓住，但没有。`CGO_ENABLED=0` 下 `adapter` 包直接失败，所以 CI 得整体置 `CGO_ENABLED=1` 并 `apt-get install gcc`（`.github/workflows/ci.yml:40`、`:50-51`）——测试对 cgo 有硬依赖，这层脆弱性本身也值得收。
 
 **建议**：先用 `httptest` + `gin.New()` 给鉴权补表驱动用例（空头/坏格式/过期/有效四态），再给 WS 补一个"发帧后库里多一行 + 目标端收到"的集成用例。`sqlite` 依赖 cgo，可在 `main_test.go` 里先探测再 `t.Skip`，让 `CGO_ENABLED=0` 也绿。
+
+**部分修复**：`internal/handler/handler_test.go` 用真 sqlite + `gin.New()` + `httptest` 覆盖本轮改到的状态码——404（删不存在的 route、ack 不存在的 message、改不存在的 instance）、409（注册/建用户重名，含 body 文案）、400（密码过短），以及 M10 的字段往返。摘掉 `respondError` 的映射会立刻四处失败，不是空跑。鉴权四态与 WS 端到端仍在 P0/P1 的范围里。
 
 ### M14. ~~`message.Dispatcher` 关闭路径会 `close of closed channel` panic~~（审查中已被修复）
 
@@ -349,7 +357,7 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 六个 `List` 都写 `r.db.Model(...).Count(&total)` 不接返回值（`repository/adapter.go:55`、`instance.go:55`、`message.go:59`、`message.go:121`、`message.go:174`、`platform.go:58`、`user.go:58`）。计数失败会静默返回 `total: 0`。
 
 ### m4. API 文档与实现四处不符
-- `api-reference.md` 的"Error codes"列了 409，后端一处没有
+- ~~`api-reference.md` 的"Error codes"列了 409，后端一处没有~~（M12 已让注册/建用户重名、末位 admin 守卫真正走 409）
 - 无 `POST /platforms` 文档，实际也 404（M5）
 - `api-reference.md:753-798` 的 WS 示例用 `"type":"message.received"`，而 `envelope.go:22` 的 JSON tag 是 `event_type`；文档的"Message format"与代码里的 `Validate`（`protocol.go:59-79`）要求也对不上
 - 文档说"Rate limiting 100/min、认证接口 10/min"，**没有任何限流中间件**（`grep rate internal/middleware/` 无命中）
@@ -462,10 +470,10 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 
 ### P2 — 正确性与可观测性
 
-12. **M10/M6**：实例模型补统计字段、实例级启停改走 `InstanceService`；再补前端增删改表单与 `delete*/update*` 客户端方法。
-13. **M11/M12 状态码**：`RowsAffected == 0` 回 not-found；统一 `ErrRecordNotFound → 404`、重名 `→ 409`。
+12. **M10/M6**：M10 已完成（见该节）；M6 前端增删改仍归 P2 前端项。
+13. ~~**M11/M12 状态码**~~（已完成：`RowsAffected == 0` 回 not-found，哨兵错误 + `respondError` 统一 404/409/400/500）。
 14. **M5**：补齐 `POST/PUT/DELETE /platforms`，挂 `AuthRequired` + `AdminRequired`。
-15. **M13 测试**：先鉴权、再 WS 端到端；`CGO_ENABLED=0` 下用探测 + `t.Skip` 兜底。
+15. **M13 测试**：handler 状态码用例已完成；仍欠鉴权四态与 WS 端到端，`CGO_ENABLED=0` 下用探测 + `t.Skip` 兜底。
 16. **M14**：已完成（`sync.Once` + 五个用例）。剩余只需把 `logger` 未初始化就 nil 的问题在 `pkg/logger` 兜掉，免得每个包写一遍 `TestMain`。
 17. **M15**：补四类超时 + `MaxBytesReader`。
 18. **m1/m2**：`Hub` 建好后加载已启用规则并在增删改时同步内存；`Priority`/`Enabled` 改指针类型。

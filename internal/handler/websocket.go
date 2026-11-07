@@ -53,6 +53,7 @@ func AdapterWebSocket(
 		}
 
 		logger.Info("Adapter connected", logger.String("instance_id", instanceID))
+		messageService.RecordHeartbeat(instanceID)
 
 		// Register the bridge connection with the gateway so outbound commands
 		// can be routed back to it. A single writer goroutine pumps ALL frames
@@ -330,8 +331,12 @@ func persistInboundMessage(messageService *service.MessageService, instanceID st
 	if err != nil {
 		logger.Warn("Failed to persist inbound message",
 			logger.String("error", err.Error()))
+		messageService.RecordError(instanceID)
 		return ""
 	}
+	// Keep the instance-level counters the Monitoring page reads in step with
+	// what actually got stored.
+	messageService.RecordInbound(instanceID)
 	return event.ID
 }
 
