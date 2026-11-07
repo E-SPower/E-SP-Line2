@@ -176,6 +176,8 @@ second insert with empty idempotency_key:
 
 **建议**：要么回显 `Origin` 并配白名单，要么明确只走 Bearer 不打算用 Cookie，把 `Allow-Credentials` 删掉以免误导。
 
+**现已修复**（P1/ESPL-20）：走了"回显 + 白名单"这条路，因为前端将来未必一直用 Bearer。`internal/middleware/middleware.go` 的 `CORS` 现在只对 `security.allowed_origins` 里的 Origin 回 `Access-Control-Allow-Origin: <origin>` 并保留 `Allow-Credentials: true`，同时加 `Vary: Origin`；不带 `Origin` 的客户端（curl、Python 桥）完全不受影响。实测：允许的 Origin 预检拿到 204 + 回显 + `Vary`，外来 Origin 只剩 `Vary`、无 `Access-Control-Allow-Origin`。
+
 ### M3. 默认 JWT secret 两处硬编码，且没有任何"是否已改"的检查
 
 **定位**：`internal/config/config.go:126`（viper 默认值）、`config/config.yaml:32`（随仓库提交的值），内容都是 `change-this-secret-in-production`。
@@ -184,6 +186,8 @@ second insert with empty idempotency_key:
 
 **建议**：`config.Load` 后若 secret 仍是占位串则打 WARN（或直接拒绝启动）；README/SECURITY 已有的提醒保留。
 
+**现已修复**（P1/ESPL-20）：选了 WARN 而不是拒启，避免把现有部署一下卡死。判定收敛到 `config.UsingPlaceholderJWTSecret()`（占位串或空串都算），`server.New` 启动时打一条 WARN 并带修法提示。只做前缀比较不够——`change-this-secret-in-production-prod` 已是真轮换，不该报警，测试里钉住了这条。实测启动日志：`WARN ... JWT secret is still the shipped placeholder`。
+
 ### M4. WebSocket `CheckOrigin` 恒真，且握手不做鉴权
 
 **定位**：`internal/handler/websocket.go:17` — `return true // Allow all origins for development`。
@@ -191,6 +195,8 @@ second insert with empty idempotency_key:
 **影响**：任意站点可开 WS 订阅/灌入消息。叠加 B1/B2，WS 侧连"令牌形状"都不要求（两条 WS 路由不挂任何中间件，见 `server.go:145-150`），只要知道 `instance_id` / `app_id` 就能冒充。
 
 **建议**：接 B1 后校验 `Sec-WebSocket-Protocol` 或 `?token=`，`CheckOrigin` 收白名单。
+
+**现已修复**（P1/ESPL-20）：两条 WS 在**升级前**校验 token，缺失或非法都回 401（不再只是"验个形状"）；`CheckOrigin` 改为查与 CORS 同一份 `security.allowed_origins`，跨域来源在升级前被 403 拒掉；适配器网关的 upgrader 也接了同一份列表，`GatewayConfig.AllowedOrigin` 注入。token 三种承载：`?token=`（Python 桥，已同步改 `adapters/*/esp_bridge.py`）、`Authorization: Bearer`、`Sec-WebSocket-Protocol: espl, <jwt>`（浏览器唯一可设的头）。无 `Origin` 的非浏览器客户端放行。注意这是**鉴权到位**，不是**授权**：握手只验 token 有效，"这个 token 能不能碰这个 instance_id"仍属 M1。
 
 ### M5. `POST /platforms` 等三个 handler 有实现、无路由
 
@@ -338,6 +344,8 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 
 **建议**：补 `ReadHeaderTimeout` / `ReadTimeout` / `WriteTimeout` / `IdleTimeout`，加 `MaxBytesReader`。
 
+**现已修复**（P1/ESPL-20）：四类超时全部落到 `http.Server`，值来自 `server.*` 配置（默认 10s/60s/120s/120s，0 = 不设）。请求体上限 `server.max_body_bytes`（默认 4 MiB）由全局中间件 `MaxBodyBytes` 执行：声明超限直接 413，不声明（chunked/撒谎的 Content-Length）由 `http.MaxBytesReader` 兜住。实测 8KB body → 413、正常 body → 200；只发一半头后挂住的连接 **2.0s**（配置值）被 `ReadHeaderTimeout` 断开。
+
 ### M16. `make migrate` 与 `make dev` 传的参数 `main.go` 根本不读
 
 **现象**：`main.go` 没有任何 `flag.` / `os.Args` 解析（`grep` 无命中）。实测带 `migrate` 参数启动，进程**照常起 HTTP 服务**，不迁移、不退出。
@@ -474,9 +482,9 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 
 7. **M7 API 基址**：改 `import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`，健康检查走相对路径。
 8. **M8/M9 登录态**：401 统一 `clearToken` + 跳 `/login`；`handleLogout` 改用 client；加 `RequireAuth` 路由守卫。
-9. **M3 JWT secret**：仍是占位串就 WARN 或拒启。
-10. **M4 WS 鉴权 + CheckOrigin 白名单**（依赖 P0-1）。
-11. **M2 CORS**：回显 Origin 配白名单，或删掉 `Allow-Credentials`。
+9. **M3 JWT secret**：已完成（P1/ESPL-20，启动 WARN）。
+10. **M4 WS 鉴权 + CheckOrigin 白名单**：已完成（P1/ESPL-20，升级前 401 / 跨域 403，白名单与 CORS 同一份）。
+11. **M2 CORS**：已完成（P1/ESPL-20，回显白名单 Origin + `Vary: Origin`）。
 
 ### P2 — 正确性与可观测性
 
@@ -485,7 +493,7 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 14. **M5**：补齐 `POST/PUT/DELETE /platforms`，挂 `AuthRequired` + `AdminRequired`。
 15. **M13 测试**：handler 状态码用例已完成；仍欠鉴权四态与 WS 端到端，`CGO_ENABLED=0` 下用探测 + `t.Skip` 兜底。
 16. **M14**：已完成（`sync.Once` + 五个用例）。剩余只需把 `logger` 未初始化就 nil 的问题在 `pkg/logger` 兜掉，免得每个包写一遍 `TestMain`。
-17. **M15**：补四类超时 + `MaxBytesReader`。
+17. **M15**：已完成（P1/ESPL-20，四类超时 + body 上限，超限 413）。
 18. ~~**m1**~~ 已完成（ESPL-19：启动装载 + 写后重同步）。剩 `m2`：`Priority`/`Enabled` 改指针类型。
 
 ### P3 — 文档与卫生

@@ -28,7 +28,9 @@ go mod download
 go run main.go   # reads ./config/config.yaml, then ./config.yaml, then /etc/e-sp-line2
 ```
 
-The API listens on `:8080`. Before you expose it beyond localhost, change `jwt.secret` in the config — see [SECURITY.md](SECURITY.md).
+The API listens on `:8080`. Before you expose it beyond localhost, change `jwt.secret` in the config — see [SECURITY.md](SECURITY.md). Startup warns while the placeholder is still in place.
+
+The default config already carries `server` timeouts and a body cap; do not delete them. Serving the UI from another origin needs that origin in `security.allowed_origins` (it gates CORS *and* the WebSocket upgrade) — `ESP_SECURITY_ALLOWED_ORIGINS` overrides the list without editing the file.
 
 ```bash
 make build     # build to bin/e-sp-line2

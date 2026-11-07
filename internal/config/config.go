@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -26,8 +27,78 @@ type Config struct {
 	// JWT settings
 	JWT JWTConfig `mapstructure:"jwt"`
 
+	// HTTP server settings
+	Server ServerConfig `mapstructure:"server"`
+
+	// Security settings (shared by CORS and the WebSocket Origin check)
+	Security SecurityConfig `mapstructure:"security"`
+
 	// Adapter settings
 	Adapter AdapterConfig `mapstructure:"adapter"`
+}
+
+// PlaceholderJWTSecret is the value shipped in config/config.yaml and used as
+// the viper default. A deployment that never changed it signs tokens with a
+// public key, so startup warns when it is still in place.
+const PlaceholderJWTSecret = "change-this-secret-in-production"
+
+// DefaultAllowedOrigins is the development Origin allowlist. It covers the Vite
+// dev server and the backend's own default port; a deployment adds its real
+// front-end Origin via config.yaml or the ESP_SECURITY_ALLOWED_ORIGINS env var.
+func DefaultAllowedOrigins() []string {
+	return []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+		"http://localhost:8080",
+		"http://127.0.0.1:8080",
+	}
+}
+
+// ServerConfig holds HTTP server timeouts and request-size limits.
+type ServerConfig struct {
+	// ReadHeaderTimeout bounds how long a client may take to send headers.
+	ReadHeaderTimeout int `mapstructure:"read_header_timeout"` // seconds
+	// ReadTimeout bounds the whole request read.
+	ReadTimeout int `mapstructure:"read_timeout"` // seconds
+	// WriteTimeout bounds the response write.
+	WriteTimeout int `mapstructure:"write_timeout"` // seconds
+	// IdleTimeout bounds an idle keep-alive connection.
+	IdleTimeout int `mapstructure:"idle_timeout"` // seconds
+	// MaxBodyBytes caps the request body size.
+	MaxBodyBytes int64 `mapstructure:"max_body_bytes"` // bytes
+}
+
+// SecurityConfig holds cross-cutting browser-security settings.
+type SecurityConfig struct {
+	// AllowedOrigins is the Origin allowlist used both by the CORS middleware
+	// and by the WebSocket CheckOrigin hook. One list, so the two can never
+	// drift apart.
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+}
+
+// IsAllowedOrigin reports whether origin is in the CORS/WebSocket allowlist.
+// The empty Origin (non-browser clients such as the Python bridges) is allowed,
+// as is an empty allowlist meaning "development default", i.e. allow all.
+func (c *Config) IsAllowedOrigin(origin string) bool {
+	if origin == "" {
+		return true
+	}
+	allowed := c.Security.AllowedOrigins
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, a := range allowed {
+		if a == origin {
+			return true
+		}
+	}
+	return false
+}
+
+// UsingPlaceholderJWTSecret reports whether the JWT secret is still the
+// shipped placeholder.
+func (c *Config) UsingPlaceholderJWTSecret() bool {
+	return c.JWT.Secret == "" || c.JWT.Secret == PlaceholderJWTSecret
 }
 
 // DatabaseConfig represents database configuration
@@ -147,8 +218,27 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log_level", "info")
 
 	// JWT defaults
-	v.SetDefault("jwt.secret", "change-this-secret-in-production")
+	v.SetDefault("jwt.secret", PlaceholderJWTSecret)
 	v.SetDefault("jwt.expiration", 24)
+
+	// HTTP server defaults. Without these a single slow client can hold a
+	// connection forever (Slowloris) and a large body is read entirely into
+	// memory.
+	v.SetDefault("server.read_header_timeout", 10)
+	v.SetDefault("server.read_timeout", 60)
+	v.SetDefault("server.write_timeout", 120)
+	v.SetDefault("server.idle_timeout", 120)
+	v.SetDefault("server.max_body_bytes", 4<<20) // 4 MiB
+
+	// Origin allowlist shared by CORS and the WebSocket Origin check.
+	v.SetDefault("security.allowed_origins", DefaultAllowedOrigins())
+
+	// Env is read with ESP_* names; AutomaticEnv alone cannot see a slice, so
+	// the comma-separated override is bound explicitly. This lets a deployment
+	// set its real front-end Origin without editing config.yaml.
+	v.SetEnvPrefix("esp")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	_ = v.BindEnv("security.allowed_origins")
 
 	// Adapter defaults
 	v.SetDefault("adapter.heartbeat_interval", 30)

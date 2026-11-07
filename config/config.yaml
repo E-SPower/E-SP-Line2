@@ -29,8 +29,30 @@ log_level: "info"  # debug, info, warn, error
 
 # JWT settings
 jwt:
+  # The shipped value is a placeholder: while it is in place startup logs a
+  # WARN and anyone can forge a token. Generate one per deployment, e.g.
+  #   openssl rand -base64 32
   secret: "change-this-secret-in-production"
   expiration: 24  # hours
+
+# HTTP server settings — all seconds, 0 disables a timeout.
+server:
+  read_header_timeout: 10
+  read_timeout: 60
+  write_timeout: 120
+  idle_timeout: 120
+  max_body_bytes: 4194304  # 4 MiB
+
+# Browser security. One allowlist, used by CORS *and* the WebSocket Origin
+# check. Add the real front-end Origin when the UI is served from elsewhere;
+# ESP_SECURITY_ALLOWED_ORIGINS (comma-separated) overrides this list. An empty
+# list means "allow any Origin" (development fallback).
+security:
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+    - "http://localhost:8080"
+    - "http://127.0.0.1:8080"
 
 # Adapter settings
 adapter:

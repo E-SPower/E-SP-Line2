@@ -8,6 +8,7 @@ import (
 
 	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
 	"github.com/e-spl/e-sp-line2/internal/message"
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
@@ -15,12 +16,88 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// allowedOrigin decides whether a browser Origin may open a WebSocket. The
+// server sets it from the same config list the CORS middleware uses, so the two
+// surfaces share one allowlist and cannot drift apart.
+var allowedOrigin = func(string) bool { return true }
+
+// SetAllowedOrigin installs the Origin allowlist used by the WebSocket
+// upgrader. A nil func restores "allow everything".
+func SetAllowedOrigin(fn func(string) bool) {
+	if fn == nil {
+		fn = func(string) bool { return true }
+	}
+	allowedOrigin = fn
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for development
+		// An empty Origin is a non-browser client (the Python bridges,
+		// websocket tooling); those are not subject to browser CORS.
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		return allowedOrigin(origin)
 	},
+}
+
+// wsAuthError marks a failed WebSocket handshake authentication.
+type wsAuthError struct{ reason string }
+
+func (e *wsAuthError) Error() string { return e.reason }
+
+// wsToken extracts a handshake token. Three transports are accepted because the
+// callers differ:
+//
+//   - `?token=` — the Python bridges, which cannot set headers on connect;
+//   - `Authorization: Bearer` — server-to-server clients and tests;
+//   - `Sec-WebSocket-Protocol: espl, <token>` — the only header a browser
+//     WebSocket can set (the `espl` sentinel must come first, per the same
+//     convention the adapter gateway already uses).
+func wsToken(r *http.Request) string {
+	if q := r.URL.Query().Get("token"); q != "" {
+		return q
+	}
+	if auth := r.Header.Get("Authorization"); auth != "" {
+		if parts := strings.SplitN(auth, " ", 2); len(parts) == 2 && parts[0] == "Bearer" {
+			return parts[1]
+		}
+	}
+	protocols := websocket.Subprotocols(r)
+	for _, p := range protocols {
+		if p != "espl" && p != "" {
+			return p
+		}
+	}
+	return ""
+}
+
+// authenticateWS validates the handshake token. A missing token is refused as
+// well as a bad one: before this, knowing an instance_id or app_id was enough to
+// open a socket, because neither route sat behind any middleware.
+func authenticateWS(r *http.Request) error {
+	token := wsToken(r)
+	if token == "" {
+		return &wsAuthError{"missing token (use ?token=, Authorization, or the espl subprotocol)"}
+	}
+	if _, err := middleware.ParseToken(token); err != nil {
+		return &wsAuthError{"invalid or expired token"}
+	}
+	return nil
+}
+
+// rejectWS answers a WebSocket handshake that was refused before upgrading, so
+// the client gets a plain HTTP 401 instead of a socket that immediately closes.
+func rejectWS(c *gin.Context, err error) {
+	logger.Warn("WebSocket handshake rejected",
+		logger.String("path", c.Request.URL.Path),
+		logger.String("origin", c.Request.Header.Get("Origin")),
+		logger.String("error", err.Error()),
+	)
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 }
 
 // AdapterWebSocket handles adapter (bridge) WebSocket connections.
@@ -40,6 +117,13 @@ func AdapterWebSocket(
 	onInbound ...func(payload map[string]interface{}),
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Authenticate before upgrading: a refused handshake then arrives as a
+		// readable 401 instead of a socket that closes straight away.
+		if err := authenticateWS(c.Request); err != nil {
+			rejectWS(c, err)
+			return
+		}
+
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			logger.Error("WebSocket upgrade failed", logger.String("error", err.Error()))
@@ -242,6 +326,13 @@ func AdapterWebSocket(
 // the app socket also only echoed.
 func AppWebSocket(hub *message.Hub, messageService *service.MessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Same handshake rule as the adapter socket: a valid token is required
+		// before the upgrade, so an unknown client cannot subscribe silently.
+		if err := authenticateWS(c.Request); err != nil {
+			rejectWS(c, err)
+			return
+		}
+
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			logger.Error("WebSocket upgrade failed", logger.String("error", err.Error()))

@@ -36,6 +36,11 @@ type GatewayConfig struct {
 	ReadTimeout int
 	// MaxMessageSize is the maximum inbound frame size in bytes.
 	MaxMessageSize int64
+	// AllowedOrigin reports whether a browser Origin may connect. A nil value
+	// allows every Origin, which is what an embedder that has not configured an
+	// allowlist gets. The HTTP CORS middleware and the WebSocket upgrader share
+	// this one rule so the two can never disagree.
+	AllowedOrigin func(string) bool
 }
 
 // DefaultGatewayConfig returns the default gateway configuration.
@@ -298,7 +303,13 @@ func NewGateway(cfg GatewayConfig, svc *service.AdapterGatewayService) *Gateway 
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
+				origin := r.Header.Get("Origin")
+				// A missing Origin is a non-browser client; those are not
+				// subject to CORS at all.
+				if origin == "" || cfg.AllowedOrigin == nil {
+					return true
+				}
+				return cfg.AllowedOrigin(origin)
 			},
 		},
 	}

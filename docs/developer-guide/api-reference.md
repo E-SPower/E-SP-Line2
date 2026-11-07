@@ -809,9 +809,26 @@ A missing id answers **404**.
 
 ## WebSocket interface
 
+Both sockets authenticate during the HTTP handshake, before the upgrade. A
+missing or invalid token is answered with **401** as a plain HTTP response, and
+an `Origin` outside the allowlist with **403**, so a failure is readable rather
+than an immediately-closed socket.
+
+The token is accepted in any of three forms, because the callers differ:
+
+| Transport | Caller |
+|---|---|
+| `?token=<jwt>` query parameter | the Python bridges (they cannot set headers on connect) |
+| `Authorization: Bearer <jwt>` header | server-to-server clients, `websocat`, tests |
+| `Sec-WebSocket-Protocol: espl, <jwt>` | browsers — the only header a page can set on `WebSocket` |
+
+`Origin` is checked against `security.allowed_origins` (the same list the CORS
+middleware uses; `ESP_SECURITY_ALLOWED_ORIGINS` overrides it). A request without
+an `Origin` header is a non-browser client and is allowed through.
+
 ### Adapter WebSocket
 
-**URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>`
+**URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>&token=<jwt>`
 
 **Message format**:
 ```json
@@ -833,7 +850,7 @@ A missing id answers **404**.
 
 ### App WebSocket
 
-**URL**: `ws://localhost:8080/ws/app?app_id=<app_id>`
+**URL**: `ws://localhost:8080/ws/app?app_id=<app_id>&token=<jwt>`
 
 **Message format**:
 ```json
@@ -853,6 +870,25 @@ A missing id answers **404**.
 }
 ```
 
+## CORS
+
+Browsers get the request `Origin` echoed back in
+`Access-Control-Allow-Origin` when it appears in `security.allowed_origins`
+(defaults cover `localhost:3000` and `localhost:8080`); `Vary: Origin` is set so
+caches key on it. Because the value is a concrete origin rather than `*`,
+`Access-Control-Allow-Credentials: true` is meaningful and a future Cookie-based
+session keeps working. Requests from an unlisted origin still reach the handler
+but carry no CORS headers, so the browser blocks the response. Requests without
+an `Origin` (curl, the Python bridges) are unaffected.
+
+## Limits
+
+- Request bodies are capped by `server.max_body_bytes` (default 4 MiB); an
+  oversized body is refused with **413**.
+- The HTTP server enforces `server.read_header_timeout` (default 10s),
+  `read_timeout`, `write_timeout` and `idle_timeout`. All are seconds; `0`
+  disables the corresponding timeout.
+
 ## Error codes
 
 Every error body is `{"error": "<reason>"}`.
@@ -864,6 +900,7 @@ Every error body is `{"error": "<reason>"}`.
 | 403 | Forbidden |
 | 404 | Resource not found |
 | 409 | Resource conflict |
+| 413 | Request body too large |
 | 500 | Internal server error |
 
 Mapping rules, so a client can branch on the status instead of parsing text:

@@ -9,9 +9,13 @@ name: CI
 # for Go, web/package.json `engines` for Node — so a dependency bump moves the CI
 # with it instead of leaving a second, stale copy of the version here.
 
+# `branches` matches the PR's BASE, not its head. A stacked PR targets another
+# feature branch, so listing only `main` silently skips every stacked PR — the
+# checks go green by not running. Keep the integration branch listed while
+# stacked work is open; drop it once everything lands on `main`.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/project-review-and-pr-qa]
   push:
     branches: [main]
 
