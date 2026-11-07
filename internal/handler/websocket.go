@@ -16,14 +16,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for development
-	},
-}
-
 // wsUpgrader builds an upgrader bound to the origin policy. The same policy
 // answers CORS, so a browser origin cannot be trusted by one surface and
 // refused by the other.
