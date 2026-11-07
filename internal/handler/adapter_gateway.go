@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +33,9 @@ func CreateGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 	return func(c *gin.Context) {
 		var req service.CreateGatewayAdapterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
@@ -68,7 +71,9 @@ func UpdateGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 		id := c.Param("id")
 		var req service.UpdateGatewayAdapterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 

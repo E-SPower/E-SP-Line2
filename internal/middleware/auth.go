@@ -94,3 +94,47 @@ func AdminRequired() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// WSTokenRequired authenticates a WebSocket handshake before the upgrade.
+//
+// The token is read from `?token=`, because the browser WebSocket API cannot
+// set request headers, falling back to a normal `Authorization: Bearer` header
+// for non-browser clients. Rejecting here — rather than inside the read loop —
+// gives the client a plain HTTP 401 it can distinguish from a network failure,
+// and keeps unauthenticated sockets from reaching the hub at all.
+//
+// This is the handshake-level check only: it proves the caller holds a valid
+// token, not that it owns the instance_id in the query. Ownership is the
+// caller's business (see the instance routes).
+func WSTokenRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		if token == "" {
+			header := c.GetHeader("Authorization")
+			if parts := strings.SplitN(header, " ", 2); len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
+		}
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "websocket token is required: connect with ?token=<JWT>",
+			})
+			c.Abort()
+			return
+		}
+
+		claims, err := ParseToken(token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid or expired token",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Set("userID", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
+		c.Next()
+	}
+}

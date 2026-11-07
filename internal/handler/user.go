@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +29,9 @@ func CreateUser(userService *service.UserService) gin.HandlerFunc {
 			Role     string `json:"role"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 		if err := userService.Create(req.Username, req.Password, req.Role); err != nil {
@@ -47,7 +50,9 @@ func UpdateUserRole(userService *service.UserService) gin.HandlerFunc {
 			Role string `json:"role" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 		if err := userService.UpdateRole(id, req.Role); err != nil {
@@ -66,7 +71,9 @@ func UpdateUserStatus(userService *service.UserService) gin.HandlerFunc {
 			Status string `json:"status" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 		if err := userService.SetStatus(id, req.Status); err != nil {
@@ -108,7 +115,9 @@ func SetRegistrationStatus(userService *service.UserService) gin.HandlerFunc {
 			Enabled bool `json:"enabled"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 		if err := userService.SetRegistrationEnabled(req.Enabled); err != nil {

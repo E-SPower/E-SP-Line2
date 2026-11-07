@@ -2,11 +2,11 @@ package handler
 
 import (
 	"encoding/json"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
@@ -14,12 +14,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for development
-	},
+// wsUpgrader builds the upgrader for this server's origin policy. It is a
+// constructor, not a package-level var, because the allow-list comes from
+// config; both WS handlers take the result.
+//
+// CheckOrigin runs before the handshake completes, so a cross-site socket is
+// closed with 403 and never reaches the read loop.
+func wsUpgrader(policy *middleware.OriginPolicy) websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     policy.CheckOrigin,
+	}
 }
 
 // AdapterWebSocket handles adapter (bridge) WebSocket connections.
@@ -35,8 +41,10 @@ func AdapterWebSocket(
 	adapterService *service.AdapterService,
 	messageService *service.MessageService,
 	gateway *adaptergateway.Gateway,
+	policy *middleware.OriginPolicy,
 	onInbound ...func(payload map[string]interface{}),
 ) gin.HandlerFunc {
+	upgrader := wsUpgrader(policy)
 	return func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -199,7 +207,8 @@ func AdapterWebSocket(
 }
 
 // AppWebSocket handles app WebSocket connections
-func AppWebSocket(messageService *service.MessageService) gin.HandlerFunc {
+func AppWebSocket(messageService *service.MessageService, policy *middleware.OriginPolicy) gin.HandlerFunc {
+	upgrader := wsUpgrader(policy)
 	return func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {

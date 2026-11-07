@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -46,7 +47,9 @@ func CreateCommand(commandService *service.CommandService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req service.CreateCommandRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 

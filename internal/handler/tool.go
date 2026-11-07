@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/gin-gonic/gin"
 )
@@ -44,7 +45,13 @@ func SetToolEnabled(gateway *adaptergateway.Gateway) gin.HandlerFunc {
 		var body struct {
 			Enabled *bool `json:"enabled"`
 		}
-		if err := c.ShouldBindJSON(&body); err != nil || body.Enabled == nil {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "enabled is required"})
+			}
+			return
+		}
+		if body.Enabled == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "enabled is required"})
 			return
 		}
@@ -76,7 +83,9 @@ func CallTool(gateway *adaptergateway.Gateway) gin.HandlerFunc {
 
 		var req v3.ToolCallRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			}
 			return
 		}
 		if req.Tool == "" && req.SemanticID == "" {

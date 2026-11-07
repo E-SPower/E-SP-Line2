@@ -9,7 +9,7 @@
 ## 1. 概述
 
 - **传输**：WebSocket
-- **连接端点**：`ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>`
+- **连接端点**：`ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>&token=<JWT>`
 - **方向**：桥进程主动连接后端核心（桥是 Client，核心是 Server）
 - **消息格式**：JSON 文本帧
 
@@ -41,8 +41,16 @@ Authorization: Bearer <token>
 ### 2.2 建立 WebSocket 连接
 
 ```
-ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>
+ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>&token=<JWT>
 ```
+
+`token` 与 2.1 的 `Authorization` 是同一个 JWT。浏览器 `WebSocket` API 设不了
+请求头，所以握手令牌走 query；非浏览器客户端也可以改发
+`Authorization: Bearer <JWT>`。后端在升级前验签，失败回 `401`，`Origin`
+不在白名单回 `403`，客户端据状态码就能区分"没登录"与"网络不通"。
+
+> 令牌只证明调用方持有有效 JWT，不证明它拥有 query 里的 `instance_id`——
+> 归属校验仍由实例接口负责。
 
 ### 2.3 握手
 
