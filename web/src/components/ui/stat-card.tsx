@@ -29,12 +29,16 @@ export interface StatCardProps {
  * A single metric in shadcn's "stat" arrangement: muted label, large tabular
  * number, optional muted icon top-right. Colour only when the metric is a
  * status (success/danger).
+ *
+ * The card is the narrowest thing the grid ever lays out, so it has to survive
+ * a 120px track at a large root size: padding steps down on small screens, the
+ * label may break mid-word, and the icon never shrinks below its square.
  */
 export function StatCard({ label, value, icon: Icon, tone = 'neutral', caption, loading, className }: StatCardProps) {
   return (
-    <Card padding="none" className={cn('px-5 py-4', className)}>
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-text-tertiary">{label}</p>
+    <Card padding="none" className={cn('min-w-0 px-3 py-3 sm:px-5 sm:py-4', className)}>
+      <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-3">
+        <p className="min-w-0 break-words text-sm font-medium text-text-tertiary [overflow-wrap:anywhere]">{label}</p>
         {Icon && <Icon className="size-4 shrink-0 text-text-tertiary" />}
       </div>
       {loading ? (

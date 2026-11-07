@@ -492,5 +492,19 @@
     "stopped": "已停止：{{name}}",
     "failed": "操作失败：{{error}}",
     "refreshed": "数据已刷新。"
+  },
+  "logs": {
+    "title": "实例日志",
+    "empty": "这个时间窗内没有日志。",
+    "level": "级别",
+    "keyword": "关键字",
+    "keywordPlaceholder": "子串匹配，忽略大小写",
+    "from": "起始",
+    "to": "结束",
+    "heatmap": "按小时级别热力",
+    "heatmapHint": "所选窗口内每小时的条数。",
+    "clear": "清空日志",
+    "clearTitle": "清空该实例的日志？",
+    "clearHint": "文件会被清空，适配器之后继续写入。"
   }
 }

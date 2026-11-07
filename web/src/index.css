@@ -122,7 +122,14 @@
     --stack-gap: 1.5rem;
     --density-row: 2.5rem;
     --content-max: 80rem;
-    --sidebar-width: 15rem;
+    /*
+     * `min(15rem, 22vw)`: the sidebar is a fixed rem track, so a large root
+     * font inflates it (15rem = 420px at 28px) until the page column next to
+     * it is crushed to a sliver. Capping against the viewport keeps the
+     * sidebar at its familiar 240px on default type and lets it give way —
+     * never the content — when the reader's base size grows.
+     */
+    --sidebar-width: min(15rem, 22vw);
     --sidebar-width-collapsed: 4.25rem;
     --topbar-height: 3.5rem;
   }
@@ -260,9 +267,26 @@
 }
 
 @layer utilities {
+  /*
+   * The ONE horizontal rail of the shell. The top bar's breadcrumb side and the
+   * page body both sit on it, so their left edges (and their right edges) can
+   * never drift apart on a wide screen. Anything that wants the page's content
+   * column must reuse this class rather than invent its own margin/`max-width`.
+   *
+   * `min(100%, …)`: the cap must never outrun the slot the rail actually sits
+   * in. With a bare `var(--content-max)` the cap stayed at the full 80rem even
+   * when the slot was narrower, so the page overflowed the viewport by exactly
+   * that difference and clipped the right column and the top-bar actions.
+   * `min-width: 0` keeps the flex parent from being pushed open, and the gutter
+   * lives inside the cap (border-box) so the cap also bounds real content.
+   */
+  /* `content-container` is the older name for the same rail; both selectors
+     share one declaration block so the two can never drift apart. */
+  .shell-rail,
   .content-container {
     width: 100%;
-    max-width: var(--content-max);
+    min-width: 0;
+    max-width: min(100%, var(--content-max));
     margin-inline: auto;
     padding-inline: var(--gutter);
   }
@@ -351,6 +375,7 @@
   border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
   animation-name: aurora-drift-a;
   animation-duration: 34s;
+  animation-delay: -7s;
 }
 
 .aurora-blob-b {
@@ -389,7 +414,7 @@
 }
 
 .dark .aurora::after {
-  border-color: hsl(var(--primary-foreground) / 0.12);
+  border-color: hsl(var(--primary-foreground) / 0.1);
   box-shadow:
     0 0 0 3.5rem hsl(var(--primary-foreground) / 0.014),
     0 0 0 7rem hsl(var(--primary-foreground) / 0.008);
@@ -456,8 +481,8 @@
 /* Dark mode already sits low; `--ring` at the light alphas nearly vanishes. */
 .dark .panel-wash {
   background-image:
-    radial-gradient(ellipse 60% 45% at 100% 0%, hsl(var(--ring) / 0.16) 0, transparent 70%),
-    radial-gradient(ellipse 55% 40% at 0% 100%, hsl(var(--ring) / 0.1) 0, transparent 70%);
+    radial-gradient(ellipse 60% 45% at 100% 0%, hsl(var(--ring) / 0.13) 0, transparent 70%),
+    radial-gradient(ellipse 55% 40% at 0% 100%, hsl(var(--ring) / 0.09) 0, transparent 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {

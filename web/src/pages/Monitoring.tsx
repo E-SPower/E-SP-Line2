@@ -155,7 +155,13 @@ export default function Monitoring() {
             {loading ? (
               <SkeletonRows rows={4} columns={4} />
             ) : adapters.length === 0 ? (
-              <EmptyState icon={MonitorPlay} title={t('monitoring.noAdapters')} description={t('monitoring.noAdaptersHint')} />
+              <EmptyState
+                icon={MonitorPlay}
+                size="page"
+                aurora
+                title={t('monitoring.noAdapters')}
+                description={t('monitoring.noAdaptersHint')}
+              />
             ) : (
               <ul className="divide-y divide-border">
                 {adapters.map((adapter) => {

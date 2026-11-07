@@ -69,7 +69,7 @@ You need to create an administrator account the first time you access the system
 
 ### 2. Review the platforms
 
-The 12 active platforms (Xiaohongshu, Douyin, TikTok, Bilibili, Kuaishou, Weibo, Xianyu, Taobao, JD, X, YouTube, 12306) are seeded from the platform registry on first start, so the Platforms page already lists them. Jimeng, Maoyan Shows and M-Team are registered as inactive until they ship.
+The 11 active platforms (Xiaohongshu, Douyin, TikTok, Bilibili, Kuaishou, Weibo, Xianyu, Taobao, JD, X, YouTube) are seeded from the platform registry on first start, so the Platforms page already lists them. Jimeng, Maoyan Shows, M-Team and 12306 are registered as inactive until they ship.
 
 Each platform's supported commands and limitations are in the [capability matrix](../developer-guide/platform-capabilities.md).
 

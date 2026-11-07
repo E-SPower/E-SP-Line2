@@ -10,10 +10,10 @@ Every platform in the capability matrix ships a built-in adapter. The full list,
 
 Adapters come in two stages:
 
-- **Active** (12): Xiaohongshu, Douyin, TikTok, Bilibili, Kuaishou, Weibo, Xianyu, Taobao, JD, X, YouTube, 12306. These are registered when the server starts.
-- **Upcoming** (3): Jimeng, Maoyan Shows, M-Team. Registered as `inactive`; the capability table is kept so the same UI can show them.
+- **Active** (11): Xiaohongshu, Douyin, TikTok, Bilibili, Kuaishou, Weibo, Xianyu, Taobao, JD, X, YouTube. These are registered when the server starts.
+- **Upcoming** (4): Jimeng, Maoyan Shows, M-Team, 12306. Registered as `inactive`; the capability table is kept so the same UI can show them.
 
-Every adapter is `runtime_type: node`. Credentials are always per-platform: platforms that log in with a cookie take `cookie`, Jimeng takes the `dreamina` CLI credential, M-Team takes an API key, and 12306 needs none.
+Every adapter is `runtime_type: node`. Credentials are always per-platform: platforms that log in with a cookie take `cookie`, Jimeng takes the `dreamina` CLI credential, M-Team takes an API key, and 12306 needs none (it is not seeded until it ships).
 
 Capabilities are derived from the matrix, so an adapter only advertises what its platform actually supports. Alongside the plain capability words (`receive_message`, `send_text`) each supported command is listed as `<resource>.<action>`; planned commands carry an extra `<resource>.<action>.planned` marker.
 
@@ -40,7 +40,7 @@ Platform-specific credentials:
 |---|---|---|
 | Jimeng | `token` | Login state written by `dreamina relogin`; macOS only. |
 | M-Team | `api_key`, `uid` | API key sessions are read-only; `msg` needs a password session. `box` sets the default mailbox. |
-| 12306 | — | No credentials. |
+| 12306 | — | Upcoming; no credentials. |
 
 Xianyu example:
 

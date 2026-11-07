@@ -7,8 +7,12 @@ import { cn } from '@/lib/cn'
  * border and `shadow-sm`. Padding is vertical only (`py-6`) — sub-components
  * own their horizontal `px-6`. Pass `padding="none"` when a caller supplies
  * its own geometry (tables, stat tiles).
+ *
+ * `min-w-0` is deliberate: a card is always a grid/flex child somewhere, and
+ * without it its intrinsic content (a long label, a title) sets a floor that
+ * blows past narrow tracks at large root sizes instead of wrapping.
  */
-const cardVariants = cva('flex flex-col gap-6 rounded-xl border bg-surface-raised py-6 text-text-primary', {
+const cardVariants = cva('flex min-w-0 flex-col gap-6 rounded-xl border bg-surface-raised py-6 text-text-primary', {
   variants: {
     variant: {
       default: 'border-border shadow-sm',
@@ -43,12 +47,15 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
 Card.displayName = 'Card'
 
 /* Header is a 2-column grid so `CardAction` can sit top-right without a
- * wrapper row; without an action it collapses to one column. */
+ * wrapper row; without an action it collapses to one column.
+ * `[&>*]:min-w-0` is what keeps that grid honest — a grid item's automatic
+ * minimum is its min-content width, so an unbroken title would otherwise set a
+ * floor wider than the track and bleed out of the card at large root sizes. */
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('grid auto-rows-min items-start gap-2 px-6', className)}
+      className={cn('grid min-w-0 auto-rows-min items-start gap-2 px-6 [&>*]:min-w-0', className)}
       {...props}
     />
   ),
@@ -57,7 +64,11 @@ CardHeader.displayName = 'CardHeader'
 
 export const CardTitle = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('text-base leading-none font-semibold tracking-tight', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('min-w-0 text-base leading-none font-semibold tracking-tight [overflow-wrap:anywhere]', className)}
+      {...props}
+    />
   ),
 )
 CardTitle.displayName = 'CardTitle'

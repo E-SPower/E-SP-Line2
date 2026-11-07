@@ -20,12 +20,15 @@ export const SelectTrigger = forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs',
+      'flex h-9 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs',
       'transition-[color,box-shadow] outline-none',
       'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
       'disabled:cursor-not-allowed disabled:opacity-50',
       'aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20',
       'data-[placeholder]:text-text-tertiary dark:bg-input/30 dark:hover:bg-input/50',
+      // A long selected value must truncate: `whitespace-nowrap` otherwise lets
+      // the label push the trigger past its own track at large root sizes.
+      '[&>span]:min-w-0 [&>span]:truncate',
       '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4 [&_svg]:text-text-tertiary',
       className,
     )}

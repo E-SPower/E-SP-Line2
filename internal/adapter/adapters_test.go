@@ -15,8 +15,9 @@ func TestBuiltinAdaptersCoverActivePlatforms(t *testing.T) {
 	}
 
 	all := registry.GetAll()
-	if len(all) != 12 {
-		t.Fatalf("registered %d adapters, want the 12 active platforms", len(all))
+	active := platformspec.Active()
+	if len(all) != len(active) {
+		t.Fatalf("registered %d adapters, want the %d active platforms", len(all), len(active))
 	}
 
 	for _, a := range all {
@@ -43,8 +44,8 @@ func TestBuiltinAdaptersCoverActivePlatforms(t *testing.T) {
 
 func TestUpcomingAdaptersAreInactive(t *testing.T) {
 	upcoming := GetAdaptersByStage(platformspec.StageUpcoming)
-	if len(upcoming) != 3 {
-		t.Fatalf("upcoming adapters = %d, want 3", len(upcoming))
+	if len(upcoming) != len(platformspec.Upcoming()) {
+		t.Fatalf("upcoming adapters = %d, want %d", len(upcoming), len(platformspec.Upcoming()))
 	}
 	for _, a := range upcoming {
 		if a.Status != "inactive" {

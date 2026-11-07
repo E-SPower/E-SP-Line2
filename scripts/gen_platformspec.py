@@ -91,8 +91,8 @@ DEFAULTS = {'heartbeat_interval': 15, 'reconnect_delay': 5}
 STAGES = {
     'xhs': 'Active', 'douyin': 'Active', 'tiktok': 'Active', 'bilibili': 'Active',
     'kuaishou': 'Active', 'weibo': 'Active', 'xianyu': 'Active', 'taobao': 'Active',
-    'jd': 'Active', 'x': 'Active', 'youtube': 'Active', '12306': 'Active',
-    'jimeng': 'Upcoming', 'maoyan': 'Upcoming', 'mteam': 'Upcoming',
+    'jd': 'Active', 'x': 'Active', 'youtube': 'Active',
+    'jimeng': 'Upcoming', 'maoyan': 'Upcoming', 'mteam': 'Upcoming', '12306': 'Upcoming',
 }
 
 

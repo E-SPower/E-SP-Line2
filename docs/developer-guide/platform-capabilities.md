@@ -13,33 +13,33 @@ Per-platform web capability support. Migrated from catbus `docs/capabilities.md`
 | ○ | the platform has the concept, upstream does not; planned | `planned` | `NOT_IMPLEMENTED`, exit code 4 |
 | — | the platform has no such concept | `unsupported` | `UNSUPPORTED`, exit code 2 |
 
-Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili · kuaishou · weibo · xianyu · taobao · jd · x · youtube · 12306) and **upcoming** (jimeng · maoyan · mteam). Upcoming platforms register as `inactive` adapters while keeping their rows.
+Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili · kuaishou · weibo · xianyu · taobao · jd · x · youtube) and **upcoming** (12306 · jimeng · maoyan · mteam). Upcoming platforms register as `inactive` adapters while keeping their rows.
 
 ## Active
 
 ### auth
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `auth status` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✓ | ✓ | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `auth status` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✓ | ✓ |
 
 - taobao `auth status`: the upstream has no current-user API: it spends one DM token to verify the session, and takes the account from the cookie's unb and nickname
 
 ### user
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `user get` | ✓ | ✓ | ◐ | ✓ | ✓ | ✓ | ◐ | ◐ | ◐ | ✓ | ✓ | — |
-| `user search` | ✓ | ✓ | ○ | ✓ | ✓ | ○ | — | — | — | ✓ | ✓ | — |
-| `user items` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | ○ | — | ✓ | ✓ | — |
-| `user likes` | ✓ | ✓ | ○ | — | ✓ | ○ | — | — | — | ○ | ✓ | — |
-| `user collects` | ✓ | ○ | ✓ | ○ | ✓ | ○ | ○ | ○ | ✓ | ○ | ✓ | — |
-| `user reposts` | — | — | ✓ | — | — | ○ | — | — | — | ○ | — | — |
-| `user followers` | ○ | ✓ | ✓ | ○ | ✓ | ○ | — | — | — | ○ | — | — |
-| `user following` | ◐ | ✓ | ✓ | ○ | ✓ | ○ | — | — | — | ○ | ✓ | — |
-| `user follow` | ○ | ○ | ✓ | ○ | ○ | ○ | ○ | — | — | ✓ | ✓ | — |
-| `user unfollow` | ○ | ○ | ✓ | ○ | ○ | ○ | ○ | — | — | ✓ | ✓ | — |
-| `user update` | — | — | — | ◐ | — | — | — | — | — | — | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `user get` | ✓ | ✓ | ◐ | ✓ | ✓ | ✓ | ◐ | ◐ | ◐ | ✓ | ✓ |
+| `user search` | ✓ | ✓ | ○ | ✓ | ✓ | ○ | — | — | — | ✓ | ✓ |
+| `user items` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | ○ | — | ✓ | ✓ |
+| `user likes` | ✓ | ✓ | ○ | — | ✓ | ○ | — | — | — | ○ | ✓ |
+| `user collects` | ✓ | ○ | ✓ | ○ | ✓ | ○ | ○ | ○ | ✓ | ○ | ✓ |
+| `user reposts` | — | — | ✓ | — | — | ○ | — | — | — | ○ | — |
+| `user followers` | ○ | ✓ | ✓ | ○ | ✓ | ○ | — | — | — | ○ | — |
+| `user following` | ◐ | ✓ | ✓ | ○ | ✓ | ○ | — | — | — | ○ | ✓ |
+| `user follow` | ○ | ○ | ✓ | ○ | ○ | ○ | ○ | — | — | ✓ | ✓ |
+| `user unfollow` | ○ | ○ | ✓ | ○ | ○ | ○ | ○ | — | — | ✓ | ✓ |
+| `user update` | — | — | — | ◐ | — | — | — | — | — | — | — |
 
 - tiktok `user get`: me is partially supported
 - xianyu `user get`: me only; querying others is planned
@@ -60,23 +60,23 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### item
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `item get` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | ✓ | ✓ | ✓ | — |
-| `item search` | ✓ | ✓ | ✓ | ✓ | ◐ | ◐ | ○ | ○ | ✓ | ✓ | ✓ | — |
-| `item related` | ○ | ○ | ✓ | ✓ | ✓ | — | ○ | ○ | ◐ | — | ✓ | — |
-| `item list` | ✓ | ◐ | ✓ | ✓ | ✓ | ○ | ○ | — | — | — | ✓ | — |
-| `item media` | ✓ | ✓ | ◐ | ✓ | ✓ | ○ | — | — | — | ✓ | ◐ | — |
-| `item download` | ✓ | ✓ | ◐ | ✓ | ✓ | ○ | — | — | — | ✓ | ◐ | — |
-| `item like` | ○ | ✓ | ✓ | ✓ | ○ | ○ | — | — | — | ✓ | ✓ | — |
-| `item unlike` | ○ | ✓ | ✓ | ✓ | ○ | ○ | — | — | — | ✓ | ✓ | — |
-| `item collect` | ○ | ✓ | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ✓ | — |
-| `item uncollect` | ○ | ✓ | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ✓ | — |
-| `item repost` | — | — | ○ | — | — | ○ | — | — | — | ✓ | — | — |
-| `item unrepost` | — | — | ○ | — | — | ○ | — | — | — | ✓ | — | — |
-| `item publish` | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✓ | — | — | ✓ | ◐ | — |
-| `item delete` | ○ | ○ | ○ | ◐ | ○ | ○ | ○ | — | — | ✓ | ✓ | — |
-| `item categories` | — | — | — | ✓ | — | — | ○ | — | — | — | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `item get` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | ✓ | ✓ | ✓ |
+| `item search` | ✓ | ✓ | ✓ | ✓ | ◐ | ◐ | ○ | ○ | ✓ | ✓ | ✓ |
+| `item related` | ○ | ○ | ✓ | ✓ | ✓ | — | ○ | ○ | ◐ | — | ✓ |
+| `item list` | ✓ | ◐ | ✓ | ✓ | ✓ | ○ | ○ | — | — | — | ✓ |
+| `item media` | ✓ | ✓ | ◐ | ✓ | ✓ | ○ | — | — | — | ✓ | ◐ |
+| `item download` | ✓ | ✓ | ◐ | ✓ | ✓ | ○ | — | — | — | ✓ | ◐ |
+| `item like` | ○ | ✓ | ✓ | ✓ | ○ | ○ | — | — | — | ✓ | ✓ |
+| `item unlike` | ○ | ✓ | ✓ | ✓ | ○ | ○ | — | — | — | ✓ | ✓ |
+| `item collect` | ○ | ✓ | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ✓ |
+| `item uncollect` | ○ | ✓ | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ✓ |
+| `item repost` | — | — | ○ | — | — | ○ | — | — | — | ✓ | — |
+| `item unrepost` | — | — | ○ | — | — | ○ | — | — | — | ✓ | — |
+| `item publish` | ✓ | ✓ | ✓ | ✓ | ◐ | ✓ | ✓ | — | — | ✓ | ◐ |
+| `item delete` | ○ | ○ | ○ | ◐ | ○ | ○ | ○ | — | — | ✓ | ✓ |
+| `item categories` | — | — | — | ✓ | — | — | ○ | — | — | — | — |
 
 - douyin `item search`: --type video uses the video channel search, anything else uses the general channel; --type image returns image posts only
 - kuaishou `item search`: no filters (--sort / --type / --time); keyword only
@@ -100,22 +100,22 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### product and reviews
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `product get` | ○ | ◐ | ✓ | — | ○ | — | — | — | — | — | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `product get` | ○ | ◐ | ✓ | — | ○ | — | — | — | — | — | — |
 
 - douyin `product get`: the upstream product API returns detail images, specs and a jump link only: title, image and price, with the other fields empty
 
 ### comment
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `comment list` | ◐ | ✓ | ✓ | ◐ | ◐ | ◐ | — | ○ | ◐ | ✓ | ✓ | — |
-| `comment replies` | ✓ | ✓ | ✓ | ◐ | ◐ | ○ | — | — | — | ○ | ✓ | — |
-| `comment add` | ○ | ✓ | ✓ | ◐ | ○ | ○ | — | — | — | ✓ | ✓ | — |
-| `comment delete` | ○ | ○ | ○ | ◐ | ○ | ○ | — | — | — | ✓ | ✓ | — |
-| `comment like` | ○ | ○ | ○ | ○ | ○ | ○ | — | — | — | ✓ | ✓ | — |
-| `comment unlike` | ○ | ○ | ○ | ○ | ○ | ○ | — | — | — | ✓ | ✓ | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `comment list` | ◐ | ✓ | ✓ | ◐ | ◐ | ◐ | — | ○ | ◐ | ✓ | ✓ |
+| `comment replies` | ✓ | ✓ | ✓ | ◐ | ◐ | ○ | — | — | — | ○ | ✓ |
+| `comment add` | ○ | ✓ | ✓ | ◐ | ○ | ○ | — | — | — | ✓ | ✓ |
+| `comment delete` | ○ | ○ | ○ | ◐ | ○ | ○ | — | — | — | ✓ | ✓ |
+| `comment like` | ○ | ○ | ○ | ○ | ○ | ○ | — | — | — | ✓ | ✓ |
+| `comment unlike` | ○ | ○ | ○ | ○ | ○ | ○ | — | — | — | ✓ | ✓ |
 
 - xhs `comment list`: --product is planned
 - bilibili `comment list`: supports videos, articles, text / repost dynamics and image dynamics; image dynamics get the album comment-section id from a non-upstream dynamic detail API, with no fixture comparison
@@ -132,12 +132,12 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### feed and keyword
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `feed list` | ◐ | ◐ | ✓ | ◐ | ◐ | ○ | ○ | ○ | ○ | ◐ | ✓ | — |
-| `feed categories` | ✓ | — | ○ | — | — | — | — | — | — | — | — | — |
-| `keyword suggest` | ✓ | ○ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ○ | ✓ | — |
-| `keyword hot` | ✓ | ○ | ○ | ○ | ○ | ○ | — | — | ✓ | ○ | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `feed list` | ◐ | ◐ | ✓ | ◐ | ◐ | ○ | ○ | ○ | ○ | ◐ | ✓ |
+| `feed categories` | ✓ | — | ○ | — | — | — | — | — | — | — | — |
+| `keyword suggest` | ✓ | ○ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ○ | ✓ |
+| `keyword hot` | ✓ | ○ | ○ | ○ | ○ | ○ | — | — | ✓ | ○ | — |
 
 - xhs `feed list`: following is planned
 - douyin `feed list`: hot and following are planned
@@ -148,17 +148,17 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### notice and msg
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `notice list` | ✓ | ✓ | ✓ | ○ | ○ | ○ | — | — | — | ○ | ✓ | — |
-| `notice count` | ✓ | ○ | ✓ | ○ | ✓ | ○ | — | — | — | ○ | ✓ | — |
-| `msg list` | ✓ | ○ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ◐ | — | — |
-| `msg history` | ✓ | ○ | ✓ | ○ | ○ | ○ | ✓ | ✓ | ✓ | ◐ | — | — |
-| `msg send` | ✓ | ✓ | ◐ | ○ | ○ | ○ | ✓ | ✓ | ✓ | ○ | — | — |
-| `msg listen` | ✓ | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✓ | ✓ | ○ | — | — |
-| `msg read` | ✓ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — | — |
-| `msg revoke` | ✓ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — | — |
-| `msg delete` | ✓ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `notice list` | ✓ | ✓ | ✓ | ○ | ○ | ○ | — | — | — | ○ | ✓ |
+| `notice count` | ✓ | ○ | ✓ | ○ | ✓ | ○ | — | — | — | ○ | ✓ |
+| `msg list` | ✓ | ○ | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ | ◐ | — |
+| `msg history` | ✓ | ○ | ✓ | ○ | ○ | ○ | ✓ | ✓ | ✓ | ◐ | — |
+| `msg send` | ✓ | ✓ | ◐ | ○ | ○ | ○ | ✓ | ✓ | ✓ | ○ | — |
+| `msg listen` | ✓ | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✓ | ✓ | ○ | — |
+| `msg read` | ✓ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — |
+| `msg revoke` | ✓ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — |
+| `msg delete` | ✓ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — |
 
 - youtube `notice count`: unread total only, no breakdown
 - xhs `msg list`: includes groups; a group conversation id is group:<group id>
@@ -171,19 +171,19 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### media, folder, series, history, topic, poi
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `media upload` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — |
-| `folder list` | ◐ | ✓ | ✓ | ◐ | ○ | ○ | — | — | — | ○ | — | — |
-| `folder items` | ○ | ○ | ✓ | ◐ | ○ | ○ | — | — | — | ○ | — | — |
-| `folder create` | ○ | ○ | ✓ | ○ | ○ | — | — | — | — | ○ | — | — |
-| `folder update` | ○ | ○ | ✓ | ○ | ○ | — | — | — | — | ○ | — | — |
-| `folder delete` | ○ | ○ | ○ | ○ | ○ | — | — | — | — | ○ | — | — |
-| `series list` | ○ | ○ | ✓ | ○ | ○ | — | — | — | — | — | ✓ | — |
-| `series items` | ○ | ○ | ○ | ○ | ○ | — | — | — | — | — | ✓ | — |
-| `history list` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ✓ | — | ✓ | — |
-| `topic search` | ✓ | ○ | ○ | ○ | ○ | ○ | — | — | — | — | — | — |
-| `poi search` | ✓ | ○ | ◐ | — | ○ | ○ | — | — | — | — | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `media upload` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — |
+| `folder list` | ◐ | ✓ | ✓ | ◐ | ○ | ○ | — | — | — | ○ | — |
+| `folder items` | ○ | ○ | ✓ | ◐ | ○ | ○ | — | — | — | ○ | — |
+| `folder create` | ○ | ○ | ✓ | ○ | ○ | — | — | — | — | ○ | — |
+| `folder update` | ○ | ○ | ✓ | ○ | ○ | — | — | — | — | ○ | — |
+| `folder delete` | ○ | ○ | ○ | ○ | ○ | — | — | — | — | ○ | — |
+| `series list` | ○ | ○ | ✓ | ○ | ○ | — | — | — | — | — | ✓ |
+| `series items` | ○ | ○ | ○ | ○ | ○ | — | — | — | — | — | ✓ |
+| `history list` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ✓ | — | ✓ |
+| `topic search` | ✓ | ○ | ○ | ○ | ○ | ○ | — | — | — | — | — |
+| `poi search` | ✓ | ○ | ◐ | — | ○ | ○ | — | — | — | — | — |
 
 - xhs `folder list`: lists public collections only (upstream has that one API); upstream has no items-in-collection API
 - bilibili `folder list`: lists only collections the user created, all in one response
@@ -194,23 +194,23 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### live
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `live get` | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | ✓ | — |
-| `live list` | ✓ | ○ | ✓ | ○ | ✓ | ○ | — | ○ | — | — | — | — |
-| `live search` | ○ | ✓ | ✓ | ✓ | ○ | ○ | — | ○ | — | — | ✓ | — |
-| `live categories` | ✓ | ○ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | — | — |
-| `live listen` | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | ✓ | — |
-| `live history` | ○ | ◐ | ◐ | ✓ | ○ | ○ | — | ○ | — | — | ✓ | — |
-| `live send` | ◐ | ◐ | ◐ | ✓ | ○ | ○ | — | ○ | — | — | ✓ | — |
-| `live like` | ○ | ✓ | ✓ | ○ | ○ | ○ | — | ○ | — | — | — | — |
-| `live rank` | ○ | ✓ | ✓ | ○ | ○ | ○ | — | ○ | — | — | — | — |
-| `live gifts` | ✓ | ○ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | — | — |
-| `live products` | ✓ | ✓ | ○ | — | ○ | ○ | — | ○ | — | — | — | — |
-| `live media` | ○ | ◐ | ◐ | ✓ | ○ | ○ | — | ○ | — | — | — | — |
-| `live replays` | — | ○ | — | ○ | ✓ | ○ | — | ○ | — | — | — | — |
-| `live start` | ○ | ○ | ○ | ✓ | ○ | ○ | — | ○ | — | — | — | — |
-| `live stop` | ○ | ○ | ○ | ✓ | ○ | ○ | — | ○ | — | — | — | — |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `live get` | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | ✓ |
+| `live list` | ✓ | ○ | ✓ | ○ | ✓ | ○ | — | ○ | — | — | — |
+| `live search` | ○ | ✓ | ✓ | ✓ | ○ | ○ | — | ○ | — | — | ✓ |
+| `live categories` | ✓ | ○ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | — |
+| `live listen` | ✓ | ✓ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | ✓ |
+| `live history` | ○ | ◐ | ◐ | ✓ | ○ | ○ | — | ○ | — | — | ✓ |
+| `live send` | ◐ | ◐ | ◐ | ✓ | ○ | ○ | — | ○ | — | — | ✓ |
+| `live like` | ○ | ✓ | ✓ | ○ | ○ | ○ | — | ○ | — | — | — |
+| `live rank` | ○ | ✓ | ✓ | ○ | ○ | ○ | — | ○ | — | — | — |
+| `live gifts` | ✓ | ○ | ✓ | ✓ | ✓ | ○ | — | ○ | — | — | — |
+| `live products` | ✓ | ✓ | ○ | — | ○ | ○ | — | ○ | — | — | — |
+| `live media` | ○ | ◐ | ◐ | ✓ | ○ | ○ | — | ○ | — | — | — |
+| `live replays` | — | ○ | — | ○ | ✓ | ○ | — | ○ | — | — | — |
+| `live start` | ○ | ○ | ○ | ✓ | ○ | ○ | — | ○ | — | — | — |
+| `live stop` | ○ | ○ | ○ | ✓ | ○ | ○ | — | ○ | — | — | — |
 
 - youtube `live get`: <room> is the live video id or link
 - tiktok `live list`: only followed people who are live (upstream get_webcast_feed is the follow list in the live page sidebar); empty when nobody followed is live
@@ -226,103 +226,103 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 
 ### 平台扩展
 
-| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube | 12306 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `folder add` | — | — | ✓ | — | — | — | — | — | — | — | — | — |
-| `item edit` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `item coin` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `item triple` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `item subtitles` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `comment pin` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `comment unpin` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `danmaku list` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `danmaku send` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `dynamic publish` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `dynamic delete` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `article publish` | — | — | — | ✓ | — | — | — | — | — | ✓ | — | — |
-| `draft get` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `draft delete` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `order list` | — | — | — | — | — | — | — | — | ✓ | — | — | — |
-| `cart count` | — | — | — | — | — | — | — | — | ✓ | — | — | — |
-| `coupon list` | — | — | — | — | — | — | — | — | ✓ | — | — | — |
-| `article delete` | — | — | — | — | — | — | — | — | — | ✓ | — | — |
-| `channel create` | — | — | — | — | — | — | — | — | — | — | ✓ | — |
-| `station search` | — | — | — | — | — | — | — | — | — | — | — | ✓ |
-| `ticket search` | — | — | — | — | — | — | — | — | — | — | — | ✓ |
-| `ticket price` | — | — | — | — | — | — | — | — | — | — | — | ✓ |
-| `route get` | — | — | — | — | — | — | — | — | — | — | — | ✓ |
-| `transfer search` | — | — | — | — | — | — | — | — | — | — | — | ✓ |
+| 命令 | xhs | douyin | tiktok | bilibili | kuaishou | weibo | xianyu | taobao | jd | x | youtube |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `folder add` | — | — | ✓ | — | — | — | — | — | — | — | — |
+| `item edit` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `item coin` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `item triple` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `item subtitles` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `comment pin` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `comment unpin` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `danmaku list` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `danmaku send` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `dynamic publish` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `dynamic delete` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `article publish` | — | — | — | ✓ | — | — | — | — | — | ✓ | — |
+| `draft get` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `draft delete` | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `order list` | — | — | — | — | — | — | — | — | ✓ | — | — |
+| `cart count` | — | — | — | — | — | — | — | — | ✓ | — | — |
+| `coupon list` | — | — | — | — | — | — | — | — | ✓ | — | — |
+| `article delete` | — | — | — | — | — | — | — | — | — | ✓ | — |
+| `channel create` | — | — | — | — | — | — | — | — | — | — | ✓ |
 
 
 ## Upcoming
 
 ### auth
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `auth status` | ✓ | ✓ | ✓ |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `auth status` | — | ✓ | ✓ | ✓ |
 
 
 ### user
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `user get` | — | — | ◐ |
-| `user collects` | — | — | ◐ |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `user get` | — | — | — | ◐ |
+| `user collects` | — | — | — | ◐ |
 
 - mteam `user get`: me only; upload, download and other account fields are available via --raw
 - mteam `user collects`: me only; listed per section (--mode)
 
 ### item
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `item get` | — | ✓ | ✓ |
-| `item search` | — | ○ | ✓ |
-| `item download` | — | — | ✓ |
-| `item collect` | — | — | ✓ |
-| `item uncollect` | — | — | ✓ |
-| `item categories` | — | — | ✓ |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `item get` | — | — | ✓ | ✓ |
+| `item search` | — | — | ○ | ✓ |
+| `item download` | — | — | — | ✓ |
+| `item collect` | — | — | — | ✓ |
+| `item uncollect` | — | — | — | ✓ |
+| `item categories` | — | — | — | ✓ |
 
 - maoyan `item get`: show time, venue, price tier and sale state are written into text; --tickets needs a session
 - mteam `item download`: the torrent file carries the personal passkey and is written 0600; the temporary download URL is not printed. --qbit pushes to the local qBittorrent Web UI (CATBUS_MTEAM_QBIT_URL, default http://127.0.0.1:25254) and --qbit-savepath sets the save directory
 
 ### feed and keyword
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `feed list` | — | ✓ | ✓ |
-| `feed categories` | — | ✓ | — |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `feed list` | — | — | ✓ | ✓ |
+| `feed categories` | — | — | ✓ | — |
 
 - maoyan `feed list`: returns every hot show in that city at once, unpaged; --category filters locally
 
 ### notice and msg
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `msg list` | — | — | ◐ |
-| `msg history` | — | — | ◐ |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `msg list` | — | — | — | ◐ |
+| `msg history` | — | — | — | ◐ |
 
 - mteam `msg list`: read-only and needs a password session; --box picks inbox / system / sent
 - mteam `msg history`: <conversation> is an id from msg list; it is not marked read
 
 ### media, folder, series, history, topic, poi
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `poi search` | — | ◐ | — |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `poi search` | — | — | ◐ | — |
 
 - maoyan `poi search`: searches show cities only (built-in city table); the id is the feed list --city value
 
 ### 平台扩展
 
-| 命令 | jimeng | maoyan | mteam |
-|---|---|---|---|
-| `seed list` | — | — | ✓ |
-| `seed stats` | — | — | ✓ |
-| `exam get` | — | — | ✓ |
-| `bonus get` | — | — | ✓ |
-| `bonus history` | — | — | ✓ |
+| 命令 | 12306 | jimeng | maoyan | mteam |
+|---|---|---|---|---|
+| `station search` | ✓ | — | — | — |
+| `ticket search` | ✓ | — | — | — |
+| `ticket price` | ✓ | — | — | — |
+| `route get` | ✓ | — | — | — |
+| `transfer search` | ✓ | — | — | — |
+| `seed list` | — | — | — | ✓ |
+| `seed stats` | — | — | — | ✓ |
+| `exam get` | — | — | — | ✓ |
+| `bonus get` | — | — | — | ✓ |
+| `bonus history` | — | — | — | ✓ |
 
 
 ## Platforms
@@ -338,7 +338,7 @@ Platforms come in two stages: **active** (xhs · douyin · tiktok · bilibili ·
 - `jd` — 商品 SKU (active) · [docs](https://github.com/cv-cat/JdApis)
 - `x` — 推文 (active) · [docs](https://github.com/cv-cat/XApis)
 - `youtube` — 视频 (active)
-- `12306` — 车次 (active)
+- `12306` — 车次 (upcoming)
 - `jimeng` — 作品 (upcoming)
 - `maoyan` — 演出 (upcoming)
 - `mteam` — 种子资源 (upcoming)

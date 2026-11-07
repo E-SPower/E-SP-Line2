@@ -28,19 +28,20 @@ def main():
     for script, target in TARGETS:
         actual = ROOT / target
         if actual.is_dir():
-            tmp = pathlib.Path(tempfile.mkdtemp())
-            run(script, tmp)
-            for generated in sorted(tmp.glob('*.go')):
-                if not (generated.name == 'commands.go' or generated.name.startswith('platform_')):
-                    continue
-                current = actual / generated.name
-                if not current.exists() or current.read_text() != generated.read_text():
-                    print(f'stale: {current.relative_to(ROOT)}')
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmp = pathlib.Path(tmpdir)
+                run(script, tmp)
+                for generated in sorted(tmp.glob('*.go')):
+                    if not (generated.name == 'commands.go' or generated.name.startswith('platform_')):
+                        continue
+                    current = actual / generated.name
+                    if not current.exists() or current.read_text() != generated.read_text():
+                        print(f'stale: {current.relative_to(ROOT)}')
+                        failed = True
+                extra = {p.name for p in actual.glob('*.go') if p.name == 'commands.go' or p.name.startswith('platform_')} - {p.name for p in tmp.glob('*.go')}
+                for name in sorted(extra):
+                    print(f'stale extra file: {(actual / name).relative_to(ROOT)}')
                     failed = True
-            extra = {p.name for p in actual.glob('*.go') if p.name == 'commands.go' or p.name.startswith('platform_')} - {p.name for p in tmp.glob('*.go')}
-            for name in sorted(extra):
-                print(f'stale extra file: {(actual / name).relative_to(ROOT)}')
-                failed = True
         else:
             with tempfile.TemporaryDirectory() as tmp:
                 out = pathlib.Path(tmp) / 'out.md'

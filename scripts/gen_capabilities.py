@@ -68,7 +68,7 @@ def row(name, cells, platforms):
 
 def main():
     platforms = MATRIX['platforms']
-    upcoming = [p for p in platforms if p in ('jimeng', 'maoyan', 'mteam')]
+    upcoming = [p for p in platforms if p in ('jimeng', 'maoyan', 'mteam', '12306')]
     active = [p for p in platforms if p not in upcoming]
 
     by_section = {}

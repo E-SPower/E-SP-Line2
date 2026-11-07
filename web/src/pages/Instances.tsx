@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Play, Pencil, Plus, Server, Square, Trash2 } from 'lucide-react'
+import { Play, Pencil, Plus, ScrollText, Server, Square, Trash2 } from 'lucide-react'
 import apiClient from '../api/client'
 import { PageHeader } from '../components/ui/page-header'
 import { TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableShell } from '../components/ui/table-shell'
@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 import { FormField, controlClassName } from '../components/ui/form-field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { InstanceLogDrawer, type LogInstance } from '../components/instance-log-drawer'
 
 interface Instance {
   id: string
@@ -92,6 +93,7 @@ export default function Instances() {
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const [logsFor, setLogsFor] = useState<LogInstance | null>(null)
   const [deleting, setDeleting] = useState<Instance | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletePending, setDeletePending] = useState(false)
@@ -305,6 +307,15 @@ export default function Instances() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        onClick={() => setLogsFor({ id: instance.id, name: instance.name })}
+                        aria-label={t('instances.logs')}
+                        title={t('instances.logs')}
+                      >
+                        <ScrollText />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => openEdit(instance)}
                         aria-label={t('common.edit')}
                         title={t('common.edit')}
@@ -414,6 +425,8 @@ export default function Instances() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InstanceLogDrawer instance={logsFor} onClose={() => setLogsFor(null)} />
 
       <ConfirmDialog
         open={Boolean(deleting)}

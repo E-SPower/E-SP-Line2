@@ -492,5 +492,19 @@
     "stopped": "Stopped: {{name}}",
     "failed": "Action failed: {{error}}",
     "refreshed": "Data refreshed."
+  },
+  "logs": {
+    "title": "Instance logs",
+    "empty": "No log lines in this window.",
+    "level": "Level",
+    "keyword": "Keyword",
+    "keywordPlaceholder": "substring, case-insensitive",
+    "from": "From",
+    "to": "To",
+    "heatmap": "Hourly level heatmap",
+    "heatmapHint": "Counts per hour in the selected window.",
+    "clear": "Clear logs",
+    "clearTitle": "Clear this instance log?",
+    "clearHint": "The file is emptied; the adapter keeps writing to it."
   }
 }

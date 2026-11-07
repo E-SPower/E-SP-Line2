@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
+	"github.com/e-spl/e-sp-line2/internal/platformspec"
 	"github.com/e-spl/e-sp-line2/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -35,8 +36,8 @@ func TestSyncBuiltinsIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list platforms: %v", err)
 	}
-	if total != 12 {
-		t.Fatalf("platforms = %d, want 12 with no duplicates", total)
+	if want := int64(len(platformspec.Active())); total != want {
+		t.Fatalf("platforms = %d, want %d with no duplicates", total, want)
 	}
 	for _, p := range all {
 		if p.Code == "" {
@@ -48,8 +49,8 @@ func TestSyncBuiltinsIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list adapters: %v", err)
 	}
-	if total != 12 {
-		t.Fatalf("adapters = %d, want 12", total)
+	if want := int64(len(platformspec.Active())); total != want {
+		t.Fatalf("adapters = %d, want %d", total, want)
 	}
 	for _, pkg := range pkgs {
 		if pkg.Manifest == "" {

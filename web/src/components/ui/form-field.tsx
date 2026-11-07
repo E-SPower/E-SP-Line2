@@ -9,12 +9,16 @@ import {
 import { cn } from '@/lib/cn'
 
 /**
- * Shared control styling (shadcn `Input`): `h-9`, transparent ground so the
+ * Shared control styling (shadcn `Input`): `h-10`, transparent ground so the
  * surface shows through, `shadow-xs`, focus = border + 2px ring/50 with no
  * offset. `aria-invalid` swaps to the destructive ring.
+ *
+ * `h-10` rather than shadcn's `h-9`: `text-sm` ink in a CJK label/placeholder
+ * is 19px tall, and 36px minus `py-1` left the text with almost no room. 40px
+ * keeps the same rhythm as the 20px line box the label now uses.
  */
 export const controlClassName = cn(
-  'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-text-primary shadow-xs',
+  'h-10 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm text-text-primary shadow-xs',
   'transition-[color,box-shadow] outline-none',
   'file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium',
   'placeholder:text-text-tertiary',
@@ -88,9 +92,17 @@ export function FormField({
         : children
 
   return (
-    <div className={cn('space-y-2', disabled && 'opacity-60', className)}>
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={fieldId} className="text-sm leading-none font-medium text-text-primary peer-disabled:opacity-70">
+    <div className={cn('min-w-0 space-y-2', disabled && 'opacity-60', className)}>
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+        {/* No `leading-*` utility: `leading-none` (13px) was shorter than the
+            19px CJK ink and clipped 3px top and bottom. `text-sm` already pairs
+            a 20px line box, which is the only value that clears the ink —
+            `leading-snug` (17.9px) still overflows 1px. Deleting it restores
+            the 8px gap to the control on its own (`space-y-2`), no extra margin. */}
+        <label
+          htmlFor={fieldId}
+          className="min-w-0 text-sm font-medium text-text-primary peer-disabled:opacity-70 [overflow-wrap:anywhere]"
+        >
           {label}
           {required && (
             <span aria-hidden className="ml-0.5 text-danger">

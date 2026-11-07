@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Activity,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -15,7 +14,6 @@ import {
   MessageSquare,
   Monitor,
   Moon,
-  Package,
   Server,
   Settings as SettingsIcon,
   Sun,
@@ -38,7 +36,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard', group: 'business' },
   { path: '/platforms', icon: Globe, labelKey: 'nav.platforms', group: 'business' },
-  { path: '/adapters', icon: Package, labelKey: 'nav.adapters', group: 'business' },
   { path: '/instances', icon: Server, labelKey: 'nav.instances', group: 'business' },
   { path: '/messages', icon: MessageSquare, labelKey: 'nav.messages', group: 'business' },
   { path: '/routes', icon: GitBranch, labelKey: 'nav.routes', group: 'business' },
@@ -121,9 +118,9 @@ export default function Layout() {
           <Link to="/dashboard" className="flex min-w-0 items-center gap-2.5 rounded-md" title={t('app.title')}>
             <span
               aria-hidden
-              className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground"
+              className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-primary-foreground dark:bg-white"
             >
-              <Activity className="size-4" />
+              <img src="/espl-logo.png" alt="" className="size-5 object-contain" />
             </span>
             {!compact && (
               <span className="min-w-0">
@@ -225,13 +222,16 @@ export default function Layout() {
             <Button
               variant="ghost"
               size="sm"
-              className="mt-1 w-full justify-start gap-2 text-text-tertiary"
+              className="mt-1 w-full min-w-0 justify-start gap-2 text-text-tertiary"
               onClick={() => setCollapsed((value) => !value)}
               aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
               title={collapsed ? t('nav.expand') : t('nav.collapse')}
             >
               {collapsed ? <ChevronRight /> : <ChevronLeft />}
-              {!collapsed && <span>{t('nav.collapse')}</span>}
+              {/* `truncate`: the label is `nowrap`, so a long one (English at a
+                  large root size) used to paint straight over the main column
+                  instead of ellipsising inside the sidebar. */}
+              {!collapsed && <span className="min-w-0 truncate">{t('nav.collapse')}</span>}
             </Button>
           )}
         </div>
@@ -283,58 +283,70 @@ export default function Layout() {
           collapsed ? 'lg:pl-sidebar-collapsed' : 'lg:pl-sidebar',
         )}
       >
-        {/* Fixed top bar */}
-        <header className="sticky top-0 z-20 flex h-topbar items-center gap-3 border-b border-border bg-background px-3 sm:px-4">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label={t('nav.openMenu')}
-          >
-            <Menu />
-          </Button>
+        {/* Fixed top bar. The bar itself is full-bleed so its rule reaches both
+            edges, but its contents sit on `.shell-rail` — the exact rail `main`
+            below uses — so the breadcrumb and the page body share one left edge
+            at every width instead of agreeing only below the container cap.
+            `min-w-0` on the bar and its left side lets the breadcrumb truncate
+            instead of pushing the trailing actions out. */}
+        <header className="sticky top-0 z-20 min-w-0 border-b border-border bg-background">
+          <div className="shell-rail flex h-topbar min-w-0 items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 lg:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label={t('nav.openMenu')}
+            >
+              <Menu />
+            </Button>
 
-          <nav aria-label={t('nav.breadcrumb')} className="min-w-0 flex-1">
-            <ol className="flex min-w-0 items-center gap-1.5 text-sm">
-              <li className="hidden shrink-0 text-text-tertiary sm:block">{t('app.title')}</li>
-              {currentGroup && (
-                <>
+            <nav aria-label={t('nav.breadcrumb')} className="min-w-0 flex-1">
+              <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+                <li className="hidden shrink-0 text-text-tertiary sm:block">{t('app.title')}</li>
+                {currentGroup && (
+                  <>
+                    <li aria-hidden className="hidden shrink-0 text-text-disabled sm:block">
+                      /
+                    </li>
+                    <li className="hidden shrink-0 text-text-tertiary sm:block">{t(currentGroup.labelKey)}</li>
+                  </>
+                )}
+                {current && (
                   <li aria-hidden className="hidden shrink-0 text-text-disabled sm:block">
                     /
                   </li>
-                  <li className="hidden shrink-0 text-text-tertiary sm:block">{t(currentGroup.labelKey)}</li>
-                </>
-              )}
-              {current && (
-                <li aria-hidden className="hidden shrink-0 text-text-disabled sm:block">
-                  /
+                )}
+                <li className="min-w-0 truncate font-medium text-text-primary">
+                  {current ? t(current.labelKey) : t('app.title')}
                 </li>
-              )}
-              <li className="min-w-0 truncate font-medium text-text-primary">
-                {current ? t(current.labelKey) : t('app.title')}
-              </li>
-            </ol>
-          </nav>
+              </ol>
+            </nav>
 
-          <div className="flex shrink-0 items-center gap-1.5">
-            <ConnectionBadge />
-            <Button variant="ghost" size="icon-sm" onClick={toggleTheme} aria-label={t('common.toggleTheme')}>
-              {resolvedTheme === 'dark' ? <Sun /> : <Moon />}
-            </Button>
-            <Link
-              to="/docs"
-              className="grid size-8 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
-              aria-label={t('nav.docs')}
-              title={t('nav.docs')}
-            >
-              <BookOpen className="size-4" />
-            </Link>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <ConnectionBadge />
+              <Button variant="ghost" size="icon-sm" onClick={toggleTheme} aria-label={t('common.toggleTheme')}>
+                {resolvedTheme === 'dark' ? <Sun /> : <Moon />}
+              </Button>
+              <Link
+                to="/docs"
+                className="grid size-8 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                aria-label={t('nav.docs')}
+                title={t('nav.docs')}
+              >
+                <BookOpen className="size-4" />
+              </Link>
+            </div>
           </div>
         </header>
 
-        <main id="main" className="flex-1">
-          <div className="content-container stack py-6">
+        <main id="main" className="min-w-0 flex-1">
+          {/* Same rail as the bar above, so the page body, the page `h1` and
+              the cards inside it line up with the breadcrumb. The top inset
+              steps 24/32/48: at phone width the horizontal gutter is also 24,
+              but from a desktop bar down the page needs more air than the
+              sides or the `h1` reads as glued to the top bar. */}
+          <div className="shell-rail stack py-6 sm:py-8 lg:py-20">
             <Outlet />
           </div>
         </main>

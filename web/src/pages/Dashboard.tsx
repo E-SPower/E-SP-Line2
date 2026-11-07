@@ -7,7 +7,6 @@ import {
   GitBranch,
   Globe,
   MessageSquare,
-  Package,
   Server,
   ShieldCheck,
   WifiOff,
@@ -114,7 +113,6 @@ export default function Dashboard() {
 
   const stats = [
     { label: t('dashboard.totalPlatforms'), value: counts.platforms, icon: Globe, tone: 'neutral' as const, to: '/platforms' },
-    { label: t('dashboard.totalAdapters'), value: counts.adapters, icon: Package, tone: 'neutral' as const, to: '/adapters' },
     { label: t('dashboard.totalInstances'), value: counts.instances, icon: Server, tone: 'neutral' as const, to: '/instances' },
     { label: t('dashboard.totalMessages'), value: counts.messages, icon: MessageSquare, tone: 'neutral' as const, to: '/messages' },
   ]
@@ -146,8 +144,8 @@ export default function Dashboard() {
               {t('common.refresh')}
             </Button>
             <Button variant="primary" size="sm" asChild>
-              <Link to="/adapters?create=1">
-                {t('adapters.create')}
+              <Link to="/instances?create=1">
+                {t('instances.create')}
                 <ArrowRight />
               </Link>
             </Button>
@@ -176,17 +174,24 @@ export default function Dashboard() {
         </Badge>
       )}
 
-      {/* Metrics — wide cards, four across, each linking to its list. */}
-      <section aria-labelledby="overview-heading" className="space-y-2">
+      {/* Metrics — each tile links to its list. Three tracks from `md` all the
+          way up: with only three metrics (adapters merged into instances) any
+          two-column step lays them out 2+1 and leaves a hole in the second row.
+          Tracks are `minmax(0, 1fr)`, so a long word widens the label, never
+          the grid; below `md` a tile per row, where three tiles would break
+          every label mid-word. */}
+      <section aria-labelledby="overview-heading" className="min-w-0 space-y-2">
         <h2 id="overview-heading" className="text-2xs font-semibold uppercase tracking-wider text-text-tertiary">
           {t('dashboard.overview')}
         </h2>
-        <StatGrid>
+        {/* `lg:` is repeated on purpose: `StatGrid` hard-codes `lg:grid-cols-4`
+            and a fourth metric no longer exists. */}
+        <StatGrid className="grid-cols-1 md:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
           {stats.map((stat) => (
             <Link
               key={stat.to}
               to={stat.to}
-              className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="min-w-0 break-words rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <StatCard
                 label={stat.label}
@@ -194,22 +199,28 @@ export default function Dashboard() {
                 icon={stat.icon}
                 tone={stat.tone}
                 loading={loading}
-                className="h-full"
+                className="h-full min-w-0 [&>div]:min-w-0 [&>div]:gap-2 [&_p]:min-w-0 [&_p]:break-words max-xl:!px-3"
               />
             </Link>
           ))}
         </StatGrid>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
         {/* Activity — the widest, densest block. */}
-        <Card padding="none" className="lg:col-span-2">
-          <CardHeader className="flex-row items-start justify-between gap-3">
+        <Card padding="none" className="min-w-0 md:col-span-2">
+          {/* One column while the card is phone-narrow, then two shrinkable
+              tracks: the title may collapse and `运行监控` may wrap instead of
+              pushing the header past the card. */}
+          <CardHeader className="min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)] sm:gap-3">
             <div className="min-w-0">
               <CardTitle>{t('dashboard.recentActivity')}</CardTitle>
-              <p className="mt-1 text-xs text-text-tertiary">{t('dashboard.recentActivityHint')}</p>
+              <p className="mt-1 min-w-0 break-words text-xs text-text-tertiary">{t('dashboard.recentActivityHint')}</p>
             </div>
-            <Link to="/monitoring" className="shrink-0 text-xs font-medium text-primary hover:underline">
+            <Link
+              to="/monitoring"
+              className="min-w-0 break-words text-xs font-medium text-primary hover:underline sm:justify-self-end sm:text-end"
+            >
               {t('nav.monitoring')}
             </Link>
           </CardHeader>
@@ -226,10 +237,18 @@ export default function Dashboard() {
           ) : (
             <ul className="divide-y divide-border">
               {recentActivities.map((activity) => (
-                <li key={activity.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                <li key={activity.id} className="flex min-w-0 items-center gap-3 px-5 py-3 text-sm">
                   <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${activityDot[activity.type]}`} />
-                  <span className="min-w-0 flex-1 truncate text-text-secondary">{activity.description}</span>
-                  <time dateTime={activity.timestamp} className="tabular shrink-0 text-xs text-text-tertiary">
+                  <span className="min-w-0 flex-1 truncate text-text-secondary" title={activity.description}>
+                    {activity.description}
+                  </span>
+                  {/* Yields width rather than starving the description; at big
+                      root sizes it wraps to two short lines instead of forcing
+                      the row wider. */}
+                  <time
+                    dateTime={activity.timestamp}
+                    className="tabular min-w-0 shrink break-words text-end text-xs text-text-tertiary"
+                  >
                     {new Date(activity.timestamp).toLocaleString()}
                   </time>
                 </li>
@@ -238,18 +257,25 @@ export default function Dashboard() {
           )}
         </Card>
 
-        {/* Right rail — lower density, secondary information. */}
-        <div className="stack">
-          <Card padding="none">
+        {/* Right rail — lower density, secondary information. `min-w-0` on the
+            rail and wrapping labels let the status rows give way instead of
+            pushing a badge out of the card when the column is narrow. */}
+        <div className="stack min-w-0">
+          <Card padding="none" className="min-w-0">
             <CardHeader>
-              <div>
+              <div className="min-w-0">
                 <CardTitle>{t('dashboard.systemStatus')}</CardTitle>
                 <p className="mt-1 text-xs text-text-tertiary">{t('dashboard.systemStatusHint')}</p>
               </div>
             </CardHeader>
             <CardBody className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-text-secondary">{t('dashboard.backendStatus')}</span>
+              {/* `flex-wrap` + `break-words`: on a narrow rail the badge drops
+                  to the next line instead of squeezing the label down to one
+                  letter. No fixed widths, so nothing can escape the card. */}
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <span className="min-w-0 break-words text-sm text-text-secondary">
+                  {t('dashboard.backendStatus')}
+                </span>
                 <Badge variant={backendBadge.variant} dot>
                   {backendBadge.label}
                 </Badge>
@@ -257,19 +283,23 @@ export default function Dashboard() {
               {backendStatus === 'offline' && (
                 <div className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-bg px-2.5 py-2 text-xs text-warning-fg">
                   <WifiOff className="mt-px size-3.5 shrink-0" />
-                  <span>{t('state.loadFailedHint')}</span>
+                  <span className="min-w-0 break-words">{t('state.loadFailedHint')}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-text-secondary">{t('monitoring.totalAdapters')}</span>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <span className="min-w-0 break-words text-sm text-text-secondary">
+                  {t('dashboard.totalAdapters')}
+                </span>
                 {loading ? (
                   <Skeleton shape="line" className="h-4 w-10" />
                 ) : (
                   <Badge variant={counts.adapters > 0 ? 'success' : 'neutral'}>{counts.adapters}</Badge>
                 )}
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-text-secondary">{t('monitoring.totalMessages')}</span>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <span className="min-w-0 break-words text-sm text-text-secondary">
+                  {t('monitoring.totalMessages')}
+                </span>
                 {loading ? (
                   <Skeleton shape="line" className="h-4 w-10" />
                 ) : (
@@ -279,7 +309,7 @@ export default function Dashboard() {
             </CardBody>
           </Card>
 
-          <Card padding="none">
+          <Card padding="none" className="min-w-0">
             <CardHeader>
               <CardTitle>{t('dashboard.quickActions')}</CardTitle>
             </CardHeader>
@@ -292,17 +322,19 @@ export default function Dashboard() {
                 <Link
                   key={action.to}
                   to={action.to}
-                  className="flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                  className="flex min-w-0 items-center gap-2 rounded-md px-2.5 py-2 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
                 >
-                  <action.icon className="size-4 text-text-tertiary" />
-                  <span className="flex-1">{action.label}</span>
-                  <ArrowRight className="size-3.5 text-text-disabled" />
+                  <action.icon className="size-4 shrink-0 text-text-tertiary" />
+                  <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                  <ArrowRight className="size-3.5 shrink-0 text-text-disabled" />
                 </Link>
               ))}
             </CardBody>
-            <CardFooter className="justify-between">
-              <span className="text-xs text-text-tertiary">{t('app.version')}</span>
-              <Link to="/docs" className="text-xs font-medium text-primary hover:underline">
+            {/* Version and docs share a row until the rail is too narrow, then
+                they stack rather than overhang the card. */}
+            <CardFooter className="flex-wrap justify-between gap-x-2 gap-y-1">
+              <span className="min-w-0 text-xs text-text-tertiary">{t('app.version')}</span>
+              <Link to="/docs" className="min-w-0 text-xs font-medium text-primary hover:underline">
                 {t('docs.title')}
               </Link>
             </CardFooter>

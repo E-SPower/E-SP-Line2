@@ -20,6 +20,6 @@ func platformP12306() *Platform {
 		ConfigFields: []ConfigField{},
 		Capabilities: []string{"route.get", "station.search", "ticket.price", "ticket.search", "transfer.search"},
 		Notes:        []string{},
-		Stage:        StageActive,
+		Stage:        StageUpcoming,
 	}
 }

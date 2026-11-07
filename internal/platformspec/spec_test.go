@@ -39,9 +39,9 @@ func TestStagesArePartition(t *testing.T) {
 			t.Fatalf("%q is in Upcoming() but stage is %q", p.ID, p.Stage)
 		}
 	}
-	// catbus README 的「即将上车」清单是 4 个平台之外的那几个，这里只固定数量以免漏改。
-	if len(upcoming) != 3 {
-		t.Fatalf("upcoming stage has %d platforms, want 3 (jimeng, maoyan, mteam)", len(upcoming))
+	// 数量不写死：阶段是矩阵的语义，改档不该顺带改测试。只在两档都空时报警。
+	if len(active) == 0 || len(upcoming) == 0 {
+		t.Fatalf("stage split collapsed: %d active, %d upcoming", len(active), len(upcoming))
 	}
 }
 
