@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import urllib.parse
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Callable
@@ -170,8 +171,15 @@ class EspBridge:
         self.running = False
 
     def _ws_url(self) -> str:
+        """构造后端适配器 WebSocket 地址。
+
+        token 走 query 参数：后端在升级握手前校验它，缺失直接回 401。
+        """
         base = self.backend_url.replace("http://", "ws://").replace("https://", "wss://")
-        return f"{base}/ws/adapter?instance_id={self.instance_id}"
+        url = f"{base}/ws/adapter?instance_id={self.instance_id}"
+        if self.token:
+            url += f"&token={urllib.parse.quote(self.token, safe='')}"
+        return url
 
     def _tag(self) -> str:
         """短标签：instance_id 前 8 位，便于在日志中区分多个桥。"""

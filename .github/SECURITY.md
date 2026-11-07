@@ -52,9 +52,11 @@ Out of scope:
 ### Backend
 
 - Passwords are stored as bcrypt hashes, never in plaintext.
-- API tokens are JWTs signed with HS256 and carry an expiry (`jwt.expiration`, 24 hours by default). Rotate `jwt.secret` in `backend/config/config.yaml` per deployment.
+- API tokens are JWTs signed with HS256 and carry an expiry (`jwt.expiration`, 24 hours by default). Rotate `jwt.secret` in `config/config.yaml` per deployment; startup logs a WARN while the shipped placeholder is still in place.
 - The `/api/v1` surface except `/auth/register` and `/auth/login` sits behind `AuthRequired`. `AdminRequired` exists but is not wired into any route yet.
 - An adapter's `security` policy declares `sensitive_fields` (for Taobao and Xianyu, `cookie`) so a manifest can mark what must not be echoed back.
+- CORS echoes a `security.allowed_origins` member instead of a wildcard, and the WebSocket upgraders (bridge, app and adapter gateway) check the same list. A cross-origin socket is refused with 403 before the upgrade, and both sockets require a valid JWT during the handshake (401 otherwise).
+- The HTTP server runs with a header timeout, read/write/idle timeouts and a request-body cap, so a stalled or oversized request cannot pin a connection.
 
 ### What is not there yet
 
@@ -62,8 +64,8 @@ Be aware of these when you deploy, and please send a report if one of them bites
 
 - The adapter instance `config` column stores its Cookie as plain JSON in the database, despite the `encrypted_fields` declaration. Treat the SQLite/PostgreSQL file as a secret.
 - `AuthRequired` is still a placeholder: it checks the presence and `Bearer` shape of the header but does not yet verify the JWT signature, and it sets a fixed `user-123` identity. Do not expose the API to the internet and assume per-user isolation until that lands.
-- CORS sends `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`, and the WebSocket upgrader accepts any origin. Put the front end behind the same origin as the API in production.
-- The default `jwt.secret` is a placeholder; change it before you deploy.
+- The default `jwt.secret` is a placeholder; startup only warns, it does not refuse to boot. Change it before you deploy.
+- `security.allowed_origins` defaults to `localhost` only. A real deployment must list its front-end origin (or set `ESP_SECURITY_ALLOWED_ORIGINS`); a `*` is not accepted, the list is matched exactly.
 
 ### Front end
 

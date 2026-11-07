@@ -35,6 +35,19 @@ func New(cfg *config.Config) (*Server, error) {
 	// Inject JWT secret into middleware for token validation
 	middleware.SetJWTSecret(cfg.JWT.Secret)
 
+	// The WebSocket upgrader shares the HTTP CORS allowlist, so one configured
+	// list governs both. Must be set before any route is built.
+	handler.SetAllowedOrigin(cfg.IsAllowedOrigin)
+
+	// A deployment that never rotated the shipped secret is signing tokens
+	// with a public key; say so loudly once, at startup.
+	if cfg.UsingPlaceholderJWTSecret() {
+		logger.Warn("JWT secret is still the shipped placeholder, tokens are forgeable until it is rotated",
+			logger.String("placeholder", config.PlaceholderJWTSecret),
+			logger.String("hint", "set jwt.secret in config.yaml or ESP_JWT_SECRET"),
+		)
+	}
+
 	// Initialize services
 	services, err := service.NewServices(cfg)
 	if err != nil {
@@ -49,7 +62,8 @@ func New(cfg *config.Config) (*Server, error) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.Logger())
-	router.Use(middleware.CORS())
+	router.Use(middleware.CORS(cfg.IsAllowedOrigin))
+	router.Use(middleware.MaxBodyBytes(cfg.Server.MaxBodyBytes))
 
 	s := &Server{
 		cfg:      cfg,
@@ -58,8 +72,10 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	// Initialize the adapter gateway (接入器) WebSocket server.
+	gwCfg := adaptergateway.DefaultGatewayConfig()
+	gwCfg.AllowedOrigin = cfg.IsAllowedOrigin
 	s.gateway = adaptergateway.NewGateway(
-		adaptergateway.DefaultGatewayConfig(),
+		gwCfg,
 		services.AdapterGateway,
 	)
 
@@ -96,12 +112,27 @@ func New(cfg *config.Config) (*Server, error) {
 		logger.Info("Embedded WebUI enabled (desktop build)")
 	}
 
-	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: router,
-	}
+	// Timeouts matter twice over here: without ReadHeaderTimeout one slow
+	// client can hold a connection open indefinitely (Slowloris), and without
+	// WriteTimeout every slow reader pins a goroutine. WebSocket connections
+	// are unaffected after the upgrade — gorilla clears the deadlines and the
+	// handlers manage their own.
+	s.httpServer = newHTTPServer(cfg, router)
 
 	return s, nil
+}
+
+// newHTTPServer builds the *http.Server from configuration. Split out of New so
+// the timeout wiring is testable without a database.
+func newHTTPServer(cfg *config.Config, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              fmt.Sprintf(":%d", cfg.Port),
+		Handler:           handler,
+		ReadHeaderTimeout: seconds(cfg.Server.ReadHeaderTimeout),
+		ReadTimeout:       seconds(cfg.Server.ReadTimeout),
+		WriteTimeout:      seconds(cfg.Server.WriteTimeout),
+		IdleTimeout:       seconds(cfg.Server.IdleTimeout),
+	}
 }
 
 // setupRoutes configures all API routes
@@ -426,6 +457,15 @@ func getString(m map[string]interface{}, key string) string {
 func (s *Server) Start() error {
 	logger.Info("Starting HTTP server")
 	return s.httpServer.ListenAndServe()
+}
+
+// seconds converts a configured timeout in seconds into a time.Duration. A
+// non-positive value means "no timeout", which is what net/http expects.
+func seconds(n int) time.Duration {
+	if n <= 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Second
 }
 
 // Stop gracefully stops the HTTP server
