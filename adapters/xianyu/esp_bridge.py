@@ -19,6 +19,7 @@ E-SP-Line2 XianYu (闲鱼) Adapter Bridge
 from __future__ import annotations
 
 import asyncio
+import os
 import json
 import time
 import uuid
@@ -31,6 +32,31 @@ import websockets
 
 # ---------------------------------------------------------------- logging ---
 from loguru import logger
+
+# ---------------------------------------------------------------- egress ---
+# 实例配置了 proxy 时，运行器会注入 HTTP(S)_PROXY / ALL_PROXY / NO_PROXY 环境变量。
+# 回连后端的那个 WebSocket 是控制通道：它必须直连，不能让代理绕回自己。
+def _ws_proxy_kwargs(uri: str) -> Dict[str, Any]:
+    host = uri.split("://", 1)[-1].split("/", 1)[0].rsplit("@", 1)[-1]
+    host = host[1:].split("]", 1)[0] if host.startswith("[") else host.split(":", 1)[0]
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return {"proxy": None}
+    try:
+        major = int(str(getattr(websockets, "__version__", "0")).split(".")[0])
+    except Exception:
+        major = 0
+    if major >= 14:
+        return {"proxy": True}
+    url = (
+        os.environ.get("HTTPS_PROXY")
+        or os.environ.get("https_proxy")
+        or os.environ.get("ALL_PROXY")
+        or os.environ.get("all_proxy")
+        or os.environ.get("HTTP_PROXY")
+        or os.environ.get("http_proxy")
+    )
+    return {"proxy": url} if url else {}
+
 
 # 详细日志格式：时间 | 级别 | 消息
 logger.remove()
@@ -197,7 +223,9 @@ class EspBridge:
                     f"[{self._tag()}][bridge] 连接后端 (第{attempts}次尝试): "
                     f"instance={self.instance_id} url={self._ws_url()}"
                 )
-                async with websockets.connect(self._ws_url()) as ws:
+                async with websockets.connect(
+                    self._ws_url(), **_ws_proxy_kwargs(self._ws_url())
+                ) as ws:
                     self.ws = ws
                     attempts = 0
                     logger.info(

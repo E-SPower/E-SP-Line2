@@ -1,0 +1,79 @@
+# 猫巴士独立式接入器（catbus）
+#
+# 与 xianyu/taobao 两个桥式接入器不同，这个接入器是 **独立式** 的：
+# runtime_type: standalone 让后端不再拉起 `python main.py --instance-id ...`
+# 等它回连 /ws/adapter，而是直接拉起本目录的 main.mjs，用 stdin 送命令、
+# 从 stdout 读一行一个的 JSON 信封。见 docs/developer-guide/adapter-runtime.md。
+#
+# 命令词表、JSON 信封与归一化字段都以 catbus 源码为准
+# （https://github.com/cv-cat/catbus，AGENTS.md 第 4、6 节）。
+
+id: catbus-adapter
+
+# 命令侧的平台代码：catbus 的规范 id 是 xianyu，别名 goofish / xy。
+platform_code: xianyu
+
+name: 猫巴士独立式接入器
+
+version: 1.0.0
+
+# 关键字段：选拉起方式，不是备注。后端按它分发。
+runtime_type: standalone
+
+runtime:
+  # 用 Node 直接跑本目录的入口；interpreter 省略时用 adapter.node_bin。
+  interpreter: node
+  entry: main.mjs
+  args: []
+
+description: 通过 catbus CLI 的独立式接入器，进程自起、命令驱动、结果走 stdout JSON 信封
+
+hidden: false
+
+icon: "🐈"
+
+config_schema:
+  catbus_bin:
+    label: catbus 可执行文件
+    type: text
+    required: false
+    default: catbus
+    placeholder: 例如 catbus 或 /usr/local/bin/catbus
+    help: 留空时依次尝试 PATH 里的 catbus、npx catbus-cli
+  catbus_home:
+    label: catbus 数据目录
+    type: text
+    required: false
+    placeholder: 可选，默认 ~/.catbus
+    help: 登录态与缓存目录；多实例想共用一个登录态时指到同一个目录
+  account:
+    label: 账号名
+    type: text
+    required: false
+    placeholder: 可选，默认使用当前账号
+    help: 对应 catbus -a；只影响带 -a 的命令
+  default_endpoint:
+    label: 端
+    type: text
+    required: false
+    default: web
+    help: web / app / pc；app 与 pc 目前是 planned，会以 NOT_IMPLEMENTED 原样返回
+  proxy:
+    label: 代理（可选）
+    type: text
+    required: false
+    placeholder: 例如 http://127.0.0.1:7890
+    help: 实例级出网代理，由运行器注入环境变量；catbus 自己的代理只认显式配置
+  no_proxy:
+    label: 不走代理的地址
+    type: text
+    required: false
+    placeholder: 可选，逗号分隔，默认 localhost,127.0.0.1,::1
+    help: 通常保持默认
+
+capabilities:
+  - receive_message
+  - send_text
+  - get_history
+  - item_get
+  - item_search

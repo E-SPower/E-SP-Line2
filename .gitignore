@@ -1,6 +1,11 @@
 # Runtime data (SQLite database generated on first run)
 data/
 
+# Local build caches / scratch (writable Go cache, temp e2e runs)
+/tmp/
+/gocache/
+/gotmp/
+
 # Compiled binaries
 bin/
 dist/

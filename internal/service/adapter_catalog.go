@@ -28,6 +28,7 @@ type CatalogAdapter struct {
 	Name         string                 `json:"name" yaml:"name"`
 	Version      string                 `json:"version" yaml:"version"`
 	RuntimeType  string                 `json:"runtime_type" yaml:"runtime_type"`
+	Runtime      RuntimeSpec            `json:"runtime,omitempty" yaml:"runtime"`
 	Description  string                 `json:"description" yaml:"description"`
 	Hidden       bool                   `json:"hidden" yaml:"hidden"`
 	Icon         string                 `json:"icon,omitempty" yaml:"icon,omitempty"`
@@ -94,6 +95,12 @@ func (c *AdapterCatalog) Reload() error {
 		a.ID = strings.TrimSpace(a.ID)
 		if a.ID == "" {
 			return fmt.Errorf("adapter.yaml %s missing required field: id", yamlPath)
+		}
+		if !ValidRuntimeType(a.RuntimeType) && strings.TrimSpace(a.RuntimeType) != "" {
+			return fmt.Errorf("adapter.yaml %s: unsupported runtime_type %q (want python or standalone)", yamlPath, a.RuntimeType)
+		}
+		if err := validateRuntimeSpec(yamlPath, a.RuntimeType, a.Runtime); err != nil {
+			return err
 		}
 		a.Dir = entry.Name()
 		if a.ConfigSchema == nil {

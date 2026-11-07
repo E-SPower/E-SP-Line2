@@ -108,6 +108,7 @@ type AdapterConfig struct {
 
 	// Python adapter process management
 	PythonBin   string `mapstructure:"python_bin"`   // python executable path (default: python3)
+	NodeBin     string `mapstructure:"node_bin"`     // node executable path for standalone adapters (default: node)
 	AdaptersDir string `mapstructure:"adapters_dir"` // root dir containing adapters/<platform>/main.py (default: adapters)
 	AutoRestart bool   `mapstructure:"auto_restart"` // auto-restart crashed python processes (default: true)
 }
@@ -240,6 +241,7 @@ func setDefaults(v *viper.Viper) {
 
 	// Python adapter process defaults
 	v.SetDefault("adapter.python_bin", "python3")
+	v.SetDefault("adapter.node_bin", "node")
 	v.SetDefault("adapter.adapters_dir", "adapters")
 	v.SetDefault("adapter.auto_restart", true)
 }

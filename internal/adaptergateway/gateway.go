@@ -80,6 +80,12 @@ type Gateway struct {
 	pendingMu    sync.Mutex
 	pendingTools map[string]*pendingToolCall
 
+	// standaloneMu guards standaloneSender, the hook that delivers outbound
+	// commands to instances launched with runtime_type: standalone. Those
+	// instances never open a bridge WebSocket, so they are not in bridgeConns.
+	standaloneMu     sync.RWMutex
+	standaloneSender func(instanceID string, command map[string]interface{}) bool
+
 	// counterMu guards the async message-count flush loop.
 	counterMu    sync.Mutex
 	counterDirty map[string]int64
@@ -167,6 +173,12 @@ func (g *Gateway) RouteOutboundToBridge(instanceID string, frame map[string]inte
 	bc, ok := g.bridgeConns[instanceID]
 	g.bridgeMu.RUnlock()
 	if !ok {
+		// Standalone adapters are driven over stdin, not the bridge WebSocket.
+		// Hand the normalized command to that runtime instead of dropping it.
+		cmd := buildBridgeCommand(frame)
+		if g.deliverToStandalone(instanceID, cmd) {
+			return true
+		}
 		logger.Warn("Adapter gateway no bridge connection for outbound command",
 			logger.String("instance_id", instanceID))
 		return false
@@ -200,6 +212,26 @@ func (g *Gateway) RouteOutboundToBridge(instanceID string, frame map[string]inte
 			logger.String("instance_id", instanceID))
 		return false
 	}
+}
+
+// SetStandaloneSender installs the hook that delivers outbound commands to
+// standalone (runtime_type: standalone) adapter instances. It reports whether
+// the command was handed to a running process.
+func (g *Gateway) SetStandaloneSender(fn func(instanceID string, command map[string]interface{}) bool) {
+	g.standaloneMu.Lock()
+	defer g.standaloneMu.Unlock()
+	g.standaloneSender = fn
+}
+
+// deliverToStandalone forwards a command through the standalone hook.
+func (g *Gateway) deliverToStandalone(instanceID string, command map[string]interface{}) bool {
+	g.standaloneMu.RLock()
+	fn := g.standaloneSender
+	g.standaloneMu.RUnlock()
+	if fn == nil {
+		return false
+	}
+	return fn(instanceID, command)
 }
 
 // buildBridgeCommand normalizes an ESPL v3 outbound frame into the bridge

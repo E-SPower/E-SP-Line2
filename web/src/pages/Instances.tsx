@@ -37,6 +37,45 @@ interface Notice {
 
 const emptyForm = { name: '', adapter_id: '', platform_id: '', config: '' }
 
+// The stored config is a JSON blob; a malformed or absent one must not break
+// the page, so it degrades to an empty object.
+function parseConfig(config: string | null | undefined): Record<string, any> {
+  if (!config) return {}
+  try {
+    const parsed = JSON.parse(config)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+// The proxy is stored either as a URL string or as the structured
+// {scheme,host,port,username,password} object. The form renders one text input,
+// so the object form is folded back into a URL before prefill — otherwise the
+// input would show "[object Object]" and round-trip it back into the config.
+function proxyForForm(proxy: unknown): string {
+  if (typeof proxy === 'string') return proxy
+  if (!proxy || typeof proxy !== 'object') return ''
+  const o = proxy as Record<string, any>
+  if (o.url) return String(o.url)
+  const host = String(o.host || '').trim()
+  if (!host) return ''
+  const scheme = String(o.scheme || 'http').trim() || 'http'
+  const port = o.port ? `:${o.port}` : ''
+  const auth = o.username
+    ? `${encodeURIComponent(String(o.username))}${o.password ? `:${encodeURIComponent(String(o.password))}` : ''}@`
+    : ''
+  return `${scheme}://${auth}${host}${port}`
+}
+
+// Form values to prefill when editing: the stored config, with the proxy folded
+// into its single-input form.
+function configForForm(config: string | null | undefined): Record<string, any> {
+  const cfg = parseConfig(config)
+  if ('proxy' in cfg) cfg.proxy = proxyForForm(cfg.proxy)
+  return cfg
+}
+
 export default function Instances() {
   const { t } = useTranslation()
   const [instances, setInstances] = useState<Instance[]>([])
@@ -120,7 +159,7 @@ export default function Instances() {
       name: instance.name,
       adapter_id: instance.adapter_id,
       platform_id: instance.platform_id || '',
-      config: instance.config || '',
+      config: JSON.stringify(configForForm(instance.config), null, 2),
     })
     setFieldErrors({})
     setFormError(null)

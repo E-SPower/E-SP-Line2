@@ -63,6 +63,15 @@ func (s *InstanceService) Stop(id string) error {
 	return s.runner.Stop(id)
 }
 
+// RunCommand sends one command to a standalone instance and returns the
+// adapter's JSON envelope. Bridge instances are rejected by the runner.
+func (s *InstanceService) RunCommand(id string, command map[string]interface{}, timeout time.Duration) (map[string]interface{}, error) {
+	if s.runner == nil {
+		return nil, errors.New("adapter runner is not initialized")
+	}
+	return s.runner.Command(id, command, timeout)
+}
+
 // ReadLog returns the instance's adapter process log, optionally filtered by
 // level (debug/info/warning/error), keyword (case-insensitive substring,
 // space-separated words are ANDed) and time range (from/to). maxLines <= 0
@@ -141,8 +150,16 @@ func (s *InstanceService) Create(req *CreateInstanceRequest) (*models.AdapterIns
 		return instance, nil
 	}
 
-	// Create the sandboxed copy of the adapter code (no __pycache__).
-	adapterDir, err := s.dirs.CopyAdapter(instance.ID, platformCode)
+	// Create the sandboxed copy of the adapter code (no __pycache__). The copy
+	// comes from the adapter's own directory, which need not equal the platform
+	// code (e.g. the standalone catbus adapter serves platform xianyu).
+	sourceDir := platformCode
+	if s.runner != nil {
+		if dir, derr := s.runner.resolveSourceDir(instance.ID); derr == nil {
+			sourceDir = dir
+		}
+	}
+	adapterDir, err := s.dirs.CopyAdapter(instance.ID, sourceDir)
 	if err != nil {
 		instance.Status = "error"
 		_ = s.repo.Update(instance)
@@ -152,10 +169,12 @@ func (s *InstanceService) Create(req *CreateInstanceRequest) (*models.AdapterIns
 		return instance, nil
 	}
 
-	// Automatically install the adapter's Python dependencies inside the
-	// sandbox copy. The WebUI polls the init status while it is
-	// "initializing".
+	// Automatically install the adapter's dependencies inside the sandbox
+	// copy (or, for the standalone runtime, run the adapter's self-check). The
+	// WebUI polls the init status while it is "initializing".
 	if s.installer != nil {
+		runtimeType, spec := s.adapterRuntime(instance)
+		s.installer.adoptRuntime(instance.ID, runtimeType, spec, instance.Config)
 		s.installer.InstallDependencies(instance.ID, adapterDir, platformCode, s.updateInstanceStatus)
 	} else {
 		// No installer attached (e.g. tests): move straight to "stopped".
@@ -168,6 +187,18 @@ func (s *InstanceService) Create(req *CreateInstanceRequest) (*models.AdapterIns
 	}
 
 	return instance, nil
+}
+
+// adapterRuntime resolves the runtime type + spec for an instance, through the
+// runner (which owns the catalog) when attached.
+func (s *InstanceService) adapterRuntime(instance *models.AdapterInstance) (string, RuntimeSpec) {
+	if s.runner != nil {
+		rt, spec, err := s.runner.adapterRuntime(instance)
+		if err == nil {
+			return rt, spec
+		}
+	}
+	return RuntimePython, RuntimeSpec{}
 }
 
 // resolvePlatformCode resolves the source adapter directory name (platform

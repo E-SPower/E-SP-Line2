@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,9 +26,13 @@ type PythonRunner struct {
 	// process mapping: instanceID -> *exec.Cmd
 	mu          sync.Mutex
 	procs       map[string]*exec.Cmd
-	stopping    map[string]bool // instances marked for intentional stop
-	restarts    map[string]int  // consecutive crash count per instance
+	stdins      map[string]io.WriteCloser                             // standalone: command channel to the process
+	readers     map[string]*envelopeReader                            // standalone: stdout envelope demux
+	toolSink    func(instanceID string, frame map[string]interface{}) // standalone tool_catalog
+	stopping    map[string]bool                                       // instances marked for intentional stop
+	restarts    map[string]int                                        // consecutive crash count per instance
 	python      string
+	node        string
 	dir         string
 	autoRestart bool
 	backendURL  string
@@ -80,6 +85,8 @@ func NewPythonRunner(
 ) *PythonRunner {
 	return &PythonRunner{
 		procs:       make(map[string]*exec.Cmd),
+		stdins:      make(map[string]io.WriteCloser),
+		readers:     make(map[string]*envelopeReader),
 		stopping:    make(map[string]bool),
 		restarts:    make(map[string]int),
 		python:      python,
@@ -123,6 +130,16 @@ func (r *PythonRunner) serviceToken() (string, error) {
 		"iat":  time.Now().Unix(),
 	})
 	return claims.SignedString([]byte(r.jwtSecret))
+}
+
+// SetToolCatalogSink installs the callback that receives a standalone adapter's
+// "tool_catalog" envelope at startup. The bridge model sends the same frame over
+// the WebSocket; standalone adapters have no socket, so the stdout pump hands it
+// here to keep the inactive-field tool registry populated for both runtimes.
+func (r *PythonRunner) SetToolCatalogSink(fn func(instanceID string, frame map[string]interface{})) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.toolSink = fn
 }
 
 // IsRunning reports whether the given instance has a live Python process.
@@ -718,6 +735,26 @@ func (r *PythonRunner) resolvePlatformCode(instanceID string) (string, error) {
 	return "", errors.New("platform code not resolvable for adapter")
 }
 
+// resolveSourceDir resolves the adapters/<dir> source directory an instance is
+// sandboxed from.
+//
+// It is normally the platform code, but an adapter whose directory name differs
+// from its platform_code (e.g. adapters/catbus serving platform xianyu) must be
+// copied from its own directory. The catalog records the real directory, so it
+// wins whenever the adapter is declared in adapter.yaml.
+func (r *PythonRunner) resolveSourceDir(instanceID string) (string, error) {
+	if r.catalog != nil {
+		if instance, err := r.instances.FindByID(instanceID); err == nil {
+			if a, ok := r.catalog.Get(instance.AdapterID); ok {
+				if dir := strings.TrimSpace(a.Dir); dir != "" {
+					return dir, nil
+				}
+			}
+		}
+	}
+	return r.resolvePlatformCode(instanceID)
+}
+
 // sandboxDir returns the instance's sandboxed adapter copy directory.
 //
 // The sandbox is normally created when the instance is created, but it can be
@@ -736,12 +773,12 @@ func (r *PythonRunner) resolvePlatformCode(instanceID string) (string, error) {
 //
 // It now self-heals: if the sandbox copy (or its manifest) is absent, it is
 // restored from the adapter source.
-func (r *PythonRunner) sandboxDir(instanceID, platformCode string) string {
+func (r *PythonRunner) sandboxDir(instanceID, platformCode, entry string) string {
 	if r.dirs == nil {
 		return ""
 	}
 	dir := r.dirs.AdapterDir(instanceID)
-	if sandboxUsable(dir) {
+	if sandboxUsable(dir, entry) {
 		return dir
 	}
 
@@ -763,14 +800,32 @@ func (r *PythonRunner) sandboxDir(instanceID, platformCode string) string {
 	return restored
 }
 
-// sandboxUsable reports whether dir holds a complete sandbox copy: main.py
-// present and a manifest written (the manifest is required by the integrity
-// check performed before start).
-func sandboxUsable(dir string) bool {
-	if dir == "" {
+// requiredEntry returns the launcher file a sandbox of the given runtime must
+// contain, relative to the sandbox dir.
+//
+// The bridge model always launches main.py. A standalone adapter launches its
+// declared runtime.entry and has no main.py at all — checking for main.py there
+// made every standalone sandbox look broken, so every start did a full
+// RemoveAll + re-copy and wiped the adapter's own files plus state.json.
+func requiredEntry(runtimeType string, spec RuntimeSpec) string {
+	if runtimeType != RuntimeStandalone {
+		return "main.py"
+	}
+	entry := filepath.Clean(strings.TrimSpace(spec.Entry))
+	if entry == "" || entry == "." {
+		return ""
+	}
+	return entry
+}
+
+// sandboxUsable reports whether dir holds a complete sandbox copy: the
+// runtime's launcher entry present and a manifest written (the manifest is
+// required by the integrity check performed before start).
+func sandboxUsable(dir, entry string) bool {
+	if dir == "" || entry == "" {
 		return false
 	}
-	if _, err := os.Stat(filepath.Join(dir, "main.py")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, entry)); err != nil {
 		return false
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), "manifest.json")); err != nil {
@@ -792,7 +847,7 @@ func (r *PythonRunner) Start(instanceID string) error {
 	delete(r.stopping, instanceID)
 	r.mu.Unlock()
 
-	// Resolve the Python script for this instance's platform.
+	// Resolve the platform code (for the start record and catalogue paths).
 	platformCode, err := r.resolvePlatformCode(instanceID)
 	if err != nil {
 		return err
@@ -800,6 +855,14 @@ func (r *PythonRunner) Start(instanceID string) error {
 
 	// Validate the instance has a cookie configured.
 	instance, err := r.instances.FindByID(instanceID)
+	if err != nil {
+		return err
+	}
+
+	// Which launcher this instance uses. Resolved before the cookie check
+	// because a standalone adapter owns its own login state (e.g. catbus
+	// keeps credentials in CATBUS_HOME), so a browser cookie is not required.
+	runtimeType, runtimeSpec, err := r.adapterRuntime(instance)
 	if err != nil {
 		return err
 	}
@@ -813,13 +876,24 @@ func (r *PythonRunner) Start(instanceID string) error {
 	if instance.Config != "" {
 		_ = json.Unmarshal([]byte(instance.Config), &cfg)
 	}
-	if cookie, _ := cfg["cookie"].(string); strings.TrimSpace(cookie) == "" {
+	if cookie, _ := cfg["cookie"].(string); runtimeType == RuntimePython && strings.TrimSpace(cookie) == "" {
 		return errors.New("instance has no cookie configured; please fill it in the WebUI")
+	}
+
+	// Resolve the optional per-instance egress proxy before touching the
+	// sandbox: a malformed proxy should fail the start, not the connection.
+	proxy, err := proxyFromInstanceConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("invalid proxy configuration: %w", err)
 	}
 
 	// Run from the instance's sandboxed adapter copy, never from the source
 	// adapters/ directory. Verify the copy is unmodified before starting.
-	workDir := r.sandboxDir(instanceID, platformCode)
+	sourceDir, err := r.resolveSourceDir(instanceID)
+	if err != nil {
+		return err
+	}
+	workDir := r.sandboxDir(instanceID, sourceDir, requiredEntry(runtimeType, runtimeSpec))
 	if workDir == "" {
 		// Self-healing was attempted but failed. Report something actionable
 		// instead of asking the user to recreate the instance (which would
@@ -834,39 +908,101 @@ func (r *PythonRunner) Start(instanceID string) error {
 			return fmt.Errorf("instance sandbox integrity check failed: %w", err)
 		}
 	}
-	script := filepath.Join(workDir, "main.py")
-	if _, err := os.Stat(script); err != nil {
-		return fmt.Errorf("python adapter script not found in sandbox: %s (%v)", script, err)
+	// The sandbox must hold the launcher: main.py for bridges, runtime.entry
+	// for standalone adapters (buildLaunch checks the latter too).
+	if entry := requiredEntry(runtimeType, runtimeSpec); runtimeType == RuntimePython {
+		script := filepath.Join(workDir, entry)
+		if _, err := os.Stat(script); err != nil {
+			return fmt.Errorf("python adapter script not found in sandbox: %s (%v)", script, err)
+		}
 	}
 
-	// Build the command: python main.py --instance-id X --backend URL
-	// Run inside the sandboxed adapter directory, so the script path is
-	// relative.
+	// Bridge flags (--instance-id/--backend/--token) are shared by both
+	// launchers: a standalone adapter uses --config for its payload but still
+	// gets the instance identity, and both are harmless extra flags for python.
 	args := []string{"main.py", "--instance-id", instanceID, "--backend", r.backendURL}
+	if runtimeType == RuntimeStandalone {
+		args = args[1:] // the standalone entry replaces main.py
+	}
 	if r.jwtSecret != "" {
 		if token, tErr := r.serviceToken(); tErr == nil {
 			args = append(args, "--token", token)
 		}
 	}
-	cmd := exec.Command(r.python, args...)
+	plan, err := r.buildLaunch(instance, runtimeType, runtimeSpec, workDir, cfg, args)
+	if err != nil {
+		return err
+	}
+	args = plan.args
+	cmd := exec.Command(plan.bin, args...)
 	cmd.Dir = workDir
+	// Wire the opt-in egress proxy into the sandbox's environment. Appending to
+	// the inherited environment keeps PATH and the adapter's own ESP_* settings
+	// intact; the proxy variables are written last so they win.
+	cmd.Env = os.Environ()
+	if len(plan.env) > 0 {
+		cmd.Env = append(cmd.Env, plan.env...)
+	}
+	if proxyEnv := proxy.Env(); len(proxyEnv) > 0 {
+		cmd.Env = append(cmd.Env, proxyEnv...)
+	}
 
 	// Redirect the adapter process stdout/stderr to a per-instance log file so
 	// its logs can be viewed from the WebUI.
+	var (
+		stdoutR *os.File
+		stdoutW *os.File
+		reader  *envelopeReader
+	)
 	logFile, logErr := r.openLogFile(instanceID)
-	if logErr == nil {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-	} else {
+	if logErr != nil {
 		logger.Warn("Failed to open instance log file, falling back to stdout",
 			logger.String("instance_id", instanceID),
 			logger.String("error", logErr.Error()))
+	}
+	switch {
+	case logFile != nil:
+		cmd.Stderr = logFile
+		if runtimeType == RuntimeStandalone {
+			// Standalone stdout carries the JSON envelopes: tee it into the log
+			// so the WebUI still shows the adapter's own log lines, while the
+			// reader demultiplexes envelopes back to Command callers.
+			reader = newEnvelopeReader()
+			var pipeErr error
+			stdoutR, stdoutW, pipeErr = os.Pipe()
+			if pipeErr != nil {
+				return fmt.Errorf("failed to create adapter stdout pipe: %w", pipeErr)
+			}
+			cmd.Stdout = stdoutW
+		} else {
+			cmd.Stdout = logFile
+		}
+	case runtimeType == RuntimeStandalone:
+		return errors.New("standalone adapter needs a log file to capture its JSON envelopes")
+	default:
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
 
+	// A standalone adapter is driven over stdin: keep the pipe open and store
+	// the writing end. Bridge (python) adapters dial back over WebSocket, so
+	// their stdin stays unused.
+	var stdin io.WriteCloser
+	if runtimeType == RuntimeStandalone {
+		stdin, err = cmd.StdinPipe()
+		if err != nil {
+			return fmt.Errorf("failed to open adapter stdin: %w", err)
+		}
+	}
+
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start python adapter: %w", err)
+		return fmt.Errorf("failed to start adapter process: %w", err)
+	}
+	if stdoutW != nil {
+		// The parent's copy of the write end goes away now; the reader closes
+		// the read end when the process exits.
+		_ = stdoutW.Close()
+		go r.pumpStandaloneOutput(instanceID, stdoutR, logFile, reader)
 	}
 
 	// Echo the startup banner and a detailed start record into the instance
@@ -882,11 +1018,18 @@ func (r *PythonRunner) Start(instanceID string) error {
 		fmt.Fprintf(&sb, "%s | INFO    | [bridge] 适配器进程启动 (Adapter process started)\n", ts)
 		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   instance_id : %s\n", ts, instanceID)
 		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   platform    : %s\n", ts, platformCode)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   runtime     : %s\n", ts, runtimeType)
 		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   pid         : %d\n", ts, cmd.Process.Pid)
 		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   backend     : %s\n", ts, r.backendURL)
 		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   workdir     : %s\n", ts, workDir)
-		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   command     : %s %s\n", ts, r.python, strings.Join(args, " "))
-		fmt.Fprintf(&sb, "%s | INFO    | [bridge] 等待适配器连接后端 WebSocket...\n", ts)
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   proxy       : %s\n", ts, proxy.String())
+		fmt.Fprintf(&sb, "%s | INFO    | [bridge]   command     : %s %s\n", ts, plan.bin, strings.Join(args, " "))
+		if runtimeType == RuntimeStandalone {
+			fmt.Fprintf(&sb, "%s | INFO    | [standalone] 独立式接入器：进程自起，命令经 stdin，结果走 stdout JSON 信封\n", ts)
+			fmt.Fprintf(&sb, "%s | INFO    | [standalone] 不等待 WebSocket 回连；把命令写成一行 JSON 从 stdin 送进进程\n", ts)
+		} else {
+			fmt.Fprintf(&sb, "%s | INFO    | [bridge] 等待适配器连接后端 WebSocket...\n", ts)
+		}
 		fmt.Fprintf(&sb, "%s | INFO    | ============================================================\n", ts)
 		if _, werr := logFile.WriteString(sb.String()); werr != nil {
 			logger.Warn("Failed to write startup banner to instance log",
@@ -897,6 +1040,12 @@ func (r *PythonRunner) Start(instanceID string) error {
 
 	r.mu.Lock()
 	r.procs[instanceID] = cmd
+	if stdin != nil {
+		r.stdins[instanceID] = stdin
+	}
+	if reader != nil {
+		r.readers[instanceID] = reader
+	}
 	r.mu.Unlock()
 
 	// Mark the instance as running in the database.
@@ -906,9 +1055,10 @@ func (r *PythonRunner) Start(instanceID string) error {
 			logger.String("error", err.Error()))
 	}
 
-	logger.Info("Python adapter process started",
+	logger.Info("Adapter process started",
 		logger.String("instance_id", instanceID),
 		logger.String("platform", platformCode),
+		logger.String("runtime", runtimeType),
 		logger.Int("pid", cmd.Process.Pid))
 
 	// Monitor process exit; optionally auto-restart.
@@ -951,6 +1101,10 @@ func (r *PythonRunner) Stop(instanceID string) error {
 
 	r.mu.Lock()
 	delete(r.procs, instanceID)
+	if in, ok := r.stdins[instanceID]; ok {
+		_ = in.Close()
+		delete(r.stdins, instanceID)
+	}
 	delete(r.stopping, instanceID)
 	delete(r.restarts, instanceID)
 	r.mu.Unlock()
@@ -962,6 +1116,190 @@ func (r *PythonRunner) Stop(instanceID string) error {
 
 	logger.Info("Python adapter process stopped", logger.String("instance_id", instanceID))
 	return nil
+}
+
+// Command sends one command line to a running standalone adapter and returns
+// the adapter's JSON envelope ({"ok", "data", "error"}).
+//
+// The protocol is deliberately line-oriented: one compact JSON object per line
+// on stdin, exactly one JSON envelope line on stdout. The adapter's stdout is
+// the instance log, so a reader goroutine demultiplexes envelope lines back
+// here while still appending everything (including the adapter's own log
+// lines) to the per-instance log.
+//
+// Bridge (python) adapters do not read stdin, so this reports a clear error
+// instead of writing into a pipe nobody drains.
+func (r *PythonRunner) Command(instanceID string, command map[string]interface{}, timeout time.Duration) (map[string]interface{}, error) {
+	if timeout <= 0 {
+		timeout = standaloneCommandTimeout
+	}
+
+	r.mu.Lock()
+	cmd, running := r.procs[instanceID]
+	stdin, hasStdin := r.stdins[instanceID]
+	reader := r.readers[instanceID]
+	r.mu.Unlock()
+	if !running || cmd == nil || cmd.Process == nil || !hasStdin || stdin == nil {
+		return nil, errors.New("instance is not running as a standalone adapter")
+	}
+
+	id := fmt.Sprintf("%d", time.Now().UnixNano())
+	req := map[string]interface{}{}
+	for k, v := range command {
+		req[k] = v
+	}
+	req["id"] = id
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, '\n')
+
+	waiter := reader.expect(id)
+
+	if _, err := stdin.Write(data); err != nil {
+		reader.cancel(id)
+		return nil, fmt.Errorf("failed to write command to adapter: %w", err)
+	}
+
+	select {
+	case resp := <-waiter:
+		if resp == nil {
+			return nil, errors.New("adapter exited before answering the command")
+		}
+		return resp, nil
+	case <-time.After(timeout):
+		reader.cancel(id)
+		return nil, fmt.Errorf("adapter did not answer the command within %s", timeout)
+	}
+}
+
+// standaloneCommandTimeout bounds how long Command waits for an answer.
+// A standalone adapter may shell out to a CLI whose cold start (npx fetching
+// the package) took ~45s here, so the bound is generous rather than tight.
+const standaloneCommandTimeout = 90 * time.Second
+
+// envelopeReader demultiplexes command envelopes out of an adapter's stdout.
+type envelopeReader struct {
+	mu      sync.Mutex
+	pending map[string]chan map[string]interface{}
+}
+
+func newEnvelopeReader() *envelopeReader {
+	return &envelopeReader{pending: make(map[string]chan map[string]interface{})}
+}
+
+// expect registers interest in the answer to one command id.
+func (e *envelopeReader) expect(id string) <-chan map[string]interface{} {
+	ch := make(chan map[string]interface{}, 1)
+	e.mu.Lock()
+	e.pending[id] = ch
+	e.mu.Unlock()
+	return ch
+}
+
+func (e *envelopeReader) cancel(id string) {
+	e.mu.Lock()
+	delete(e.pending, id)
+	e.mu.Unlock()
+}
+
+// failAll resolves every outstanding waiter with nil (process exited).
+func (e *envelopeReader) failAll() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for id, ch := range e.pending {
+		ch <- nil
+		delete(e.pending, id)
+	}
+}
+
+// dispatch hands an envelope line to the waiter registered for its id.
+func (e *envelopeReader) dispatch(env map[string]interface{}) {
+	id, _ := env["id"].(string)
+	if id == "" {
+		return
+	}
+	e.mu.Lock()
+	ch, ok := e.pending[id]
+	if ok {
+		delete(e.pending, id)
+	}
+	e.mu.Unlock()
+	if !ok {
+		return
+	}
+	select {
+	case ch <- env:
+	default:
+	}
+}
+
+// DeliverStandalone hands one outbound bridge command (send_text / send_image,
+// as normalized by the adapter gateway) to a running standalone instance.
+//
+// It runs asynchronously: the gateway route happens on the WebSocket read loop
+// and must not block on a subprocess round-trip. The answer is written to the
+// instance log by the adapter itself.
+func (r *PythonRunner) DeliverStandalone(instanceID string, command map[string]interface{}) bool {
+	r.mu.Lock()
+	_, running := r.stdins[instanceID]
+	r.mu.Unlock()
+	if !running {
+		return false
+	}
+	go func() {
+		if _, err := r.Command(instanceID, command, standaloneCommandTimeout); err != nil {
+			logger.Warn("Standalone adapter command failed",
+				logger.String("instance_id", instanceID),
+				logger.String("command_type", fmt.Sprint(command["command_type"])),
+				logger.String("error", err.Error()))
+		}
+	}()
+	return true
+}
+
+// pumpStandaloneOutput reads the standalone adapter's stdout, appends every line
+// to the instance log and hands JSON envelopes to their waiting callers.
+//
+// The envelope itself is logged too: it is the adapter's answer and belongs in
+// the transcript users inspect from the WebUI.
+func (r *PythonRunner) pumpStandaloneOutput(instanceID string, stdout *os.File, logFile *os.File, reader *envelopeReader) {
+	defer stdout.Close()
+	defer func() {
+		r.mu.Lock()
+		if cur, ok := r.readers[instanceID]; ok && cur == reader {
+			delete(r.readers, instanceID)
+		}
+		r.mu.Unlock()
+		reader.failAll()
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if logFile != nil {
+			_, _ = logFile.WriteString(line + "\n")
+		}
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "{") {
+			continue
+		}
+		var env map[string]interface{}
+		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
+			continue
+		}
+		if kind, _ := env["type"].(string); kind == "tool_catalog" {
+			r.mu.Lock()
+			sink := r.toolSink
+			r.mu.Unlock()
+			if sink != nil {
+				sink(instanceID, env)
+			}
+		}
+		reader.dispatch(env)
+	}
 }
 
 // StopAll terminates all managed Python processes (called on server shutdown).
@@ -986,6 +1324,14 @@ func (r *PythonRunner) monitor(instanceID string, cmd *exec.Cmd, platformCode st
 	// Only clear if it's still the same command.
 	if cur, ok := r.procs[instanceID]; ok && cur == cmd {
 		delete(r.procs, instanceID)
+	}
+	if rd, ok := r.readers[instanceID]; ok {
+		rd.failAll()
+		delete(r.readers, instanceID)
+	}
+	if in, ok := r.stdins[instanceID]; ok {
+		_ = in.Close()
+		delete(r.stdins, instanceID)
 	}
 	r.mu.Unlock()
 
