@@ -67,7 +67,14 @@ func (r *AdapterGatewayRepository) UpdateLastConnected(id string, t interface{})
 
 // Delete deletes an adapter.
 func (r *AdapterGatewayRepository) Delete(id string) error {
-	return r.db.Delete(&models.Adapter{}, "id = ?", id).Error
+	result := r.db.Delete(&models.Adapter{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all adapters.

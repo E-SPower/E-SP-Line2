@@ -44,7 +44,14 @@ func (r *AdapterRepository) Update(adapter *models.AdapterPackage) error {
 
 // Delete deletes an adapter.
 func (r *AdapterRepository) Delete(id string) error {
-	return r.db.Delete(&models.AdapterPackage{}, "id = ?", id).Error
+	result := r.db.Delete(&models.AdapterPackage{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all adapters.
@@ -89,5 +96,12 @@ func (r *AdapterPackageRepository) Update(pkg *models.AdapterPackage) error {
 
 // Delete deletes an adapter package.
 func (r *AdapterPackageRepository) Delete(id string) error {
-	return r.db.Delete(&models.AdapterPackage{}, "id = ?", id).Error
+	result := r.db.Delete(&models.AdapterPackage{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

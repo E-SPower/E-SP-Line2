@@ -33,7 +33,7 @@ func GetCommand(commandService *service.CommandService) gin.HandlerFunc {
 		id := c.Param("id")
 		command, err := commandService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "command not found"})
+			respondError(c, err)
 			return
 		}
 

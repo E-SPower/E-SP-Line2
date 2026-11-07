@@ -221,6 +221,8 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 **DELETE** `/platforms/:id`
 
+A missing id answers **404**.
+
 **Response**:
 ```json
 {
@@ -338,6 +340,8 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 **DELETE** `/adapters/:id`
 
+A missing id answers **404**.
+
 **Response**:
 ```json
 {
@@ -391,6 +395,9 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
       "name": "Store A",
       "status": "running",
       "config": "{}",
+      "last_heartbeat": "2024-01-01T00:05:00Z",
+      "message_count": 128,
+      "error_count": 3,
       "created_at": "2024-01-01T00:00:00Z"
     }
   ],
@@ -439,6 +446,9 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
   "name": "Store A",
   "status": "running",
   "config": "{}",
+  "last_heartbeat": "2024-01-01T00:05:00Z",
+  "message_count": 128,
+  "error_count": 3,
   "session": {
     "connected_at": "2024-01-01T00:00:00Z",
     "last_heartbeat": "2024-01-01T00:05:00Z"
@@ -447,6 +457,11 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
   "updated_at": "2024-01-01T00:00:00Z"
 }
 ```
+
+`last_heartbeat` is `null` until the adapter starts or its bridge connects.
+`message_count` / `error_count` are instance-lifetime counters, incremented on
+inbound message persistence and on failed persistence respectively; the
+Monitoring page reads exactly these three fields.
 
 ### Update instance
 
@@ -475,6 +490,8 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 ### Delete instance
 
 **DELETE** `/instances/:id`
+
+A missing id answers **404**.
 
 **Response**:
 ```json
@@ -544,6 +561,8 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 ### Acknowledge message
 
 **POST** `/messages/:id/ack`
+
+A missing id answers **404**.
 
 **Response**:
 ```json
@@ -743,6 +762,8 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 **DELETE** `/routes/:id`
 
+A missing id answers **404**.
+
 **Response**:
 ```json
 {
@@ -798,14 +819,35 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 ## Error codes
 
+Every error body is `{"error": "<reason>"}`.
+
 | Error code | Description |
 |--------|------|
-| 400 | Invalid request parameters |
+| 400 | Invalid request parameters (binding failure, failed validation) |
 | 401 | Unauthenticated |
 | 403 | Forbidden |
 | 404 | Resource not found |
 | 409 | Resource conflict |
 | 500 | Internal server error |
+
+Mapping rules, so a client can branch on the status instead of parsing text:
+
+- **404** — the URL names an id that does not exist. Applies to every `GET`,
+  `PUT`/`PATCH`, `DELETE` and to `POST /messages/:id/ack`: operating on a
+  missing resource is not a success. The body is the generic
+  `resource not found`; the id is in the server log.
+- **409** — the write collides with existing state and retrying unchanged will
+  not help: duplicate username (`POST /auth/register`, `POST /users`),
+  duplicate platform code, demoting/disabling/deleting the last admin. The
+  body carries the specific reason, e.g. `username already exists`.
+- **400** — the request itself is wrong: malformed JSON, missing required
+  field, password too short, unknown role/status, starting an instance with no
+  cookie or while it is still initializing.
+- **500** — storage or unexpected failure. The body is the raw error.
+
+`DELETE` on a missing id used to answer `200` with `"… deleted"`; it now
+answers `404`. Clients that treated the old 200 as "done" keep working, ones
+that re-fetched afterwards get a truthful answer.
 
 ## Rate limiting
 

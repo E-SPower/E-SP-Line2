@@ -33,7 +33,7 @@ func GetInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 		id := c.Param("id")
 		instance, err := instanceService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "instance not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -76,7 +76,7 @@ func UpdateInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 
 		instance, err := instanceService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -89,7 +89,7 @@ func DeleteInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := instanceService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 

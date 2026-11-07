@@ -42,3 +42,6 @@ config/config.local.yaml
 .vscode/
 *.swp
 .DS_Store
+
+# Local scratch (demos, temp DBs, tool cache)
+.tmp/

@@ -18,7 +18,7 @@ func Register(authService *service.AuthService) gin.HandlerFunc {
 
 		resp, err := authService.Register(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 

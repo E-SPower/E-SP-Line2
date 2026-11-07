@@ -6,6 +6,7 @@ import (
 
 	"github.com/e-spl/e-sp-line2/internal/models"
 	"github.com/e-spl/e-sp-line2/internal/repository"
+	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
 
 // MessageService handles inbound message operations
@@ -80,12 +81,20 @@ func (s *MessageService) Create(req *CreateMessageRequest) (*models.InboundEvent
 
 // GetByID gets a message by ID
 func (s *MessageService) GetByID(id string) (*models.InboundEvent, error) {
-	return s.repo.FindByID(id)
+	event, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "message %s", id)
+	}
+	return event, nil
 }
 
-// Ack acknowledges a message
+// Ack acknowledges a message. Acknowledging a message that does not exist is
+// an ErrNotFound, not a success.
 func (s *MessageService) Ack(id string) error {
-	return s.repo.UpdateStatus(id, "acked")
+	if err := s.repo.UpdateStatus(id, "acked"); err != nil {
+		return wrapNotFound(err, "message %s", id)
+	}
+	return nil
 }
 
 // List lists all messages
@@ -138,4 +147,41 @@ func serializeRawMessage(raw interface{}) string {
 		return ""
 	}
 	return string(data)
+}
+
+// RecordInbound counts one inbound message on the instance row and refreshes
+// its heartbeat. Called from the WS ingest paths; best-effort by design.
+func (s *MessageService) RecordInbound(instanceID string) {
+	if instanceID == "" || s.instanceRepo == nil {
+		return
+	}
+	if err := s.instanceRepo.RecordInbound(instanceID); err != nil {
+		logger.Warn("Failed to record inbound message metric",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordHeartbeat refreshes the instance heartbeat without counting a message.
+func (s *MessageService) RecordHeartbeat(instanceID string) {
+	if instanceID == "" || s.instanceRepo == nil {
+		return
+	}
+	if err := s.instanceRepo.MarkHeartbeat(instanceID); err != nil {
+		logger.Warn("Failed to record heartbeat",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordError bumps the instance error counter.
+func (s *MessageService) RecordError(instanceID string) {
+	if instanceID == "" || s.instanceRepo == nil {
+		return
+	}
+	if err := s.instanceRepo.IncrementErrorCount(instanceID); err != nil {
+		logger.Warn("Failed to record instance error metric",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+	}
 }

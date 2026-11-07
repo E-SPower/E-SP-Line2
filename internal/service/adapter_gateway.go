@@ -168,14 +168,18 @@ func (s *AdapterGatewayService) List(limit, offset int) ([]models.Adapter, int64
 
 // GetByID gets an adapter by ID.
 func (s *AdapterGatewayService) GetByID(id string) (*models.Adapter, error) {
-	return s.adapterRepo.FindByID(id)
+	adapter, err := s.adapterRepo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "adapter %s", id)
+	}
+	return adapter, nil
 }
 
 // Update updates an adapter.
 func (s *AdapterGatewayService) Update(id string, req *UpdateGatewayAdapterRequest) (*models.Adapter, error) {
 	adapter, err := s.adapterRepo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, wrapNotFound(err, "adapter %s", id)
 	}
 
 	if req.Name != nil {
@@ -231,7 +235,7 @@ func (s *AdapterGatewayService) Update(id string, req *UpdateGatewayAdapterReque
 func (s *AdapterGatewayService) Delete(id string) error {
 	err := s.adapterRepo.Delete(id)
 	if err != nil {
-		return err
+		return wrapNotFound(err, "adapter %s", id)
 	}
 
 	if s.onChange != nil {
@@ -368,9 +372,28 @@ func (s *AdapterGatewayService) PersistInboundMessage(instanceID string, payload
 	if err != nil {
 		logger.Warn("Failed to persist inbound message",
 			logger.String("error", err.Error()))
+		s.RecordInstanceError(instanceID)
 		return ""
 	}
+	s.RecordInstanceMetric(instanceID)
 	return event.ID
+}
+
+// RecordInstanceMetric counts a persisted inbound message on the instance row
+// so the Monitoring page stops reading a hard-coded 0. Best-effort.
+func (s *AdapterGatewayService) RecordInstanceMetric(instanceID string) {
+	if instanceID == "" || s.messageService == nil {
+		return
+	}
+	s.messageService.RecordInbound(instanceID)
+}
+
+// RecordInstanceError counts a failure attributed to the instance.
+func (s *AdapterGatewayService) RecordInstanceError(instanceID string) {
+	if instanceID == "" || s.messageService == nil {
+		return
+	}
+	s.messageService.RecordError(instanceID)
 }
 
 // getStringField extracts a string field from a payload map.
