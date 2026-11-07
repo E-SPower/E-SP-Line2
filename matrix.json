@@ -1,0 +1,3085 @@
+{
+ "platforms": [
+  "xhs",
+  "douyin",
+  "tiktok",
+  "bilibili",
+  "kuaishou",
+  "weibo",
+  "xianyu",
+  "taobao",
+  "jd",
+  "x",
+  "youtube",
+  "12306",
+  "jimeng",
+  "maoyan",
+  "mteam"
+ ],
+ "login": {
+  "xhs": [
+   "qrcode",
+   "sms",
+   "cookie"
+  ],
+  "douyin": [
+   "qrcode",
+   "sms",
+   "cookie"
+  ],
+  "bilibili": [
+   "qrcode",
+   "sms",
+   "password",
+   "cookie"
+  ],
+  "kuaishou": [
+   "qrcode",
+   "sms",
+   "cookie"
+  ],
+  "xianyu": [
+   "qrcode",
+   "cookie"
+  ],
+  "jd": [
+   "qrcode",
+   "sms",
+   "cookie"
+  ],
+  "maoyan": [
+   "qrcode",
+   "cookie"
+  ],
+  "mteam": [
+   "password",
+   "apikey"
+  ],
+  "tiktok": [
+   "cookie"
+  ],
+  "weibo": [
+   "cookie"
+  ],
+  "taobao": [
+   "cookie"
+  ],
+  "x": [
+   "cookie"
+  ],
+  "youtube": [
+   "cookie"
+  ],
+  "jimeng": [
+   "oauth"
+  ]
+ },
+ "commands": [
+  {
+   "resource": "auth",
+   "action": "status",
+   "section": "auth",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "implemented",
+    "xianyu": "implemented",
+    "taobao": "partial",
+    "jd": "implemented",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "implemented",
+    "maoyan": "implemented",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "get",
+   "section": "user",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "partial",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "implemented",
+    "xianyu": "partial",
+    "taobao": "partial",
+    "jd": "partial",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "partial"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "search",
+   "section": "user",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "planned",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "items",
+   "section": "user",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "implemented",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "likes",
+   "section": "user",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "planned",
+    "bilibili": "unsupported",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "collects",
+   "section": "user",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "implemented",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "partial"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "reposts",
+   "section": "user",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "implemented",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "followers",
+   "section": "user",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "following",
+   "section": "user",
+   "platforms": {
+    "xhs": "partial",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "follow",
+   "section": "user",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "unfollow",
+   "section": "user",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "user",
+   "action": "update",
+   "section": "user",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "partial",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "get",
+   "section": "item",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "implemented",
+    "xianyu": "implemented",
+    "taobao": "planned",
+    "jd": "implemented",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "implemented",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "search",
+   "section": "item",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "partial",
+    "weibo": "partial",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "implemented",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "planned",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "related",
+   "section": "item",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "unsupported",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "partial",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "list",
+   "section": "item",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "partial",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "media",
+   "section": "item",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "partial",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "partial",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "download",
+   "section": "item",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "partial",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "partial",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "like",
+   "section": "item",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "unlike",
+   "section": "item",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "collect",
+   "section": "item",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "planned",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "uncollect",
+   "section": "item",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "planned",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "repost",
+   "section": "item",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "planned",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "unrepost",
+   "section": "item",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "planned",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "publish",
+   "section": "item",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "partial",
+    "weibo": "implemented",
+    "xianyu": "implemented",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "partial",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "delete",
+   "section": "item",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "partial",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "categories",
+   "section": "item",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "planned",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "product",
+   "action": "get",
+   "section": "product 与商品评价",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "partial",
+    "tiktok": "implemented",
+    "bilibili": "unsupported",
+    "kuaishou": "planned",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "list",
+   "section": "comment",
+   "platforms": {
+    "xhs": "partial",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "partial",
+    "kuaishou": "partial",
+    "weibo": "partial",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "partial",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "replies",
+   "section": "comment",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "partial",
+    "kuaishou": "partial",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "add",
+   "section": "comment",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "partial",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "delete",
+   "section": "comment",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "partial",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "like",
+   "section": "comment",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "unlike",
+   "section": "comment",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "feed",
+   "action": "list",
+   "section": "feed 与 keyword",
+   "platforms": {
+    "xhs": "partial",
+    "douyin": "partial",
+    "tiktok": "implemented",
+    "bilibili": "partial",
+    "kuaishou": "partial",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "planned",
+    "x": "partial",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "implemented",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "feed",
+   "action": "categories",
+   "section": "feed 与 keyword",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "unsupported",
+    "tiktok": "planned",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "implemented",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "keyword",
+   "action": "suggest",
+   "section": "feed 与 keyword",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "implemented",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "keyword",
+   "action": "hot",
+   "section": "feed 与 keyword",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "implemented",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "notice",
+   "action": "list",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "notice",
+   "action": "count",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "list",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "implemented",
+    "x": "partial",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "partial"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "history",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "implemented",
+    "taobao": "implemented",
+    "jd": "implemented",
+    "x": "partial",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "partial"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "send",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "partial",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "implemented",
+    "taobao": "implemented",
+    "jd": "implemented",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "listen",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "implemented",
+    "taobao": "implemented",
+    "jd": "implemented",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "read",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "planned",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "revoke",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "planned",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "msg",
+   "action": "delete",
+   "section": "notice 与 msg",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "planned",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "media",
+   "action": "upload",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "implemented",
+    "xianyu": "implemented",
+    "taobao": "implemented",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "folder",
+   "action": "list",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "partial",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "partial",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "folder",
+   "action": "items",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "partial",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "folder",
+   "action": "create",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "folder",
+   "action": "update",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "folder",
+   "action": "delete",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "planned",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "series",
+   "action": "list",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "series",
+   "action": "items",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "history",
+   "action": "list",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "planned",
+    "taobao": "planned",
+    "jd": "implemented",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "topic",
+   "action": "search",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "poi",
+   "action": "search",
+   "section": "media、folder、series、history、topic、poi",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "partial",
+    "bilibili": "unsupported",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "partial",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "get",
+   "section": "live",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "list",
+   "section": "live",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "search",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "categories",
+   "section": "live",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "listen",
+   "section": "live",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "history",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "partial",
+    "tiktok": "partial",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "send",
+   "section": "live",
+   "platforms": {
+    "xhs": "partial",
+    "douyin": "partial",
+    "tiktok": "partial",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "like",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "rank",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "implemented",
+    "tiktok": "implemented",
+    "bilibili": "planned",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "gifts",
+   "section": "live",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "planned",
+    "tiktok": "implemented",
+    "bilibili": "implemented",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "products",
+   "section": "live",
+   "platforms": {
+    "xhs": "implemented",
+    "douyin": "implemented",
+    "tiktok": "planned",
+    "bilibili": "unsupported",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "media",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "partial",
+    "tiktok": "partial",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "replays",
+   "section": "live",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "planned",
+    "tiktok": "unsupported",
+    "bilibili": "planned",
+    "kuaishou": "implemented",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "start",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "live",
+   "action": "stop",
+   "section": "live",
+   "platforms": {
+    "xhs": "planned",
+    "douyin": "planned",
+    "tiktok": "planned",
+    "bilibili": "implemented",
+    "kuaishou": "planned",
+    "weibo": "planned",
+    "xianyu": "unsupported",
+    "taobao": "planned",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "folder",
+   "action": "add",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "implemented",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "edit",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "coin",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "triple",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "item",
+   "action": "subtitles",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "pin",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "comment",
+   "action": "unpin",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "danmaku",
+   "action": "list",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "danmaku",
+   "action": "send",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "dynamic",
+   "action": "publish",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "dynamic",
+   "action": "delete",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "article",
+   "action": "publish",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "draft",
+   "action": "get",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "draft",
+   "action": "delete",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "implemented",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "order",
+   "action": "list",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "implemented",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "cart",
+   "action": "count",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "implemented",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "coupon",
+   "action": "list",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "implemented",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "article",
+   "action": "delete",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "implemented",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "channel",
+   "action": "create",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "implemented",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "station",
+   "action": "search",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "implemented",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "ticket",
+   "action": "search",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "implemented",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "ticket",
+   "action": "price",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "implemented",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "route",
+   "action": "get",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "implemented",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "transfer",
+   "action": "search",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "implemented",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "unsupported"
+   }
+  },
+  {
+   "resource": "seed",
+   "action": "list",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "seed",
+   "action": "stats",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "exam",
+   "action": "get",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "bonus",
+   "action": "get",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  },
+  {
+   "resource": "bonus",
+   "action": "history",
+   "section": "平台扩展",
+   "platforms": {
+    "xhs": "unsupported",
+    "douyin": "unsupported",
+    "tiktok": "unsupported",
+    "bilibili": "unsupported",
+    "kuaishou": "unsupported",
+    "weibo": "unsupported",
+    "xianyu": "unsupported",
+    "taobao": "unsupported",
+    "jd": "unsupported",
+    "x": "unsupported",
+    "youtube": "unsupported",
+    "12306": "unsupported",
+    "jimeng": "unsupported",
+    "maoyan": "unsupported",
+    "mteam": "implemented"
+   }
+  }
+ ],
+ "notes": [
+  {
+   "command": "auth status",
+   "platform": "taobao",
+   "text": "the upstream has no current-user API: it spends one DM token to verify the session, and takes the account from the cookie's unb and nickname"
+  },
+  {
+   "command": "user get",
+   "platform": "tiktok",
+   "text": "me is partially supported"
+  },
+  {
+   "command": "user get",
+   "platform": "xianyu",
+   "text": "me only; querying others is planned"
+  },
+  {
+   "command": "user get",
+   "platform": "taobao",
+   "text": "<item> only accepts product links (Taobao / Tmall product page or an m.tb.cn short link) and returns that product's seller; me is planned"
+  },
+  {
+   "command": "user get",
+   "platform": "jd",
+   "text": "me only"
+  },
+  {
+   "command": "user get",
+   "platform": "youtube",
+   "text": "<user> is a channel id (UC…), an @handle or a channel link"
+  },
+  {
+   "command": "user get",
+   "platform": "mteam",
+   "text": "me only; upload, download and other account fields are available via --raw"
+  },
+  {
+   "command": "user items",
+   "platform": "youtube",
+   "text": "the channel's Videos tab, without Shorts or live"
+  },
+  {
+   "command": "user likes",
+   "platform": "kuaishou",
+   "text": "me only"
+  },
+  {
+   "command": "user likes",
+   "platform": "youtube",
+   "text": "own only (me), i.e. the Liked videos playlist"
+  },
+  {
+   "command": "user collects",
+   "platform": "youtube",
+   "text": "own only (me), i.e. the Watch Later list"
+  },
+  {
+   "command": "user collects",
+   "platform": "mteam",
+   "text": "me only; listed per section (--mode)"
+  },
+  {
+   "command": "user followers",
+   "platform": "kuaishou",
+   "text": "me only"
+  },
+  {
+   "command": "user following",
+   "platform": "xhs",
+   "text": "me only"
+  },
+  {
+   "command": "user following",
+   "platform": "kuaishou",
+   "text": "me only"
+  },
+  {
+   "command": "user following",
+   "platform": "youtube",
+   "text": "own subscriptions only (me)"
+  },
+  {
+   "command": "user follow",
+   "platform": "youtube",
+   "text": "subscribe to the channel"
+  },
+  {
+   "command": "user unfollow",
+   "platform": "youtube",
+   "text": "unsubscribe from the channel"
+  },
+  {
+   "command": "user update",
+   "platform": "bilibili",
+   "text": "not upstream: upstream has no profile-edit API, so the request follows the account.bilibili.com profile page and has no fixture comparison. Renaming costs 6 coins each time (free once for an account that never set a nickname) and needs confirming; the signature is at most 70 characters and is reviewed after the change; avatars accept png / jpg only, at most 2 MB"
+  },
+  {
+   "command": "user search --fans",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "user search --user-type",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "user items --keyword",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "user collects --area",
+   "platform": "*",
+   "text": "jd"
+  },
+  {
+   "command": "user collects --mode",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item get",
+   "platform": "maoyan",
+   "text": "show time, venue, price tier and sale state are written into text; --tickets needs a session"
+  },
+  {
+   "command": "item search",
+   "platform": "douyin",
+   "text": "--type video uses the video channel search, anything else uses the general channel; --type image returns image posts only"
+  },
+  {
+   "command": "item search",
+   "platform": "kuaishou",
+   "text": "no filters (--sort / --type / --time); keyword only"
+  },
+  {
+   "command": "item search",
+   "platform": "weibo",
+   "text": "first page only (m.weibo.cn's guest asks for a session from page two on)"
+  },
+  {
+   "command": "item search",
+   "platform": "x",
+   "text": "--type video / image uses media search and filters by type; cannot combine with --sort latest"
+  },
+  {
+   "command": "item related",
+   "platform": "jd",
+   "text": "uses the results of the first related search term"
+  },
+  {
+   "command": "item list",
+   "platform": "douyin",
+   "text": "returns the works preview from the publish page (work_list); a scheduled unpublished work has status draft"
+  },
+  {
+   "command": "item list",
+   "platform": "youtube",
+   "text": "videos uploaded to your own channel, from YouTube Studio"
+  },
+  {
+   "command": "item media",
+   "platform": "tiktok",
+   "text": "the media URL comes from the video detail (video.playAddr; imagePost for image posts); upstream has no separate resolve API"
+  },
+  {
+   "command": "item media",
+   "platform": "youtube",
+   "text": "best video track plus audio track, split. Uses the VISIONOS client without a session; too many requests from one egress IP trigger a bot check; age-restricted and similar videos get no URL"
+  },
+  {
+   "command": "item download",
+   "platform": "tiktok",
+   "text": "the media URL is the same as item media"
+  },
+  {
+   "command": "item download",
+   "platform": "youtube",
+   "text": "downloads the item media video track and audio track as two files, without muxing"
+  },
+  {
+   "command": "item download",
+   "platform": "mteam",
+   "text": "the torrent file carries the personal passkey and is written 0600; the temporary download URL is not printed. --qbit pushes to the local qBittorrent Web UI (CATBUS_MTEAM_QBIT_URL, default http://127.0.0.1:25254) and --qbit-savepath sets the save directory"
+  },
+  {
+   "command": "item unlike",
+   "platform": "youtube",
+   "text": "unlike (also clears a dislike)"
+  },
+  {
+   "command": "item collect",
+   "platform": "youtube",
+   "text": "add to Watch Later"
+  },
+  {
+   "command": "item uncollect",
+   "platform": "youtube",
+   "text": "remove from Watch Later"
+  },
+  {
+   "command": "item publish",
+   "platform": "kuaishou",
+   "text": "no --cover, --mention, --poi, --category or --price; --image takes 1–31 images (15 MB each) and excludes --video"
+  },
+  {
+   "command": "item publish",
+   "platform": "x",
+   "text": "bodies over 280 weight post as a long post (needs Premium); --thread posts a thread"
+  },
+  {
+   "command": "item publish",
+   "platform": "youtube",
+   "text": "goes through YouTube Studio: chunked upload, and creating a video requires a BotGuard check, so local Chromium is needed (see AGENTS 5.7). The account needs a channel first; --schedule creates it private and flips it public at the time. Video upload is verified on a real machine. --cover requires the channel's custom-thumbnail feature (phone verification) and errors before upload when it is off"
+  },
+  {
+   "command": "item delete",
+   "platform": "bilibili",
+   "text": "needs a captcha (Geetest click-to-select) that catbus cannot pass automatically; reports RISK_CONTROL"
+  },
+  {
+   "command": "item delete",
+   "platform": "youtube",
+   "text": "own videos only; also needs local Chromium for the BotGuard check"
+  },
+  {
+   "command": "item get --area",
+   "platform": "*",
+   "text": "jd"
+  },
+  {
+   "command": "item get --tickets",
+   "platform": "*",
+   "text": "maoyan"
+  },
+  {
+   "command": "item search --length",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "item search --range",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "item search --area",
+   "platform": "*",
+   "text": "jd"
+  },
+  {
+   "command": "item search --mode",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item search --category",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item search --free",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item search --order-by",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item search --asc",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item related --area",
+   "platform": "*",
+   "text": "jd"
+  },
+  {
+   "command": "item download --qbit",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item download --qbit-category",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item download --qbit-paused",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item download --qbit-savepath",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "item collect --folder",
+   "platform": "*",
+   "text": "douyin, bilibili"
+  },
+  {
+   "command": "item uncollect --folder",
+   "platform": "*",
+   "text": "douyin, bilibili"
+  },
+  {
+   "command": "item publish --poi-name",
+   "platform": "*",
+   "text": "xhs, douyin, weibo"
+  },
+  {
+   "command": "item publish --series",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "item publish --hotspot",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "item publish --no-download",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "item publish --allow-comment",
+   "platform": "*",
+   "text": "tiktok"
+  },
+  {
+   "command": "item publish --allow-duet",
+   "platform": "*",
+   "text": "tiktok"
+  },
+  {
+   "command": "item publish --allow-stitch",
+   "platform": "*",
+   "text": "tiktok"
+  },
+  {
+   "command": "item publish --allow-content-reuse",
+   "platform": "*",
+   "text": "tiktok"
+  },
+  {
+   "command": "item publish --allow-ai-remix",
+   "platform": "*",
+   "text": "tiktok"
+  },
+  {
+   "command": "item publish --cover43",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "item publish --source",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "item publish --dynamic",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "item publish --allow-reprint",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "item publish --shipping",
+   "platform": "*",
+   "text": "xianyu"
+  },
+  {
+   "command": "item publish --postage",
+   "platform": "*",
+   "text": "xianyu"
+  },
+  {
+   "command": "item publish --pickup",
+   "platform": "*",
+   "text": "xianyu"
+  },
+  {
+   "command": "item publish --original-price",
+   "platform": "*",
+   "text": "xianyu"
+  },
+  {
+   "command": "item publish --quote",
+   "platform": "*",
+   "text": "x"
+  },
+  {
+   "command": "item publish --thread",
+   "platform": "*",
+   "text": "x"
+  },
+  {
+   "command": "product get",
+   "platform": "douyin",
+   "text": "the upstream product API returns detail images, specs and a jump link only: title, image and price, with the other fields empty"
+  },
+  {
+   "command": "comment list",
+   "platform": "xhs",
+   "text": "--product is planned"
+  },
+  {
+   "command": "comment list",
+   "platform": "bilibili",
+   "text": "supports videos, articles, text / repost dynamics and image dynamics; image dynamics get the album comment-section id from a non-upstream dynamic detail API, with no fixture comparison"
+  },
+  {
+   "command": "comment list",
+   "platform": "kuaishou",
+   "text": "--product is planned"
+  },
+  {
+   "command": "comment list",
+   "platform": "weibo",
+   "text": "first-level comments only"
+  },
+  {
+   "command": "comment list",
+   "platform": "jd",
+   "text": "first page only; --limit N takes N comments in one request"
+  },
+  {
+   "command": "comment replies",
+   "platform": "bilibili",
+   "text": "not upstream: the nested-reply and dynamic-detail APIs, with no fixture comparison; covers visible replies under video, article and image-dynamic root comments; nested replies for text and repost dynamics are not verified and unsupported"
+  },
+  {
+   "command": "comment replies",
+   "platform": "kuaishou",
+   "text": "the upstream nested-comment API was checked against one captured parameter set only; results for other comments were not checked upstream"
+  },
+  {
+   "command": "comment replies",
+   "platform": "youtube",
+   "text": "<comment> is a root comment id; YouTube replies are one level deep"
+  },
+  {
+   "command": "comment add",
+   "platform": "bilibili",
+   "text": "dynamics support text and repost only: image dynamics (with images) hang their comment section on an album and upstream has no album-id API; videos and articles are unaffected"
+  },
+  {
+   "command": "comment add",
+   "platform": "youtube",
+   "text": "--reply-to takes a root comment or a reply; all replies hang under the root"
+  },
+  {
+   "command": "comment delete",
+   "platform": "bilibili",
+   "text": "dynamics support text and repost only: image dynamics (with images) hang their comment section on an album and upstream has no album-id API; videos and articles are unaffected"
+  },
+  {
+   "command": "comment delete",
+   "platform": "youtube",
+   "text": "own comments only"
+  },
+  {
+   "command": "comment list --product",
+   "platform": "*",
+   "text": "xhs, douyin, tiktok, kuaishou"
+  },
+  {
+   "command": "comment list --label",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "comment add --root",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "feed list",
+   "platform": "xhs",
+   "text": "following is planned"
+  },
+  {
+   "command": "feed list",
+   "platform": "douyin",
+   "text": "hot and following are planned"
+  },
+  {
+   "command": "feed list",
+   "platform": "bilibili",
+   "text": "following is not upstream: upstream has no feed API, so the request follows the web dynamic page (x/polymer/web-dynamic/v1/feed/all) with no fixture comparison; lists videos from people you follow and needs a session"
+  },
+  {
+   "command": "feed list",
+   "platform": "kuaishou",
+   "text": "following is first screen only"
+  },
+  {
+   "command": "feed list",
+   "platform": "x",
+   "text": "following is planned"
+  },
+  {
+   "command": "feed list",
+   "platform": "youtube",
+   "text": "home recommendations and the subscription feed; the guest home is empty, so a session is needed"
+  },
+  {
+   "command": "feed list",
+   "platform": "maoyan",
+   "text": "returns every hot show in that city at once, unpaged; --category filters locally"
+  },
+  {
+   "command": "feed list --category",
+   "platform": "*",
+   "text": "xhs, maoyan, mteam"
+  },
+  {
+   "command": "feed list --city",
+   "platform": "*",
+   "text": "maoyan"
+  },
+  {
+   "command": "feed list --mode",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "feed list --free",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "feed list --order-by",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "feed list --asc",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "notice count",
+   "platform": "youtube",
+   "text": "unread total only, no breakdown"
+  },
+  {
+   "command": "msg list",
+   "platform": "xhs",
+   "text": "includes groups; a group conversation id is group:<group id>"
+  },
+  {
+   "command": "msg list",
+   "platform": "x",
+   "text": "inbox first page only (last 20 conversations); upstream has no paging"
+  },
+  {
+   "command": "msg list",
+   "platform": "mteam",
+   "text": "read-only and needs a password session; --box picks inbox / system / sent"
+  },
+  {
+   "command": "msg history",
+   "platform": "xhs",
+   "text": "direct chats take the peer id, groups take group:<group id>"
+  },
+  {
+   "command": "msg history",
+   "platform": "x",
+   "text": "messages are end-to-end encrypted, so only placeholder messages are emitted"
+  },
+  {
+   "command": "msg history",
+   "platform": "mteam",
+   "text": "<conversation> is an id from msg list; it is not marked read"
+  },
+  {
+   "command": "msg send",
+   "platform": "tiktok",
+   "text": "text only, and only to a user with an existing conversation (upstream cannot open one)"
+  },
+  {
+   "command": "msg send",
+   "platform": "xianyu",
+   "text": "without --item, --to opens the conversation on the upstream hard-coded default item; with --item, --to contacts that user about that item (a seller can reach a buyer)"
+  },
+  {
+   "command": "msg send",
+   "platform": "taobao",
+   "text": "--item contacts the product seller and --conversation replies into an existing conversation; --to is unsupported (there is no API to open a conversation by user)"
+  },
+  {
+   "command": "notice list --group",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "msg list --box",
+   "platform": "*",
+   "text": "mteam"
+  },
+  {
+   "command": "msg send --file",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "msg send --share",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "msg send --order",
+   "platform": "*",
+   "text": "jd"
+  },
+  {
+   "command": "folder list",
+   "platform": "xhs",
+   "text": "lists public collections only (upstream has that one API); upstream has no items-in-collection API"
+  },
+  {
+   "command": "folder list",
+   "platform": "bilibili",
+   "text": "lists only collections the user created, all in one response"
+  },
+  {
+   "command": "folder items",
+   "platform": "bilibili",
+   "text": "not upstream: upstream has no collection-content API, so the request follows the web collection page (x/v3/fav/resource/list) with no fixture comparison; videos only"
+  },
+  {
+   "command": "series list",
+   "platform": "youtube",
+   "text": "the channel's public playlists; me is all your playlists (needs a session)"
+  },
+  {
+   "command": "series items",
+   "platform": "youtube",
+   "text": "<series> is a playlist id (PL…) or a link carrying list="
+  },
+  {
+   "command": "poi search",
+   "platform": "tiktok",
+   "text": "filters the recommended places by keyword"
+  },
+  {
+   "command": "poi search",
+   "platform": "maoyan",
+   "text": "searches show cities only (built-in city table); the id is the feed list --city value"
+  },
+  {
+   "command": "history list --area",
+   "platform": "*",
+   "text": "jd"
+  },
+  {
+   "command": "live get",
+   "platform": "youtube",
+   "text": "<room> is the live video id or link"
+  },
+  {
+   "command": "live list",
+   "platform": "tiktok",
+   "text": "only followed people who are live (upstream get_webcast_feed is the follow list in the live page sidebar); empty when nobody followed is live"
+  },
+  {
+   "command": "live listen",
+   "platform": "youtube",
+   "text": "polls the live chat: text messages, Super Chat, memberships"
+  },
+  {
+   "command": "live history",
+   "platform": "douyin",
+   "text": "only the last 15 messages fetched when entering the room"
+  },
+  {
+   "command": "live history",
+   "platform": "tiktok",
+   "text": "only the danmaku fetched when entering the room (im/fetch)"
+  },
+  {
+   "command": "live send",
+   "platform": "xhs",
+   "text": "--gift is planned"
+  },
+  {
+   "command": "live send",
+   "platform": "douyin",
+   "text": "--gift is planned"
+  },
+  {
+   "command": "live send",
+   "platform": "tiktok",
+   "text": "--gift is planned"
+  },
+  {
+   "command": "live send",
+   "platform": "youtube",
+   "text": "text only; --gift is unsupported"
+  },
+  {
+   "command": "live media",
+   "platform": "douyin",
+   "text": "the stream URL comes from the room profile (room/web/enter)"
+  },
+  {
+   "command": "live media",
+   "platform": "tiktok",
+   "text": "upstream does not resolve the stream URL: take liveRoom.streamData from /api-live/user/room, or stream_url from room/enter"
+  },
+  {
+   "command": "live list --category",
+   "platform": "*",
+   "text": "xhs"
+  },
+  {
+   "command": "live send --color",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "live send --font-size",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "live send --position",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "live send --reply-user",
+   "platform": "*",
+   "text": "bilibili"
+  },
+  {
+   "command": "live like --count",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "live rank --ranking",
+   "platform": "*",
+   "text": "douyin"
+  },
+  {
+   "command": "live start --category",
+   "platform": "*",
+   "text": "bilibili"
+  }
+ ]
+}

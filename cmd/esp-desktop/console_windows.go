@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	kernel32            = syscall.NewLazyDLL("kernel32.dll")
-	procAttachConsole   = kernel32.NewProc("AttachConsole")
-	procAllocConsole    = kernel32.NewProc("AllocConsole")
+	kernel32          = syscall.NewLazyDLL("kernel32.dll")
+	procAttachConsole = kernel32.NewProc("AttachConsole")
+	procAllocConsole  = kernel32.NewProc("AllocConsole")
 )
 
 const attachParentProcess = ^uint32(0) // (DWORD)-1

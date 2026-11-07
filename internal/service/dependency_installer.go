@@ -50,9 +50,9 @@ func isStorePythonStub(bin string) bool {
 // is persisted to data/instances/<id>/state.json and exposed to the WebUI so
 // the instance shows "初始化中" until installation completes.
 type DependencyInstaller struct {
-	mu       sync.Mutex
-	python   string
-	dirs     *InstanceDirManager
+	mu     sync.Mutex
+	python string
+	dirs   *InstanceDirManager
 
 	// states: instanceID -> installState (in-memory cache)
 	states map[string]*installState
@@ -60,7 +60,7 @@ type DependencyInstaller struct {
 
 // installState tracks a single instance's dependency installation.
 type installState struct {
-	Status    string    `json:"status"` // installing, done, failed
+	Status    string    `json:"status"`   // installing, done, failed
 	Progress  int       `json:"progress"` // 0-100
 	Message   string    `json:"message"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -396,9 +396,9 @@ func (d *DependencyInstaller) installAttempts() []installAttempt {
 	}
 	return []installAttempt{
 		{
-			name: "python -m pip",
-			args: func() []string { return append([]string{"-m", "pip"}, reqInstall("-r", "requirements.txt")...) },
-			env:  []string{"PIP_DISABLE_PIP_VERSION_CHECK=1"},
+			name:  "python -m pip",
+			args:  func() []string { return append([]string{"-m", "pip"}, reqInstall("-r", "requirements.txt")...) },
+			env:   []string{"PIP_DISABLE_PIP_VERSION_CHECK=1"},
 			isPip: true,
 		},
 		{
@@ -565,6 +565,6 @@ func (d *DependencyInstaller) appendLog(instanceID, text string) {
 			marker = "WARNING"
 		}
 		ts := time.Now().Format("2006-01-02 15:04:05")
-		_, _ = f.WriteString(fmt.Sprintf("%s | %-7s | %s\n", ts, marker, line))
+		_, _ = fmt.Fprintf(f, "%s | %-7s | %s\n", ts, marker, line)
 	}
 }

@@ -1,55 +1,48 @@
-# ESPL v3 协议规范
+# V3 protocol specification
 
-> **ESPL v3 是 E-SP-Line2 的接入器（Adapter）协议**，用于外部系统（机器人框架、
-> 客服系统等）通过 WebSocket 接入核心，消费电商消息并回复。
->
-> 注意：桥（Bridge）进程与核心通信使用**另一套 Bridge 协议**（WebSocket），
-> 老版接入器 HTTP v1/v2 协议已弃用。请先阅读 [协议体系总览](./protocol-overview.md)。
+## Overview
 
-## 概述
+The V3 protocol is the core communication protocol of E-SP-Line2 and defines standards such as message envelopes, message chains, event types, and signature verification. The protocol draws on the design of LangBot and extends it for e-commerce scenarios.
 
-ESPL v3 协议定义了消息信封、消息链、事件类型和签名验证等标准。该协议参考了主流消息中间件的设计，并针对电商场景进行了扩展。
+## Protocol version
 
-## 协议版本
+- **Current version**: v3
+- **Protocol identifier**: `protocol_version: "v3"`
 
-- **当前版本**: v3
-- **协议标识**: `protocol_version: "v3"`
-- **传输**: WebSocket（接入器网关 `/ws`、`/ws/adapter-gateway` 等）
+## Core concepts
 
-## 核心概念
+### 1. Message envelope (MessageEnvelope)
 
-### 1. 消息信封 (MessageEnvelope)
-
-消息信封是协议的基础结构，用于包装所有类型的消息和事件。
+The message envelope is the base structure of the protocol and wraps all types of messages and events.
 
 ```go
 type MessageEnvelope struct {
     ProtocolVersion string      `json:"protocol_version"` // "v3"
     EventID         string      `json:"event_id"`         // UUID
-    TraceID         string      `json:"trace_id"`         // 追踪 ID
-    Timestamp       int64       `json:"timestamp"`        // Unix 时间戳（毫秒）
-    Platform        string      `json:"platform"`         // 平台标识
-    AdapterID       string      `json:"adapter_id"`       // 适配器实例 ID
-    EventType       EventType   `json:"event_type"`       // 事件类型
-    Payload         interface{} `json:"payload"`          // 消息内容
-    Signature       string      `json:"signature"`        // HMAC 签名
+    TraceID         string      `json:"trace_id"`         // Trace ID
+    Timestamp       int64       `json:"timestamp"`        // Unix timestamp (milliseconds)
+    Platform        string      `json:"platform"`         // Platform identifier
+    AdapterID       string      `json:"adapter_id"`       // Adapter instance ID
+    EventType       EventType   `json:"event_type"`       // Event type
+    Payload         interface{} `json:"payload"`          // Message content
+    Signature       string      `json:"signature"`        // HMAC signature
 }
 ```
 
-**字段说明**:
-- `protocol_version`: 协议版本，固定为 "v3"
-- `event_id`: 事件唯一标识，使用 UUID 生成
-- `trace_id`: 追踪标识，用于全链路追踪
-- `timestamp`: 事件发生时间，Unix 时间戳（毫秒）
-- `platform`: 平台标识（如 "taobao", "xianyu"）
-- `adapter_id`: 适配器实例标识
-- `event_type`: 事件类型（见下文）
-- `payload`: 事件负载，根据事件类型不同而不同
-- `signature`: 消息签名，用于验证消息完整性
+**Field descriptions**:
+- `protocol_version`: Protocol version, always "v3"
+- `event_id`: Unique event identifier, generated as a UUID
+- `trace_id`: Trace ID used for end-to-end tracing
+- `timestamp`: Time the event occurred, as a Unix timestamp (milliseconds)
+- `platform`: Platform identifier (such as "taobao", "xianyu")
+- `adapter_id`: Adapter instance identifier
+- `event_type`: Event type (see below)
+- `payload`: Event payload, which varies by event type
+- `signature`: Message signature used to verify message integrity
 
-### 2. 消息链 (MessageChain)
+### 2. Message chain (MessageChain)
 
-消息链是消息内容的载体，支持多种消息元素的组合。
+The message chain carries message content and supports combinations of multiple message elements.
 
 ```go
 type MessageChain struct {
@@ -64,19 +57,19 @@ type MessageChain struct {
 }
 ```
 
-**字段说明**:
-- `id`: 消息链唯一标识
-- `timestamp`: 消息时间戳
-- `platform`: 平台标识
-- `instance`: 实例标识
-- `sender`: 发送者信息
-- `content`: 消息元素列表
-- `raw`: 原始平台消息（可选）
-- `hash`: 消息链哈希（MD5）
+**Field descriptions**:
+- `id`: Unique message chain identifier
+- `timestamp`: Message timestamp
+- `platform`: Platform identifier
+- `instance`: Instance identifier
+- `sender`: Sender info
+- `content`: List of message elements
+- `raw`: Raw platform message (optional)
+- `hash`: Message chain hash (MD5)
 
-### 3. 消息元素 (MessageElement)
+### 3. Message element (MessageElement)
 
-消息元素是消息链的基本组成单元。
+A message element is the basic unit of a message chain.
 
 ```go
 type MessageElement struct {
@@ -85,66 +78,66 @@ type MessageElement struct {
 }
 ```
 
-**支持的元素类型**:
+**Supported element types**:
 
-| 类型 | 说明 | 内容结构 |
+| Type | Description | Content structure |
 |------|------|----------|
-| `text` | 文本消息 | `{"text": "消息内容"}` |
-| `image` | 图片消息 | `{"url": "...", "width": 100, "height": 100}` |
-| `audio` | 音频消息 | `{"url": "...", "duration": 60}` |
-| `video` | 视频消息 | `{"url": "...", "width": 1920, "height": 1080}` |
-| `file` | 文件消息 | `{"url": "...", "name": "file.pdf"}` |
-| `product_card` | 商品卡片 | 见下文 |
-| `order_info` | 订单信息 | 见下文 |
-| `inquiry` | 咨询信息 | 见下文 |
-| `location` | 位置信息 | `{"latitude": 39.9, "longitude": 116.4}` |
-| `emoji` | 表情消息 | `{"emoji": "😀"}` |
-| `mention` | @提及 | `{"user_id": "123", "username": "user"}` |
+| `text` | Text message | `{"text": "Message content"}` |
+| `image` | Image message | `{"url": "...", "width": 100, "height": 100}` |
+| `audio` | Audio message | `{"url": "...", "duration": 60}` |
+| `video` | Video message | `{"url": "...", "width": 1920, "height": 1080}` |
+| `file` | File message | `{"url": "...", "name": "file.pdf"}` |
+| `product_card` | Product card | See below |
+| `order_info` | Order info | See below |
+| `inquiry` | Inquiry | See below |
+| `location` | Location info | `{"latitude": 39.9, "longitude": 116.4}` |
+| `emoji` | Emoji message | `{"emoji": "😀"}` |
+| `mention` | @mention | `{"user_id": "123", "username": "user"}` |
 
-## 事件类型
+## Event types
 
-### 消息事件
+### Message events
 
-| 事件类型 | 说明 |
+| Event type | Description |
 |----------|------|
-| `message.received` | 收到消息 |
-| `message.sent` | 发送消息 |
-| `message.delivered` | 消息已送达 |
-| `message.acked` | 消息已确认 |
-| `message.failed` | 消息发送失败 |
+| `message.received` | Message received |
+| `message.sent` | Message sent |
+| `message.delivered` | Message delivered |
+| `message.acked` | Message acknowledged |
+| `message.failed` | Message sending failed |
 
-### 适配器事件
+### Adapter events
 
-| 事件类型 | 说明 |
+| Event type | Description |
 |----------|------|
-| `adapter.connected` | 适配器已连接 |
-| `adapter.disconnected` | 适配器已断开 |
-| `adapter.started` | 适配器已启动 |
-| `adapter.stopped` | 适配器已停止 |
-| `adapter.error` | 适配器错误 |
+| `adapter.connected` | Adapter connected |
+| `adapter.disconnected` | Adapter disconnected |
+| `adapter.started` | Adapter started |
+| `adapter.stopped` | Adapter stopped |
+| `adapter.error` | Adapter error |
 
-### 命令事件
+### Command events
 
-| 事件类型 | 说明 |
+| Event type | Description |
 |----------|------|
-| `command.created` | 命令已创建 |
-| `command.queued` | 命令已入队 |
-| `command.sending` | 命令发送中 |
-| `command.sent` | 命令已发送 |
-| `command.failed` | 命令发送失败 |
-| `command.retrying` | 命令重试中 |
-| `command.expired` | 命令已过期 |
+| `command.created` | Command created |
+| `command.queued` | Command queued |
+| `command.sending` | Command being sent |
+| `command.sent` | Command sent |
+| `command.failed` | Command sending failed |
+| `command.retrying` | Command retrying |
+| `command.expired` | Command expired |
 
-### 系统事件
+### System events
 
-| 事件类型 | 说明 |
+| Event type | Description |
 |----------|------|
-| `system.error` | 系统错误 |
-| `system.health_check` | 健康检查 |
+| `system.error` | System error |
+| `system.health_check` | Health check |
 
-## 电商扩展
+## E-commerce extensions
 
-### 商品卡片 (ProductCard)
+### Product card (ProductCard)
 
 ```go
 type ProductCard struct {
@@ -159,7 +152,7 @@ type ProductCard struct {
 }
 ```
 
-**示例**:
+**Example**:
 ```json
 {
   "type": "product_card",
@@ -176,7 +169,7 @@ type ProductCard struct {
 }
 ```
 
-### 订单信息 (OrderInfo)
+### Order info (OrderInfo)
 
 ```go
 type OrderInfo struct {
@@ -192,15 +185,15 @@ type OrderInfo struct {
 }
 ```
 
-**订单状态**:
-- `pending`: 待付款
-- `paid`: 已付款
-- `shipped`: 已发货
-- `delivered`: 已送达
-- `cancelled`: 已取消
-- `refunded`: 已退款
+**Order statuses**:
+- `pending`: Awaiting payment
+- `paid`: Paid
+- `shipped`: Shipped
+- `delivered`: Delivered
+- `cancelled`: Cancelled
+- `refunded`: Refunded
 
-**示例**:
+**Example**:
 ```json
 {
   "type": "order_info",
@@ -216,7 +209,7 @@ type OrderInfo struct {
 }
 ```
 
-### 咨询信息 (Inquiry)
+### Inquiry
 
 ```go
 type Inquiry struct {
@@ -227,66 +220,66 @@ type Inquiry struct {
 }
 ```
 
-**咨询类别**:
-- `price`: 价格咨询
-- `shipping`: 物流咨询
-- `quality`: 质量咨询
-- `return`: 退货咨询
-- `other`: 其他咨询
+**Inquiry categories**:
+- `price`: Price inquiry
+- `shipping`: Shipping inquiry
+- `quality`: Quality inquiry
+- `return`: Return inquiry
+- `other`: Other inquiry
 
-**示例**:
+**Example**:
 ```json
 {
   "type": "inquiry",
   "content": {
     "product_id": "123456",
-    "question": "这个商品有货吗？",
+    "question": "Is this item in stock?",
     "category": "shipping"
   }
 }
 ```
 
-## 签名验证
+## Signature verification
 
-### 签名算法
+### Signature algorithms
 
-支持以下签名算法：
+The following signature algorithms are supported:
 
-| 算法 | 说明 |
+| Algorithm | Description |
 |------|------|
-| `HMAC-SHA256` | 推荐，安全性高 |
-| `HMAC-MD5` | 兼容旧系统 |
-| `MD5` | 简单场景 |
+| `HMAC-SHA256` | Recommended, high security |
+| `HMAC-MD5` | Compatible with legacy systems |
+| `MD5` | Simple scenarios |
 
-### 签名流程
+### Signing flow
 
-1. 构造待签名数据（JSON 格式，不含 signature 字段）
-2. 使用密钥计算 HMAC
-3. 将签名结果转换为十六进制字符串
-4. 将签名添加到消息信封
+1. Build the data to be signed (JSON format, without the signature field)
+2. Compute the HMAC with the secret key
+3. Convert the signature result to a hexadecimal string
+4. Add the signature to the message envelope
 
-**示例代码**:
+**Example code**:
 ```go
 signer := v3.NewSigner(v3.AlgorithmHMACSHA256, secret)
 err := signer.SignEnvelope(envelope)
 ```
 
-### 验证流程
+### Verification flow
 
-1. 从消息信封中提取签名
-2. 构造待验证数据（不含 signature 字段）
-3. 使用相同密钥计算 HMAC
-4. 比较计算结果与提取的签名
+1. Extract the signature from the message envelope
+2. Build the data to be verified (without the signature field)
+3. Compute the HMAC with the same secret key
+4. Compare the computed result with the extracted signature
 
-**示例代码**:
+**Example code**:
 ```go
 signer := v3.NewSigner(v3.AlgorithmHMACSHA256, secret)
 valid := signer.VerifyEnvelope(envelope)
 ```
 
-## 消息 ID 生成
+## Message ID generation
 
-消息 ID 使用原始消息字段的 MD5 或 Hash 生成：
+Message IDs are generated from the MD5 or hash of the raw message fields:
 
 ```go
 func GenerateMessageID(rawMessage json.RawMessage) string {
@@ -295,17 +288,17 @@ func GenerateMessageID(rawMessage json.RawMessage) string {
 }
 ```
 
-**生成规则**:
-1. 提取原始消息的关键字段
-2. 按固定顺序排列
-3. 计算 MD5 或 SHA256
-4. 转换为十六进制字符串
+**Generation rules**:
+1. Extract the key fields of the raw message
+2. Arrange them in a fixed order
+3. Compute the MD5 or SHA256
+4. Convert to a hexadecimal string
 
-## 幂等性
+## Idempotency
 
-### 幂等键 (IdempotencyKey)
+### Idempotency key (IdempotencyKey)
 
-用于防止消息重复处理：
+Used to prevent duplicate message processing:
 
 ```go
 func GenerateIdempotencyKey(platformID, instanceID, messageID string) string {
@@ -313,16 +306,16 @@ func GenerateIdempotencyKey(platformID, instanceID, messageID string) string {
 }
 ```
 
-**使用场景**:
-- 消息去重
-- 命令重试
-- 状态同步
+**Use cases**:
+- Message deduplication
+- Command retries
+- State synchronization
 
-## 追踪标识
+## Trace ID
 
 ### TraceID
 
-用于全链路追踪：
+Used for end-to-end tracing:
 
 ```go
 func GenerateTraceID() string {
@@ -332,14 +325,14 @@ func GenerateTraceID() string {
 }
 ```
 
-**使用场景**:
-- 请求追踪
-- 日志关联
-- 性能分析
+**Use cases**:
+- Request tracing
+- Log correlation
+- Performance analysis
 
-## 协议示例
+## Protocol examples
 
-### 接收消息示例
+### Receiving a message example
 
 ```json
 {
@@ -357,13 +350,13 @@ func GenerateTraceID() string {
     "instance": "instance-001",
     "sender": {
       "id": "user-123",
-      "name": "买家A"
+      "name": "Buyer A"
     },
     "content": [
       {
         "type": "text",
         "content": {
-          "text": "你好，这个商品还有货吗？"
+          "text": "Hello, is this item still in stock?"
         }
       }
     ],
@@ -373,7 +366,7 @@ func GenerateTraceID() string {
 }
 ```
 
-### 发送命令示例
+### Sending a command example
 
 ```json
 {
@@ -389,7 +382,7 @@ func GenerateTraceID() string {
     "instance_id": "instance-001",
     "target_id": "user-123",
     "payload": {
-      "text": "您好，商品有货的，欢迎下单！"
+      "text": "Hello, the item is in stock. Feel free to place an order!"
     },
     "trace_id": "trace-87654321",
     "timestamp": 1704067260000
@@ -398,18 +391,18 @@ func GenerateTraceID() string {
 }
 ```
 
-## 错误处理
+## Error handling
 
-### 协议错误码
+### Protocol error codes
 
-| 错误码 | 说明 |
+| Error code | Description |
 |--------|------|
-| `INVALID_ENVELOPE` | 无效的消息信封 |
-| `INVALID_SIGNATURE` | 签名验证失败 |
-| `UNSUPPORTED_TYPE` | 不支持的消息类型 |
-| `EXPIRED_REQUEST` | 请求已过期 |
+| `INVALID_ENVELOPE` | Invalid message envelope |
+| `INVALID_SIGNATURE` | Signature verification failed |
+| `UNSUPPORTED_TYPE` | Unsupported message type |
+| `EXPIRED_REQUEST` | Request expired |
 
-### 错误响应格式
+### Error response format
 
 ```json
 {
@@ -421,56 +414,49 @@ func GenerateTraceID() string {
 }
 ```
 
-## 最佳实践
+## Best practices
 
-### 1. 消息设计
+### 1. Message design
 
-- 使用消息链组合多种消息元素
-- 保留原始平台消息用于调试
-- 为电商场景使用专用消息类型
+- Use a message chain to combine multiple message elements
+- Keep the raw platform message for debugging
+- Use dedicated message types for e-commerce scenarios
 
-### 2. 签名安全
+### 2. Signature security
 
-- 使用 HMAC-SHA256 算法
-- 定期轮换密钥
-- 验证所有入站消息签名
+- Use the HMAC-SHA256 algorithm
+- Rotate keys regularly
+- Verify the signature of every inbound message
 
-### 3. 幂等处理
+### 3. Idempotency handling
 
-- 为所有消息生成幂等键
-- 在接收端进行去重检查
-- 记录已处理的消息 ID
+- Generate an idempotency key for every message
+- Run deduplication checks on the receiving side
+- Record processed message IDs
 
-### 4. 追踪调试
+### 4. Trace debugging
 
-- 为每个请求生成 TraceID
-- 在日志中记录 TraceID
-- 使用 TraceID 关联相关日志
+- Generate a TraceID for every request
+- Record the TraceID in logs
+- Use the TraceID to correlate related logs
 
-## 版本演进
+## Version evolution
 
-### v3.0 (当前)
+### v3.0 (current)
 
-- 接入器（Adapter）与外部系统的 WebSocket 通信协议
-- 支持基础消息类型
-- 支持电商扩展类型
-- 支持签名验证
+- Initial version
+- Supports base message types
+- Supports e-commerce extension types
+- Supports signature verification
 
-### 已弃用版本
+### Future plans
 
-- **v1 / v2（HTTP）**：老版接入器通过 HTTP 与核心通信的协议，已弃用。
-  接入器已迁移到 ESPL v3（WebSocket），桥进程已迁移到
-  [Bridge 协议](./bridge-protocol.md)（WebSocket）。
+- v3.1: Add more e-commerce message types
+- v3.2: Support message compression
+- v3.3: Support message encryption
 
-### 未来计划
+## References
 
-- v3.1: 增加更多电商消息类型
-- v3.2: 支持消息压缩
-- v3.3: 支持消息加密
-
-## 参考资源
-
-- [协议体系总览](./protocol-overview.md)
-- [桥（Bridge）协议规范](./bridge-protocol.md)
-- [WebSocket 接入器（Adapter Gateway）](../user-guide/adapter-gateway.md)
-- [API 参考文档](./api-reference.md)
+- [LangBot protocol documentation](https://docs.langbot.app/protocol)
+- [E-SP-Line2 architecture overview](../../README.md#architecture)
+- [API reference](./api-reference.md)

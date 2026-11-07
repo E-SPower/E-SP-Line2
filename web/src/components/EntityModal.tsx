@@ -82,7 +82,6 @@ export default function EntityModal({
       })
       return changed ? next : prev
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields, open])
 
   if (!open) return null

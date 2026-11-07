@@ -15,7 +15,7 @@ const RegistrationEnabledKey = "registration_enabled"
 
 // UserService manages system users and registration settings.
 type UserService struct {
-	repo    *repository.UserRepository
+	repo     *repository.UserRepository
 	settings *repository.SystemSettingRepository
 }
 

@@ -141,6 +141,12 @@ func (s *Server) setupRoutes() {
 
 		// Platform routes
 		platforms := v1.Group("/platforms")
+		{
+			// 注册表来自 platformspec，和适配器 manifest、能力矩阵是同一份数据，
+			// 前端建实例前先看这里，不需要登录。
+			platforms.GET("/spec", handler.ListPlatformCaps)
+			platforms.GET("/spec/:id", handler.GetPlatformCap)
+		}
 		platforms.Use(middleware.AuthRequired())
 		{
 			platforms.GET("", handler.ListPlatforms(s.services.Platform))
@@ -149,6 +155,9 @@ func (s *Server) setupRoutes() {
 			platforms.PUT("/:id", handler.UpdatePlatform(s.services.Platform))
 			platforms.DELETE("/:id", handler.DeletePlatform(s.services.Platform))
 		}
+
+		// Message field contract
+		v1.GET("/message-fields", handler.ListMessageFields)
 
 		// Adapter routes
 		adapters := v1.Group("/adapters")

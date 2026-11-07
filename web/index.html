@@ -2,9 +2,37 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/espl-logo.png" />
+    <!--
+      Brand mark = the Activity polyline (the glyph the app already uses for
+      ESPL), as a scalable SVG first with a multi-size .ico behind it for
+      UAs that cannot take an SVG icon. Both live in web/public/ and are
+      copied verbatim into dist/, so they share the origin with `/`.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <meta id="theme-color" name="theme-color" content="#ffffff" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>E-SP-Line2 - Platform Adapter Management</title>
+    <script>
+      // Apply the remembered (or OS) theme before first paint, so the app
+      // never flashes light on a dark reload. Kept in sync with ThemeProvider.
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('espl.theme')
+          var dark =
+            stored === 'dark' ||
+            ((stored === null || stored === 'system') &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', dark)
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+          // Window chrome follows the resolved theme, not just the OS one.
+          var meta = document.getElementById('theme-color')
+          if (meta) meta.setAttribute('content', dark ? '#0a0a0a' : '#ffffff')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

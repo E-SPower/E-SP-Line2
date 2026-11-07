@@ -116,6 +116,11 @@ func serializePayload(payload interface{}) string {
 	if payload == nil {
 		return ""
 	}
+	// If already a string, return as-is
+	if str, ok := payload.(string); ok {
+		return str
+	}
+	// Otherwise, marshal to JSON
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return ""

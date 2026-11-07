@@ -1,0 +1,71 @@
+# Label definitions.
+#
+# This file is the source of truth for the repository's labels. It is plain data:
+# nothing reads it at runtime. Create the labels once with a script or by hand and
+# keep this file in sync — a label that exists only here cannot be applied.
+#
+# Colours: red/orange for attention, blue for area, green for size, grey for meta.
+
+- name: area:backend
+  color: "1d76db"
+  description: Go backend — handlers, services, repositories, server wiring
+
+- name: area:adapter
+  color: "1d76db"
+  description: Platform adapter registry, adapters and the bridge
+
+- name: area:protocol-v3
+  color: "5319e7"
+  description: v3 envelope, message chain, signing, message fields
+
+- name: area:web
+  color: "1d76db"
+  description: React front end under web/
+
+- name: area:docs
+  color: "1d76db"
+  description: README, docs/ — user and developer guides
+
+- name: area:ci
+  color: "1d76db"
+  description: Workflows, templates, CODEOWNERS, review process
+
+- name: protocol:breaking
+  color: "b60205"
+  description: Breaks the v3 wire format — needs a version bump and a migration note
+
+- name: needs-regression-test
+  color: "d93f0b"
+  description: Fix without a test that fails before it
+
+- name: security
+  color: "b60205"
+  description: Auth, tokens, CORS, secret handling, credential exposure
+
+- name: database
+  color: "c2e0c6"
+  description: Schema, migrations, persisted models
+
+- name: dependencies
+  color: "0366d6"
+  description: go.mod / package.json changes
+
+- name: size/s
+  color: "c2e0c6"
+  description: Under ~50 changed lines
+
+- name: size/m
+  color: "c2e0c6"
+  description: ~50–300 changed lines
+
+- name: size/l
+  color: "c2e0c6"
+  description: Over ~300 changed lines — consider splitting
+
+- name: good first issue
+  color: "7057ff"
+  description: Scoped enough for a newcomer
+
+- name: do-not-merge
+  color: "e11d21"
+  description: Deliberately blocked — WIP, or waiting on another PR

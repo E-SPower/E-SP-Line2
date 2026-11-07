@@ -64,9 +64,9 @@ type AdapterConfig struct {
 	MessageQueueSize  int `mapstructure:"message_queue_size"`
 
 	// Python adapter process management
-	PythonBin        string `mapstructure:"python_bin"`        // python executable path (default: python3)
-	AdaptersDir      string `mapstructure:"adapters_dir"`      // root dir containing adapters/<platform>/main.py (default: adapters)
-	AutoRestart      bool   `mapstructure:"auto_restart"`      // auto-restart crashed python processes (default: true)
+	PythonBin   string `mapstructure:"python_bin"`   // python executable path (default: python3)
+	AdaptersDir string `mapstructure:"adapters_dir"` // root dir containing adapters/<platform>/main.py (default: adapters)
+	AutoRestart bool   `mapstructure:"auto_restart"` // auto-restart crashed python processes (default: true)
 }
 
 // FormOptionsPath returns the path to the form options YAML registry file.

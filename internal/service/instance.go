@@ -206,10 +206,10 @@ func (s *InstanceService) InitStatus(instanceID string) map[string]interface{} {
 
 	if s.installer == nil {
 		return map[string]interface{}{
-			"instance_id": instanceID,
-			"status":      "done",
-			"progress":    100,
-			"message":     "instances 未启用依赖安装",
+			"instance_id":     instanceID,
+			"status":          "done",
+			"progress":        100,
+			"message":         "instances 未启用依赖安装",
 			"instance_status": instance.Status,
 		}
 	}

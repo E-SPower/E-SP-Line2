@@ -1,6 +1,109 @@
 package adapter
 
-import v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
+import (
+	"encoding/json"
+
+	"github.com/e-spl/e-sp-line2/internal/platformspec"
+	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
+)
+
+// GetTaobaoAdapterInfo returns Taobao adapter info
+func GetTaobaoAdapterInfo() *AdapterInfo {
+	return getPlatformAdapterInfo("taobao")
+}
+
+// GetXianyuAdapterInfo returns Xianyu adapter info
+func GetXianyuAdapterInfo() *AdapterInfo {
+	return getPlatformAdapterInfo("xianyu")
+}
+
+// GetAdapterInfo returns a built-in adapter by platform id or alias.
+//
+// 平台清单来自 platformspec（迁移自 catbus 的平台注册表），因此新增平台不需要再写
+// 一个 Get<Platform>AdapterInfo。
+func GetAdapterInfo(platform string) (*AdapterInfo, bool) {
+	p, ok := platformspec.Get(platform)
+	if !ok {
+		return nil, false
+	}
+	return BuiltinAdapterInfo(p), true
+}
+
+// GetAdaptersByStage returns built-in adapters whose platform is on the given stage.
+func GetAdaptersByStage(stage platformspec.Stage) []*AdapterInfo {
+	var platforms []*platformspec.Platform
+	switch stage {
+	case platformspec.StageActive:
+		platforms = platformspec.Active()
+	case platformspec.StageUpcoming:
+		platforms = platformspec.Upcoming()
+	}
+	out := make([]*AdapterInfo, 0, len(platforms))
+	for _, p := range platforms {
+		out = append(out, BuiltinAdapterInfo(p))
+	}
+	return out
+}
+
+func getPlatformAdapterInfo(platform string) *AdapterInfo {
+	info, ok := GetAdapterInfo(platform)
+	if !ok {
+		// 注册表里一定有这两个平台；丢了就让调用方在启动时立刻看到。
+		panic("platform not registered in platformspec: " + platform)
+	}
+	return info
+}
+
+// RegisterBuiltinAdapters registers built-in adapters to registry
+func RegisterBuiltinAdapters(registry *Registry) error {
+	// 只注册已上线的平台；「即将上车」的平台留到启用时再注册。
+	for _, p := range platformspec.Active() {
+		if err := registry.Register(BuiltinAdapterInfo(p)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PlatformManifest returns the V3 adapter manifest of a platform.
+func PlatformManifest(platform string) (string, error) {
+	info, ok := GetAdapterInfo(platform)
+	if !ok {
+		return "", ErrAdapterNotFound
+	}
+
+	manifest := v3.AdapterManifest{
+		ID:              info.ID,
+		PlatformID:      info.PlatformID,
+		Name:            info.Name,
+		Version:         info.Version,
+		RuntimeType:     info.RuntimeType,
+		ProtocolVersion: info.ProtocolVersion,
+		Capabilities:    info.Capabilities,
+		ConfigSchema:    info.ConfigSchema,
+		I18n:            info.I18n,
+		Operations:      info.Operations,
+		Security:        info.Security,
+	}
+
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// PlatformConfig is the per-platform instance config with common reconnect options.
+type PlatformConfig struct {
+	Cookie            string `json:"cookie,omitempty"`
+	DeviceID          string `json:"device_id,omitempty"`
+	Token             string `json:"token,omitempty"`
+	APIKey            string `json:"api_key,omitempty"`
+	UID               string `json:"uid,omitempty"`
+	Box               string `json:"box,omitempty"`
+	HeartbeatInterval int    `json:"heartbeat_interval,omitempty"`
+	ReconnectDelay    int    `json:"reconnect_delay,omitempty"`
+}
 
 // TaobaoAdapterConfig represents Taobao adapter configuration
 type TaobaoAdapterConfig struct {
@@ -16,174 +119,4 @@ type XianyuAdapterConfig struct {
 	DeviceID          string `json:"device_id,omitempty"`
 	HeartbeatInterval int    `json:"heartbeat_interval,omitempty"`
 	ReconnectDelay    int    `json:"reconnect_delay,omitempty"`
-}
-
-// GetTaobaoAdapterInfo returns Taobao adapter info
-func GetTaobaoAdapterInfo() *AdapterInfo {
-	return &AdapterInfo{
-		ID:              "taobao-adapter-v1",
-		PlatformID:      "taobao",
-		Name:            "Taobao Message Adapter",
-		Version:         "1.0.0",
-		RuntimeType:     "python",
-		ProtocolVersion: "v3",
-		Capabilities: []string{
-			"receive_message",
-			"send_text",
-			"send_image",
-			"upload_media",
-			"get_history",
-			"create_conversation",
-		},
-		ConfigSchema: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"cookie": map[string]interface{}{
-					"type":        "string",
-					"description": "Taobao login cookie",
-					"format":      "password",
-				},
-				"device_id": map[string]interface{}{
-					"type":        "string",
-					"description": "Device ID (optional)",
-				},
-				"heartbeat_interval": map[string]interface{}{
-					"type":        "integer",
-					"description": "Heartbeat interval in seconds",
-					"default":     15,
-				},
-				"reconnect_delay": map[string]interface{}{
-					"type":        "integer",
-					"description": "Reconnect delay in seconds",
-					"default":     5,
-				},
-			},
-			"required": []string{"cookie"},
-		},
-		I18n: map[string]v3.I18nResource{
-			"zh-CN": {
-				DisplayName:  "淘宝消息适配器",
-				Description:  "支持淘宝平台消息收发，多开多账号，每个实例独立 Cookie 配置",
-				InstallGuide: "1. 登录淘宝网页版\n2. 复制 Cookie\n3. 在实例管理中创建多个实例（多开）\n4. 每个实例填写独立 Cookie",
-				ErrorMessages: map[string]string{
-					"cookie_expired":    "Cookie 已过期，请重新登录",
-					"connection_failed": "连接失败，请检查网络",
-				},
-			},
-			"en-US": {
-				DisplayName:  "Taobao Message Adapter",
-				Description:  "Supports Taobao messaging with multiple accounts; each instance has its own Cookie",
-				InstallGuide: "1. Login to Taobao web\n2. Copy Cookie\n3. Create multiple instances in Instance Management (multi-instance)\n4. Fill in a separate Cookie per instance",
-				ErrorMessages: map[string]string{
-					"cookie_expired":    "Cookie expired, please login again",
-					"connection_failed": "Connection failed, please check network",
-				},
-			},
-		},
-		Operations: v3.OperationPolicy{
-			HeartbeatInterval: 15,
-			ReconnectDelay:    5,
-			MaxRetries:        3,
-			MaxQueueSize:      1000,
-		},
-		Security: v3.SecurityPolicy{
-			SensitiveFields:  []string{"cookie"},
-			EncryptedFields:  []string{"cookie"},
-			PermissionScopes: []string{"message:read", "message:write"},
-		},
-		Status: "active",
-	}
-}
-
-// GetXianyuAdapterInfo returns Xianyu adapter info
-func GetXianyuAdapterInfo() *AdapterInfo {
-	return &AdapterInfo{
-		ID:              "xianyu-adapter-v1",
-		PlatformID:      "xianyu",
-		Name:            "Xianyu Message Adapter",
-		Version:         "1.0.0",
-		RuntimeType:     "python",
-		ProtocolVersion: "v3",
-		Capabilities: []string{
-			"receive_message",
-			"send_text",
-			"send_image",
-			"upload_media",
-			"get_history",
-			"create_conversation",
-			"get_product_info",
-		},
-		ConfigSchema: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"cookie": map[string]interface{}{
-					"type":        "string",
-					"description": "Xianyu login cookie",
-					"format":      "password",
-				},
-				"device_id": map[string]interface{}{
-					"type":        "string",
-					"description": "Device ID (optional)",
-				},
-				"heartbeat_interval": map[string]interface{}{
-					"type":        "integer",
-					"description": "Heartbeat interval in seconds",
-					"default":     15,
-				},
-				"reconnect_delay": map[string]interface{}{
-					"type":        "integer",
-					"description": "Reconnect delay in seconds",
-					"default":     5,
-				},
-			},
-			"required": []string{"cookie"},
-		},
-		I18n: map[string]v3.I18nResource{
-			"zh-CN": {
-				DisplayName:  "闲鱼消息适配器",
-				Description:  "支持闲鱼平台消息收发，多开多账号，每个实例独立 Cookie 配置",
-				InstallGuide: "1. 登录闲鱼网页版\n2. 复制 Cookie\n3. 在实例管理中创建多个实例（多开）\n4. 每个实例填写独立 Cookie",
-				ErrorMessages: map[string]string{
-					"cookie_expired":    "Cookie 已过期，请重新登录",
-					"connection_failed": "连接失败，请检查网络",
-				},
-			},
-			"en-US": {
-				DisplayName:  "Xianyu Message Adapter",
-				Description:  "Supports Xianyu messaging with multiple accounts; each instance has its own Cookie",
-				InstallGuide: "1. Login to Xianyu web\n2. Copy Cookie\n3. Create multiple instances in Instance Management (multi-instance)\n4. Fill in a separate Cookie per instance",
-				ErrorMessages: map[string]string{
-					"cookie_expired":    "Cookie expired, please login again",
-					"connection_failed": "Connection failed, please check network",
-				},
-			},
-		},
-		Operations: v3.OperationPolicy{
-			HeartbeatInterval: 15,
-			ReconnectDelay:    5,
-			MaxRetries:        3,
-			MaxQueueSize:      1000,
-		},
-		Security: v3.SecurityPolicy{
-			SensitiveFields:  []string{"cookie"},
-			EncryptedFields:  []string{"cookie"},
-			PermissionScopes: []string{"message:read", "message:write", "product:read"},
-		},
-		Status: "active",
-	}
-}
-
-// RegisterBuiltinAdapters registers built-in adapters to registry
-func RegisterBuiltinAdapters(registry *Registry) error {
-	// Register Taobao adapter
-	if err := registry.Register(GetTaobaoAdapterInfo()); err != nil {
-		return err
-	}
-
-	// Register Xianyu adapter
-	if err := registry.Register(GetXianyuAdapterInfo()); err != nil {
-		return err
-	}
-
-	return nil
 }

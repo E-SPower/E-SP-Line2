@@ -170,8 +170,8 @@ func (s *AdapterService) StartAdapter(id string) error {
 		return err
 	}
 
-	if adapter.Status != "active" {
-		return errors.New("adapter is not active")
+	if adapter.Status == "active" {
+		return errors.New("adapter is already active")
 	}
 
 	// Upsert a running session for the adapter instance

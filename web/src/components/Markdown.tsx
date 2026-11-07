@@ -38,7 +38,7 @@ function slugify(text: string): string {
 /** Parse inline markdown (code, bold, italic, links) into React nodes. */
 function parseInline(text: string, onLinkClick?: (href: string, e?: React.MouseEvent) => void): ReactNode[] {
   const nodes: ReactNode[] = []
-  let remaining = text
+  const remaining = text
   let key = 0
 
   // Regex alternatives in priority order:

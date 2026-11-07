@@ -23,15 +23,15 @@ import (
 // 而无需单独在终端启动。
 type PythonRunner struct {
 	// process mapping: instanceID -> *exec.Cmd
-	mu      sync.Mutex
-	procs   map[string]*exec.Cmd
-	stopping map[string]bool // instances marked for intentional stop
-	restarts map[string]int  // consecutive crash count per instance
-	python  string
-	dir     string
+	mu          sync.Mutex
+	procs       map[string]*exec.Cmd
+	stopping    map[string]bool // instances marked for intentional stop
+	restarts    map[string]int  // consecutive crash count per instance
+	python      string
+	dir         string
 	autoRestart bool
-	backendURL string
-	jwtSecret  string
+	backendURL  string
+	jwtSecret   string
 
 	// installer installs adapter Python dependencies on instance creation.
 	installer *DependencyInstaller
@@ -164,17 +164,17 @@ func (r *PythonRunner) openLogFile(instanceID string) (*os.File, error) {
 //   - maxLines <= 0  : return the FULL log (no tail truncation)
 //   - maxLines  > 0  : return only the last maxLines lines
 //   - level          : filter lines by log level. Allowed values are
-//                      "debug", "info", "warning", "error" (case-insensitive).
-//                      Empty or "all" returns every line. Only the chosen level
-//                      and higher-severity lines are kept (e.g. "warning"
-//                      keeps warning + error). Continuation lines (indented
-//                      tracebacks / stack traces) are kept with their parent.
+//     "debug", "info", "warning", "error" (case-insensitive).
+//     Empty or "all" returns every line. Only the chosen level
+//     and higher-severity lines are kept (e.g. "warning"
+//     keeps warning + error). Continuation lines (indented
+//     tracebacks / stack traces) are kept with their parent.
 //   - keyword        : optional substring filter (case-insensitive). Multiple
-//                      space-separated words are ANDed; lines must contain all
-//                      of them. If empty, no keyword filtering.
+//     space-separated words are ANDed; lines must contain all
+//     of them. If empty, no keyword filtering.
 //   - from / to      : optional time-range filters (RFC3339). Lines whose
-//                      timestamp falls outside [from, to] are dropped. Lines
-//                      without a parseable timestamp are always kept.
+//     timestamp falls outside [from, to] are dropped. Lines
+//     without a parseable timestamp are always kept.
 //
 // If the file does not exist, it returns an empty log (not an error).
 func (r *PythonRunner) ReadLog(instanceID string, maxLines int, level, keyword, from, to string) (string, error) {
@@ -387,12 +387,12 @@ func readBoundedLines(f *os.File, n int) ([]string, error) {
 
 // LogHeatmapEntry is one hour bucket of log counts.
 type LogHeatmapEntry struct {
-	Hour      string `json:"hour"`      // RFC3339 at the top of the hour
-	Debug     int    `json:"debug"`
-	Info      int    `json:"info"`
-	Warning   int    `json:"warning"`
-	Error     int    `json:"error"`
-	Unmarked  int    `json:"unmarked"`
+	Hour     string `json:"hour"` // RFC3339 at the top of the hour
+	Debug    int    `json:"debug"`
+	Info     int    `json:"info"`
+	Warning  int    `json:"warning"`
+	Error    int    `json:"error"`
+	Unmarked int    `json:"unmarked"`
 }
 
 // LogHeatmap returns per-hour counts of log lines by level. When `level` is
@@ -565,7 +565,7 @@ func isBannerLine(line string) bool {
 //   - installer log:  "2026-08-16 17:27:33 | ERROR | ..."
 //   - standard:       "INFO:" / "WARNING:" / "ERROR:" / "DEBUG:" / "ERROR -"
 //   - python errors:  "Traceback (most recent call last):", "KeyError: ...",
-//                     "TypeError: ...", "<...>Exception: ...", "ModuleNotFoundError: ..."
+//     "TypeError: ...", "<...>Exception: ...", "ModuleNotFoundError: ..."
 //
 // Returns "" if no level marker is found.
 func logLineLevel(line string) string {

@@ -1,40 +1,40 @@
-# 贡献指南
+# Contributing guide
 
-## 欢迎贡献
+## Welcome contributions
 
-感谢您对 E-SP-Line2 项目的关注！我们欢迎各种形式的贡献，包括代码、文档、问题报告和功能建议。
+Thank you for your interest in the E-SP-Line2 project! We welcome every kind of contribution, including code, documentation, issue reports, and feature suggestions.
 
-## 贡献流程
+## Contribution workflow
 
-### 1. 发现问题或想要添加功能
+### 1. Find a problem or a feature you want to add
 
-- 检查 [Issues](https://github.com/your-org/E-SP-Line2/issues) 是否已有相关讨论
-- 如果没有，创建新的 Issue 描述问题或功能
+- Check [Issues](https://github.com/E-SPower/E-SP-Line2/issues) for an existing discussion
+- If there is none, create a new issue describing the problem or feature
 
-### 2. 开始开发
+### 2. Start development
 
-- Fork 项目到您的 GitHub 账号
-- 克隆到本地：
+- Fork the project to your GitHub account
+- Clone it locally:
   ```bash
   git clone https://github.com/your-username/E-SP-Line2.git
   cd E-SP-Line2
   ```
-- 创建功能分支：
+- Create a feature branch:
   ```bash
   git checkout -b feature/your-feature-name
   ```
 
-### 3. 开发规范
+### 3. Development conventions
 
-#### 代码风格
+#### Code style
 
-- **Go 代码**：遵循 [Effective Go](https://go.dev/doc/effective-go) 和 [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
-- **Python 代码**：遵循 [PEP 8](https://peps.python.org/pep-0008/)
-- **TypeScript/React**：遵循项目 ESLint 配置
+- **Go code**: Follow [Effective Go](https://go.dev/doc/effective-go) and [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- **Python code**: Follow [PEP 8](https://peps.python.org/pep-0008/)
+- **TypeScript/React**: Follow the project's ESLint configuration
 
-#### 提交信息
+#### Commit messages
 
-使用约定式提交（Conventional Commits）：
+Use Conventional Commits:
 
 ```
 <type>(<scope>): <subject>
@@ -44,16 +44,16 @@
 <footer>
 ```
 
-**类型**：
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式（不影响代码运行）
-- `refactor`: 代码重构
-- `test`: 添加测试
-- `chore`: 构建过程或辅助工具变动
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation update
+- `style`: Code formatting (does not affect how the code runs)
+- `refactor`: Code refactoring
+- `test`: Add tests
+- `chore`: Build process or auxiliary tooling changes
 
-**示例**：
+**Example**:
 ```
 feat(adapter): add support for Pinduoduo platform
 
@@ -64,197 +64,208 @@ feat(adapter): add support for Pinduoduo platform
 Closes #123
 ```
 
-### 4. 提交 Pull Request
+### 4. Submit a pull request
 
-- 确保代码通过所有测试
-- 更新相关文档
-- 创建 Pull Request 并描述更改
+- Make sure the code passes all tests
+- Update the relevant documentation
+- Create a pull request describing the changes
 
-## 开发环境设置
+## Development environment setup
 
-### 后端开发
+### Backend development
 
 ```bash
-# 安装 Go 依赖
+# Install Go dependencies
 go mod download
 
-# 运行测试
-go test ./...
+# Run tests (CGO_ENABLED=1 — the sqlite driver is cgo)
+CGO_ENABLED=1 go test ./...
 
-# 启动开发服务器
+# Start the development server
 go run main.go
 ```
 
-### 前端开发
+### Frontend development
 
 ```bash
-# 安装依赖
+# Install dependencies
 cd web
 npm install
 
-# 启动开发服务器
+# Start the development server
 npm run dev
 
-# 构建生产版本
+# Build a production version
 npm run build
 ```
 
-### Python 适配器开发
+### Python adapter development
 
 ```bash
-# 创建虚拟环境
+# Create a virtual environment
 cd adapters/myplatform
 python -m venv venv
 source venv/bin/activate
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 
-# 运行测试
+# Run tests
 pytest
 ```
 
-## 代码审查
+## Code review
 
-所有 Pull Request 都需要经过代码审查。审查者会关注：
+Every pull request goes through code review. Reviewers focus on:
 
-- 代码质量和风格
-- 测试覆盖率
-- 文档完整性
-- 性能影响
-- 安全性
+- Code quality and style
+- Test coverage
+- Documentation completeness
+- Performance impact
+- Security
 
-## 报告 Bug
+CI (`.github/workflows/ci.yml`) runs the mechanical part of this list. The full reviewer checklist, merge gate and exception process is [pr-qa.md](pr-qa.md). Backend tests need `CGO_ENABLED=1` and gcc, or the sqlite driver fails against a stub.
 
-### Bug 报告模板
+## Reporting bugs
+
+### Bug report template
 
 ```markdown
-**描述**
-清晰简洁地描述 bug。
+**Description**
+Describe the bug clearly and concisely.
 
-**复现步骤**
-1. 执行 '...'
-2. 点击 '...'
-3. 看到错误
+**Steps to reproduce**
+1. Run '...'
+2. Click '...'
+3. See the error
 
-**期望行为**
-描述期望发生什么。
+**Expected behavior**
+Describe what you expected to happen.
 
-**实际行为**
-描述实际发生了什么。
+**Actual behavior**
+Describe what actually happened.
 
-**环境**
+**Environment**
 - OS: [e.g. Ubuntu 22.04]
 - Go version: [e.g. 1.22]
-- Node version: [e.g. 18.x]
+- Node version: [e.g. 20.11] (must satisfy `web/package.json` `engines`)
 
-**日志**
+**Logs**
 ```
-粘贴相关日志
-```
-
-**截图**
-如果适用，添加截图。
+Paste the relevant logs
 ```
 
-## 功能建议
+**Screenshots**
+Add screenshots if applicable.
+```
 
-### 功能建议模板
+## Feature suggestions
+
+### Feature suggestion template
 
 ```markdown
-**问题描述**
-清晰简洁地描述问题或需求。
+**Problem description**
+Describe the problem or need clearly and concisely.
 
-**建议的解决方案**
-描述您建议的解决方案。
+**Proposed solution**
+Describe the solution you suggest.
 
-**替代方案**
-描述您考虑过的替代方案。
+**Alternatives**
+Describe the alternatives you considered.
 
-**其他信息**
-添加任何其他相关信息。
+**Additional information**
+Add any other relevant information.
 ```
 
-## 文档贡献
+## Documentation contributions
 
-文档与代码同样重要。贡献文档时：
+Documentation matters as much as code. When contributing documentation:
 
-- 使用清晰的 Markdown 格式
-- 提供代码示例
-- 保持语言简洁
-- 检查拼写和语法
+- Use clear Markdown formatting
+- Provide code examples
+- Keep the language concise
+- Check spelling and grammar
 
-## 测试
+## Testing
 
-### 编写测试
+### Writing tests
 
-- 为新功能编写单元测试
-- 为 bug 修复编写回归测试
-- 保持测试覆盖率 > 80%
+- Write unit tests for new features
+- Write regression tests for bug fixes
+- Keep test coverage above 80%
 
-### 运行测试
+### Running tests
 
 ```bash
-# 后端测试
-go test ./... -v
+# Backend tests (CGO_ENABLED=1 is mandatory, see pr-qa.md)
+CGO_ENABLED=1 go test ./... -v
 
-# 前端测试
+# Frontend: no `npm test` script exists yet (no runner installed).
+# The gates that do exist, and that CI runs:
 cd web
-npm test
+npx tsc --noEmit
+npm run lint
+npm run build
 
-# Python 适配器测试
+# Python adapter tests
 cd adapters/myplatform
 pytest
 ```
 
-## 发布流程
+Front-end behaviour is verified by hand for now: `web/package.json` has no `test`
+script and no runner is installed, so a page change is verified by building it and
+walking the route. Adding Vitest and an `npm test` script is its own PR — not a
+prerequisite for merging a UI change, but a review may ask for one on logic-heavy
+code (see [pr-qa.md](pr-qa.md) §3).
 
-### 版本号
+## Release process
 
-遵循语义化版本（Semantic Versioning）：
+### Version numbers
+
+Follow Semantic Versioning:
 
 - `MAJOR.MINOR.PATCH`
-- `MAJOR`: 不兼容的 API 更改
-- `MINOR`: 向后兼容的功能添加
-- `PATCH`: 向后兼容的 bug 修复
+- `MAJOR`: Incompatible API changes
+- `MINOR`: Backward-compatible feature additions
+- `PATCH`: Backward-compatible bug fixes
 
-### 发布检查清单
+### Release checklist
 
-- [ ] 更新版本号
-- [ ] 更新 CHANGELOG
-- [ ] 运行所有测试
-- [ ] 构建生产版本
-- [ ] 创建 Git tag
-- [ ] 发布到包管理器
+- [ ] Update the version number
+- [ ] Update CHANGELOG
+- [ ] Run all tests
+- [ ] Build a production version
+- [ ] Create a Git tag
+- [ ] Publish to the package manager
 
-## 行为准则
+## Code of conduct
 
-### 我们的承诺
+### Our pledge
 
-为了营造一个开放和友好的环境，我们承诺：
+To create an open and friendly environment, we pledge to:
 
-- 使用友好和包容的语言
-- 尊重不同的观点和经验
-- 优雅地接受建设性批评
-- 关注对社区最有利的事情
-- 对其他社区成员表示同理心
+- Use friendly and inclusive language
+- Respect different viewpoints and experiences
+- Accept constructive criticism gracefully
+- Focus on what is best for the community
+- Show empathy toward other community members
 
-### 不可接受的行为
+### Unacceptable behavior
 
-- 使用性化的语言或图像
-- 人身攻击或侮辱性评论
-- 公开或私下骚扰
-- 未经许可发布他人信息
-- 其他不道德或不专业的行为
+- Use of sexualized language or imagery
+- Personal attacks or insulting comments
+- Public or private harassment
+- Publishing others' information without permission
+- Other unethical or unprofessional behavior
 
-## 获取帮助
+## Getting help
 
-如果您在贡献过程中需要帮助：
+If you need help while contributing:
 
-- 查看 [文档](./)
-- 在 Issue 中提问
-- 联系项目维护者
+- Read the [documentation](./)
+- Ask in an issue
+- Contact the project maintainers
 
-## 致谢
+## Acknowledgments
 
-感谢所有贡献者帮助改进 E-SP-Line2 项目！
+Thank you to all contributors for helping improve the E-SP-Line2 project!

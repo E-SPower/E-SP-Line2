@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/e-spl/e-sp-line2/internal/protocol/v3"
+	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
 

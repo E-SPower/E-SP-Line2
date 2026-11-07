@@ -23,16 +23,16 @@ type ConfigField struct {
 
 // CatalogAdapter is the parsed representation of an adapter.yaml file.
 type CatalogAdapter struct {
-	ID          string                 `json:"id" yaml:"id"`
-	PlatformCode string                `json:"platform_code" yaml:"platform_code"`
-	Name        string                 `json:"name" yaml:"name"`
-	Version     string                 `json:"version" yaml:"version"`
-	RuntimeType string                 `json:"runtime_type" yaml:"runtime_type"`
-	Description string                 `json:"description" yaml:"description"`
-	Hidden      bool                   `json:"hidden" yaml:"hidden"`
-	Icon        string                 `json:"icon,omitempty" yaml:"icon,omitempty"`
+	ID           string                 `json:"id" yaml:"id"`
+	PlatformCode string                 `json:"platform_code" yaml:"platform_code"`
+	Name         string                 `json:"name" yaml:"name"`
+	Version      string                 `json:"version" yaml:"version"`
+	RuntimeType  string                 `json:"runtime_type" yaml:"runtime_type"`
+	Description  string                 `json:"description" yaml:"description"`
+	Hidden       bool                   `json:"hidden" yaml:"hidden"`
+	Icon         string                 `json:"icon,omitempty" yaml:"icon,omitempty"`
 	ConfigSchema map[string]ConfigField `json:"config_schema" yaml:"config_schema"`
-	Capabilities []string              `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	Capabilities []string               `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 
 	// Directory path (not serialized by default unless needed).
 	Dir string `json:"-" yaml:"-"`

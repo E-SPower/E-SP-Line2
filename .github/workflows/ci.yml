@@ -1,0 +1,171 @@
+name: CI
+
+# Merge gate for main. Every job mirrors a command the reviewer runs by hand
+# (see docs/developer-guide/pr-qa.md) and runs fully offline: nothing here
+# touches Taobao, Xianyu or any other platform endpoint, so a run never depends
+# on an account, a cookie or a live upstream.
+#
+# Toolchain versions are read from the files that already pin them — go.mod
+# for Go, web/package.json `engines` for Node — so a dependency bump moves the CI
+# with it instead of leaving a second, stale copy of the version here.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A newer push to the same branch cancels the older run: reviewers only ever
+# look at the newest diff, and a queued superseded run costs minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend (vet, build, test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # gorm.io/driver/sqlite wraps mattn/go-sqlite3, which is cgo. With cgo off
+      # the driver compiles against a stub that fails at Open, so every database
+      # test dies with a connection error that looks like a code defect. On for
+      # the whole job, not just the test step, so vet and build see the same code.
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # cgo needs a C toolchain for mattn/go-sqlite3.
+      - name: Install gcc (cgo for mattn/go-sqlite3)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc
+
+      - name: go vet ./...
+        run: go vet ./...
+
+      - name: go build ./...
+        run: go build ./...
+
+      - name: go test ./...
+        run: go test ./...
+
+  frontend:
+    name: frontend (tsc, vite build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      # Type check and bundle are separate steps so a red run says which one
+      # broke. `npm run build` does both, but folds the failure into one log.
+      - name: tsc --noEmit
+        run: npx tsc --noEmit
+
+      - name: vite build
+        run: npx vite build
+
+  generated:
+    name: generated artifacts up to date
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # matrix.json drives the platform registry and the capability doc. Editing
+      # it without rerunning the generators lands stale Go files and a stale doc;
+      # the fix is to run the two scripts, not to regenerate inside CI.
+      - name: check_generated.py matrix.json
+        run: python3 scripts/check_generated.py matrix.json
+
+  format-lint:
+    name: format and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # gofmt needs no compilation, so this job stays separate from the backend
+      # one: a formatting nit should not hide a real test failure, and vice versa.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: gofmt -l (must be empty)
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            echo "Run 'gofmt -w .' (or 'make fmt')."
+            exit 1
+          fi
+
+      # Same linter `make lint` runs, configured by .golangci.yml
+      # (gofmt + goimports formatters, default linters minus errcheck with the
+      # reason and the ratchet in the config). The version is pinned here to the
+      # same major the config schema needs (`version: "2"`), and action v8 requires
+      # >= v2.1.0 — bump both together, never one alone.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.1.6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+        working-directory: web
+
+      # `--max-warnings` is a debt budget for the pre-existing `any`s; see
+      # web/.eslintrc.cjs. A new warning fails here, a removed one leaves room.
+      - name: npm run lint
+        run: npm run lint
+        working-directory: web
+
+  # golangci-lint runs as a step of `format-lint` above rather than as its own
+  # job: it is a lint, and splitting it would only make the gate slower. The
+  # commented block below is the shape if it ever needs its own job.
+  # golangci:
+  #   name: golangci-lint
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: backend
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #         cache-dependency-path: go.sum
+  #     - uses: golangci/golangci-lint-action@v8
+  #       with:
+  #         version: v2.1.6
+  #         working-directory: backend

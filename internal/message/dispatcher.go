@@ -30,6 +30,18 @@ type Connection struct {
 	Send       chan []byte
 	CreatedAt  time.Time
 	LastPing   time.Time
+
+	// closeOnce guards Send: a connection is closed from both readPump's defer
+	// and Dispatcher.Close, and possibly from a third path later. A bare
+	// close(chan) there panics on the loser of the race.
+	closeOnce sync.Once
+}
+
+// closeSend closes the send channel exactly once, however many shutdown paths
+// reach the connection. The websocket conn is closed separately — net.Conn.Close
+// is itself idempotent enough and callers need not thread through here.
+func (c *Connection) closeSend() {
+	c.closeOnce.Do(func() { close(c.Send) })
 }
 
 // NewDispatcher creates a new message dispatcher
@@ -68,7 +80,7 @@ func (d *Dispatcher) UnregisterConnection(connID string) {
 	defer d.mu.Unlock()
 
 	if conn, ok := d.connections[connID]; ok {
-		close(conn.Send)
+		conn.closeSend()
 		delete(d.connections, connID)
 		logger.Info("Connection unregistered", logger.String("conn_id", connID))
 	}
@@ -315,9 +327,13 @@ func (d *Dispatcher) Close() error {
 	defer d.mu.Unlock()
 
 	for _, conn := range d.connections {
-		close(conn.Send)
+		conn.closeSend()
 		conn.Conn.Close()
 	}
+	// Drop the entries too: a running readPump still hits its deferred
+	// UnregisterConnection. closeSend makes the double close safe; clearing the
+	// map keeps a later heartbeat tick from writing to a closed connection.
+	d.connections = make(map[string]*Connection)
 
 	return nil
 }

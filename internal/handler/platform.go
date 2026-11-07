@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"github.com/e-spl/e-sp-line2/internal/service"
+	"github.com/gin-gonic/gin"
 )
 
 // ListPlatforms lists all platforms

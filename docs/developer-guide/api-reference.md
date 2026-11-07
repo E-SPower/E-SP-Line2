@@ -1,31 +1,22 @@
-# API 参考文档
+# API reference
 
-## 概述
+## Overview
 
-E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入器、实例、消息和路由。
+E-SP-Line2 provides a RESTful API and WebSocket interfaces for managing platforms, adapters, messages, and routes.
 
-> **协议说明**：本文档的 REST API 是**管理接口**（平台/接入器/实例/消息/路由的增删改查）。
-> 消息通信协议请参见：
-> - [协议体系总览](./protocol-overview.md)
-> - [ESPL v3 协议](./protocol-v3.md)（接入器 WebSocket 协议）
-> - [桥（Bridge）协议](./bridge-protocol.md)（桥进程 WebSocket 协议）
->
-> ⛔ **已弃用**：老版接入器通过 HTTP 与核心通信的 v1/v2 协议已弃用，
-> 接入器已迁移到 WebSocket ESPL v3 协议，桥进程已迁移到 WebSocket Bridge 协议。
-
-## 基础信息
+## Base information
 
 - **Base URL**: `http://localhost:8080/api/v1`
-- **认证方式**: Bearer Token
-- **响应格式**: JSON
+- **Authentication**: Bearer Token
+- **Response format**: JSON
 
-## 认证接口
+## Authentication endpoints
 
-### 用户注册
+### User registration
 
 **POST** `/auth/register`
 
-**请求体**:
+**Request body**:
 ```json
 {
   "username": "admin",
@@ -34,7 +25,7 @@ E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "user-001",
@@ -45,11 +36,11 @@ E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入
 }
 ```
 
-### 用户登录
+### User login
 
 **POST** `/auth/login`
 
-**请求体**:
+**Request body**:
 ```json
 {
   "username": "admin",
@@ -57,7 +48,7 @@ E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -69,7 +60,7 @@ E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入
 }
 ```
 
-### 获取当前用户
+### Get current user
 
 **GET** `/auth/me`
 
@@ -78,7 +69,7 @@ E-SP-Line2 提供 RESTful API 和 WebSocket 接口，用于管理平台、接入
 Authorization: Bearer <token>
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "user-001",
@@ -88,25 +79,25 @@ Authorization: Bearer <token>
 }
 ```
 
-## 平台接口
+## Platform endpoints
 
-### 获取平台列表
+### List platforms
 
 **GET** `/platforms`
 
-**查询参数**:
-- `limit`: 返回数量（默认 20）
-- `offset`: 偏移量（默认 0）
+**Query parameters**:
+- `limit`: Number of results to return (default 20)
+- `offset`: Offset (default 0)
 
-**响应**:
+**Response**:
 ```json
 {
   "data": [
     {
       "id": "platform-001",
-      "name": "淘宝",
+      "name": "Taobao",
       "code": "taobao",
-      "description": "淘宝电商平台",
+      "description": "Taobao e-commerce platform",
       "status": "active",
       "created_at": "2024-01-01T00:00:00Z"
     }
@@ -115,101 +106,146 @@ Authorization: Bearer <token>
 }
 ```
 
-### 获取平台详情
+### List platform specs
+
+**GET** `/platforms/spec`
+
+Public. Returns the platform registry migrated from catbus: per-platform metadata plus the per-command support matrix. `stage` is `active` (default), `upcoming` or `all`.
+
+**Response**:
+```json
+{
+  "data": [
+    {
+      "id": "xhs",
+      "name": "小红书",
+      "item": "笔记",
+      "aliases": ["xiaohongshu", "rednote"],
+      "stage": "active",
+      "upstream": "https://github.com/cv-cat/Spider_XHS",
+      "site": "https://www.xiaohongshu.com",
+      "login_methods": ["qrcode"],
+      "capabilities": ["msg.listen", "msg.send", "send_text"],
+      "notes": ["msg send：text only"],
+      "support_matrix": {"msg send": "implemented", "item delete": "planned", "live get": "unsupported"}
+    }
+  ],
+  "commands": [{"Resource": "msg", "Action": "send", "Section": "notice 与 msg"}],
+  "total": 12
+}
+```
+
+`support_matrix` covers every command, including `unsupported` ones, so a caller can tell "not this platform" from "not yet". Support levels are `implemented`, `partial`, `planned` and `unsupported`; see [message fields](./message-fields.md) for the exit codes they map to.
+
+### Get one platform spec
+
+**GET** `/platforms/spec/:id`
+
+Public. Accepts an alias. Lists only the commands the platform has, so `planned` and `implemented` are visible while `unsupported` is left out.
+
+**Response**: the platform spec plus `dm`, `config_fields` and a `commands` array of `{resource, action, section, support}`. `support` is `implemented` or `partial` here — planned commands are left out, because this view answers "what can I call now".
+
+### List message fields
+
+**GET** `/message-fields`
+
+Public. Returns the message field contract that [message-fields.md](./message-fields.md) documents, keyed by object kind. `?kind=message` returns a single object.
+
+### Get platform details
 
 **GET** `/platforms/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "platform-001",
-  "name": "淘宝",
+  "name": "Taobao",
   "code": "taobao",
-  "description": "淘宝电商平台",
+  "description": "Taobao e-commerce platform",
   "status": "active",
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-01T00:00:00Z"
 }
 ```
 
-### 创建平台
+### Create platform
 
 **POST** `/platforms`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "name": "淘宝",
+  "name": "Taobao",
   "code": "taobao",
-  "description": "淘宝电商平台"
+  "description": "Taobao e-commerce platform"
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "platform-001",
-  "name": "淘宝",
+  "name": "Taobao",
   "code": "taobao",
-  "description": "淘宝电商平台",
+  "description": "Taobao e-commerce platform",
   "status": "active",
   "created_at": "2024-01-01T00:00:00Z"
 }
 ```
 
-### 更新平台
+### Update platform
 
 **PUT** `/platforms/:id`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "name": "淘宝",
-  "description": "淘宝电商平台（已更新）",
+  "name": "Taobao",
+  "description": "Taobao e-commerce platform (updated)",
   "status": "active"
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "platform-001",
-  "name": "淘宝",
-  "description": "淘宝电商平台（已更新）",
+  "name": "Taobao",
+  "description": "Taobao e-commerce platform (updated)",
   "status": "active",
   "updated_at": "2024-01-01T01:00:00Z"
 }
 ```
 
-### 删除平台
+### Delete platform
 
 **DELETE** `/platforms/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "platform deleted"
 }
 ```
 
-## 适配器接口
+## Adapter endpoints
 
-### 获取适配器列表
+### List adapters
 
 **GET** `/adapters`
 
-**查询参数**:
-- `limit`: 返回数量（默认 20）
-- `offset`: 偏移量（默认 0）
+**Query parameters**:
+- `limit`: Number of results to return (default 20)
+- `offset`: Offset (default 0)
 
-**响应**:
+**Response**:
 ```json
 {
   "data": [
     {
       "id": "adapter-001",
       "platform_id": "platform-001",
-      "name": "淘宝消息适配器",
+      "name": "Taobao message adapter",
       "version": "1.0.0",
       "runtime_type": "python",
       "protocol_version": "v3",
@@ -222,15 +258,15 @@ Authorization: Bearer <token>
 }
 ```
 
-### 创建适配器
+### Create adapter
 
 **POST** `/adapters`
 
-**请求体**:
+**Request body**:
 ```json
 {
   "platform_id": "platform-001",
-  "name": "淘宝消息适配器",
+  "name": "Taobao message adapter",
   "version": "1.0.0",
   "runtime_type": "python",
   "protocol_version": "v3",
@@ -238,12 +274,12 @@ Authorization: Bearer <token>
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "adapter-001",
   "platform_id": "platform-001",
-  "name": "淘宝消息适配器",
+  "name": "Taobao message adapter",
   "version": "1.0.0",
   "runtime_type": "python",
   "protocol_version": "v3",
@@ -252,16 +288,16 @@ Authorization: Bearer <token>
 }
 ```
 
-### 获取适配器详情
+### Get adapter details
 
 **GET** `/adapters/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "adapter-001",
   "platform_id": "platform-001",
-  "name": "淘宝消息适配器",
+  "name": "Taobao message adapter",
   "version": "1.0.0",
   "runtime_type": "python",
   "protocol_version": "v3",
@@ -273,47 +309,47 @@ Authorization: Bearer <token>
 }
 ```
 
-### 更新适配器
+### Update adapter
 
 **PUT** `/adapters/:id`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "name": "淘宝消息适配器（已更新）",
+  "name": "Taobao message adapter (updated)",
   "version": "1.0.1",
   "status": "active",
   "manifest": "{}"
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "adapter-001",
-  "name": "淘宝消息适配器（已更新）",
+  "name": "Taobao message adapter (updated)",
   "version": "1.0.1",
   "status": "active",
   "updated_at": "2024-01-01T01:00:00Z"
 }
 ```
 
-### 删除适配器
+### Delete adapter
 
 **DELETE** `/adapters/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "adapter deleted"
 }
 ```
 
-### 启动适配器
+### Start adapter
 
 **POST** `/adapters/:id/start`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "adapter started",
@@ -321,30 +357,30 @@ Authorization: Bearer <token>
 }
 ```
 
-### 停止适配器
+### Stop adapter
 
 **POST** `/adapters/:id/stop`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "adapter stopped"
 }
 ```
 
-## 实例接口
+## Instance endpoints
 
-### 获取实例列表
+### List instances
 
 **GET** `/instances`
 
-**查询参数**:
-- `limit`: 返回数量（默认 20）
-- `offset`: 偏移量（默认 0）
-- `platform_id`: 平台 ID（可选）
-- `status`: 状态（可选）
+**Query parameters**:
+- `limit`: Number of results to return (default 20)
+- `offset`: Offset (default 0)
+- `platform_id`: Platform ID (optional)
+- `status`: Status (optional)
 
-**响应**:
+**Response**:
 ```json
 {
   "data": [
@@ -352,7 +388,7 @@ Authorization: Bearer <token>
       "id": "instance-001",
       "adapter_id": "adapter-001",
       "platform_id": "platform-001",
-      "name": "店铺A",
+      "name": "Store A",
       "status": "running",
       "config": "{}",
       "created_at": "2024-01-01T00:00:00Z"
@@ -362,45 +398,45 @@ Authorization: Bearer <token>
 }
 ```
 
-### 创建实例
+### Create instance
 
 **POST** `/instances`
 
-**请求体**:
+**Request body**:
 ```json
 {
   "adapter_id": "adapter-001",
   "platform_id": "platform-001",
-  "name": "店铺A",
+  "name": "Store A",
   "config": {
     "cookie": "your_cookie_here"
   }
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "instance-001",
   "adapter_id": "adapter-001",
   "platform_id": "platform-001",
-  "name": "店铺A",
+  "name": "Store A",
   "status": "stopped",
   "created_at": "2024-01-01T00:00:00Z"
 }
 ```
 
-### 获取实例详情
+### Get instance details
 
 **GET** `/instances/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "instance-001",
   "adapter_id": "adapter-001",
   "platform_id": "platform-001",
-  "name": "店铺A",
+  "name": "Store A",
   "status": "running",
   "config": "{}",
   "session": {
@@ -412,55 +448,55 @@ Authorization: Bearer <token>
 }
 ```
 
-### 更新实例
+### Update instance
 
 **PUT** `/instances/:id`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "name": "店铺A（已更新）",
+  "name": "Store A (updated)",
   "config": {
     "cookie": "new_cookie_here"
   }
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "instance-001",
-  "name": "店铺A（已更新）",
+  "name": "Store A (updated)",
   "config": "{}",
   "updated_at": "2024-01-01T01:00:00Z"
 }
 ```
 
-### 删除实例
+### Delete instance
 
 **DELETE** `/instances/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "instance deleted"
 }
 ```
 
-## 消息接口
+## Message endpoints
 
-### 获取消息列表
+### List messages
 
 **GET** `/messages`
 
-**查询参数**:
-- `limit`: 返回数量（默认 20）
-- `offset`: 偏移量（默认 0）
-- `platform_id`: 平台 ID（可选）
-- `instance_id`: 实例 ID（可选）
-- `status`: 状态（可选）
+**Query parameters**:
+- `limit`: Number of results to return (default 20)
+- `offset`: Offset (default 0)
+- `platform_id`: Platform ID (optional)
+- `instance_id`: Instance ID (optional)
+- `status`: Status (optional)
 
-**响应**:
+**Response**:
 ```json
 {
   "data": [
@@ -470,9 +506,9 @@ Authorization: Bearer <token>
       "instance_id": "instance-001",
       "conversation_id": "conv-001",
       "sender_id": "user-123",
-      "sender_name": "买家A",
+      "sender_name": "Buyer A",
       "message_type": "text",
-      "message_content": "你好",
+      "message_content": "Hello",
       "status": "received",
       "created_at": "2024-01-01T00:00:00Z"
     }
@@ -481,11 +517,11 @@ Authorization: Bearer <token>
 }
 ```
 
-### 获取消息详情
+### Get message details
 
 **GET** `/messages/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "msg-001",
@@ -493,9 +529,9 @@ Authorization: Bearer <token>
   "instance_id": "instance-001",
   "conversation_id": "conv-001",
   "sender_id": "user-123",
-  "sender_name": "买家A",
+  "sender_name": "Buyer A",
   "message_type": "text",
-  "message_content": "你好",
+  "message_content": "Hello",
   "raw_message": "{}",
   "idempotency_key": "key-001",
   "trace_id": "trace-001",
@@ -505,30 +541,30 @@ Authorization: Bearer <token>
 }
 ```
 
-### 确认消息
+### Acknowledge message
 
 **POST** `/messages/:id/ack`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "message acknowledged"
 }
 ```
 
-## 命令接口
+## Command endpoints
 
-### 获取命令列表
+### List commands
 
 **GET** `/commands`
 
-**查询参数**:
-- `limit`: 返回数量（默认 20）
-- `offset`: 偏移量（默认 0）
-- `instance_id`: 实例 ID（可选）
-- `status`: 状态（可选）
+**Query parameters**:
+- `limit`: Number of results to return (default 20)
+- `offset`: Offset (default 0)
+- `instance_id`: Instance ID (optional)
+- `status`: Status (optional)
 
-**响应**:
+**Response**:
 ```json
 {
   "data": [
@@ -545,23 +581,23 @@ Authorization: Bearer <token>
 }
 ```
 
-### 创建命令
+### Create command
 
 **POST** `/commands`
 
-**请求体**:
+**Request body**:
 ```json
 {
   "instance_id": "instance-001",
   "command_type": "send_text",
   "payload": {
     "target_id": "user-123",
-    "content": "你好"
+    "content": "Hello"
   }
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "cmd-001",
@@ -572,11 +608,11 @@ Authorization: Bearer <token>
 }
 ```
 
-### 获取命令详情
+### Get command details
 
 **GET** `/commands/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "cmd-001",
@@ -593,25 +629,25 @@ Authorization: Bearer <token>
 }
 ```
 
-## 路由接口
+## Route endpoints
 
-### 获取路由规则列表
+### List routing rules
 
 **GET** `/routes`
 
-**查询参数**:
-- `limit`: 返回数量（默认 20）
-- `offset`: 偏移量（默认 0）
-- `platform_id`: 平台 ID（可选）
-- `enabled`: 是否启用（可选）
+**Query parameters**:
+- `limit`: Number of results to return (default 20)
+- `offset`: Offset (default 0)
+- `platform_id`: Platform ID (optional)
+- `enabled`: Whether enabled (optional)
 
-**响应**:
+**Response**:
 ```json
 {
   "data": [
     {
       "id": "route-001",
-      "name": "淘宝消息路由",
+      "name": "Taobao message route",
       "platform_id": "platform-001",
       "priority": 10,
       "conditions": "{}",
@@ -625,14 +661,14 @@ Authorization: Bearer <token>
 }
 ```
 
-### 创建路由规则
+### Create routing rule
 
 **POST** `/routes`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "name": "淘宝消息路由",
+  "name": "Taobao message route",
   "platform_id": "platform-001",
   "priority": 10,
   "conditions": {
@@ -644,11 +680,11 @@ Authorization: Bearer <token>
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "route-001",
-  "name": "淘宝消息路由",
+  "name": "Taobao message route",
   "platform_id": "platform-001",
   "priority": 10,
   "conditions": "{}",
@@ -659,15 +695,15 @@ Authorization: Bearer <token>
 }
 ```
 
-### 获取路由规则详情
+### Get routing rule details
 
 **GET** `/routes/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "route-001",
-  "name": "淘宝消息路由",
+  "name": "Taobao message route",
   "platform_id": "platform-001",
   "priority": 10,
   "conditions": "{}",
@@ -679,78 +715,104 @@ Authorization: Bearer <token>
 }
 ```
 
-### 更新路由规则
+### Update routing rule
 
 **PUT** `/routes/:id`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "name": "淘宝消息路由（已更新）",
+  "name": "Taobao message route (updated)",
   "priority": 20,
   "enabled": false
 }
 ```
 
-**响应**:
+**Response**:
 ```json
 {
   "id": "route-001",
-  "name": "淘宝消息路由（已更新）",
+  "name": "Taobao message route (updated)",
   "priority": 20,
   "enabled": false,
   "updated_at": "2024-01-01T01:00:00Z"
 }
 ```
 
-### 删除路由规则
+### Delete routing rule
 
 **DELETE** `/routes/:id`
 
-**响应**:
+**Response**:
 ```json
 {
   "message": "route deleted"
 }
 ```
 
-## WebSocket 接口
+## WebSocket interface
 
-> WebSocket 是 E-SP-Line2 的**消息通信通道**，分为两套协议：
-> - **ESPL v3**：接入器（Adapter）与外部系统通信（详见 [ESPL v3 协议](./protocol-v3.md)）
-> - **Bridge 协议**：桥（Bridge）进程与核心通信（详见 [桥（Bridge）协议](./bridge-protocol.md)）
-
-### 桥 WebSocket（Bridge 协议）
+### Adapter WebSocket
 
 **URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>`
 
-桥进程通过此端点与核心通信，上报入站消息、接收出站指令。消息格式见
-[桥（Bridge）协议](./bridge-protocol.md)。
+**Message format**:
+```json
+{
+  "type": "message.received",
+  "event_id": "evt-001",
+  "timestamp": 1704067200000,
+  "platform": "taobao",
+  "adapter_id": "adapter-001",
+  "payload": {
+    "conversation_id": "conv-001",
+    "sender_id": "user-123",
+    "sender_name": "Buyer A",
+    "message_type": "text",
+    "message_content": "Hello"
+  }
+}
+```
 
-### 接入器 WebSocket（ESPL v3 协议）
+### App WebSocket
 
-**URL**: `ws://localhost:8080/ws?key=<KEY>`（或 `/ws/adapter-gateway?key=<KEY>`）
+**URL**: `ws://localhost:8080/ws/app?app_id=<app_id>`
 
-外部系统通过此端点接入核心，消费电商消息并回复。消息格式见
-[ESPL v3 协议](./protocol-v3.md) 与 [WebSocket 接入器](../user-guide/adapter-gateway.md)。
+**Message format**:
+```json
+{
+  "type": "message.received",
+  "event_id": "evt-001",
+  "timestamp": 1704067200000,
+  "platform": "taobao",
+  "adapter_id": "adapter-001",
+  "payload": {
+    "conversation_id": "conv-001",
+    "sender_id": "user-123",
+    "sender_name": "Buyer A",
+    "message_type": "text",
+    "message_content": "Hello"
+  }
+}
+```
 
-## 错误码
+## Error codes
 
-| 错误码 | 说明 |
+| Error code | Description |
 |--------|------|
-| 400 | 请求参数错误 |
-| 401 | 未认证 |
-| 403 | 无权限 |
-| 404 | 资源不存在 |
-| 409 | 资源冲突 |
-| 500 | 服务器内部错误 |
+| 400 | Invalid request parameters |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Resource not found |
+| 409 | Resource conflict |
+| 500 | Internal server error |
 
-## 速率限制
+## Rate limiting
 
-- 默认限制：100 请求/分钟
-- 认证接口：10 请求/分钟
-- WebSocket：无限制
+- Default limit: 100 requests/minute
+- Authentication endpoints: 10 requests/minute
+- WebSocket: unlimited
 
-## 版本历史
+## Version history
 
-- v1.0.0 (2024-01-01): 初始版本
+- v1.0.0 (2024-01-01): Initial version

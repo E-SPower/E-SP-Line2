@@ -1,0 +1,38 @@
+name: Labeler
+
+# Path labels only. `pull_request_target` gives the job a write token on a fork
+# PR; that is safe here because the job never runs the fork's code — it checks
+# out the base branch and only reads paths.
+#
+# Consequence of pull_request_target: on the PR that first adds this workflow the
+# job will not run, because the base branch has no workflow yet. It starts
+# working on the next PR.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  # Needed only to create a label that was deleted by hand; labels.yml is the
+  # intended set and is created up front.
+  issues: write
+
+concurrency:
+  group: labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/labeler@v5
+        with:
+          # Config lives in .github/labeler.yml; default is the same path, spelled
+          # out so a future move cannot silently stop labelling.
+          configuration-path: .github/labeler.yml
+          # Do not strip a label a human set by hand.
+          sync-labels: false

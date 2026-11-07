@@ -1,9 +1,18 @@
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Globe, Pencil, Plus, Trash2 } from 'lucide-react'
 import apiClient from '../api/client'
-import EntityModal, { FieldConfig } from '../components/EntityModal'
-import { useFormOptions } from '../hooks/useFormOptions'
+import { PageHeader } from '../components/ui/page-header'
+import { TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableShell } from '../components/ui/table-shell'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { EmptyState } from '../components/ui/empty-state'
+import { ErrorState } from '../components/ui/error-state'
+import { SkeletonRows } from '../components/ui/skeleton'
+import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
+import { FormField, controlClassName } from '../components/ui/form-field'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 
 interface Platform {
   id: string
@@ -14,23 +23,32 @@ interface Platform {
   created_at: string
 }
 
+interface Notice {
+  variant: 'success' | 'danger'
+  text: string
+}
+
+const emptyForm = { name: '', code: '', description: '', status: 'active' }
+
 export default function Platforms() {
   const { t } = useTranslation()
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [notice, setNotice] = useState<Notice | null>(null)
+
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Platform | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState(emptyForm)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
-  const { getOptions } = useFormOptions()
-  const codeOptions = getOptions('platform_codes')
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    loadPlatforms()
-  }, [])
+  const [deleting, setDeleting] = useState<Platform | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletePending, setDeletePending] = useState(false)
 
-  const loadPlatforms = async () => {
+  const loadPlatforms = useCallback(async () => {
     setLoading(true)
     setError(null)
     const result = await apiClient.getPlatforms()
@@ -41,172 +59,296 @@ export default function Platforms() {
       setPlatforms(result.data || [])
     }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    void loadPlatforms()
+  }, [loadPlatforms])
 
   const openCreate = () => {
     setEditing(null)
+    setForm(emptyForm)
+    setFieldErrors({})
     setFormError(null)
-    setModalOpen(true)
+    setDialogOpen(true)
   }
 
   const openEdit = (platform: Platform) => {
     setEditing(platform)
+    setForm({
+      name: platform.name,
+      code: platform.code,
+      description: platform.description || '',
+      status: platform.status || 'active',
+    })
+    setFieldErrors({})
     setFormError(null)
-    setModalOpen(true)
+    setDialogOpen(true)
   }
 
-  const handleSubmit = async (values: Record<string, any>) => {
-    setSubmitting(true)
+  const submit = async () => {
+    const errors: Record<string, string> = {}
+    if (!form.name.trim()) errors.name = t('common.required', { field: t('common.name') })
+    if (!editing && !form.code.trim()) errors.code = t('common.required', { field: t('platforms.code') })
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    setSaving(true)
     setFormError(null)
     const result = editing
-      ? await apiClient.updatePlatform(editing.id, values)
-      : await apiClient.createPlatform(values)
-    setSubmitting(false)
+      ? await apiClient.updatePlatform(editing.id, {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          status: form.status,
+        })
+      : await apiClient.createPlatform({
+          name: form.name.trim(),
+          code: form.code.trim(),
+          description: form.description.trim(),
+        })
+    setSaving(false)
+
     if (result.error) {
       setFormError(result.error)
       return
     }
-    setModalOpen(false)
-    loadPlatforms()
+    setDialogOpen(false)
+    setNotice({ variant: 'success', text: t(editing ? 'notice.updated' : 'notice.created', { name: form.name.trim() }) })
+    await loadPlatforms()
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(t('common.confirmDelete') || 'Delete this item?')) return
-    const result = await apiClient.deletePlatform(id)
-    if (!result.error) {
-      loadPlatforms()
+  const confirmDelete = async () => {
+    if (!deleting) return
+    setDeletePending(true)
+    setDeleteError(null)
+    const result = await apiClient.deletePlatform(deleting.id)
+    setDeletePending(false)
+    if (result.error) {
+      setDeleteError(result.error)
+      return
     }
+    setNotice({ variant: 'success', text: t('notice.deleted', { name: deleting.name }) })
+    setDeleting(null)
+    await loadPlatforms()
   }
 
-  const fields: FieldConfig[] = [
-    { key: 'name', label: t('common.name'), required: true },
-    {
-      key: 'code',
-      label: t('platforms.code'),
-      type: 'select',
-      required: true,
-      options: codeOptions,
-      placeholder: t('platforms.selectCode'),
-      helpText: t('platforms.codeHelp'),
-    },
-    { key: 'description', label: t('common.description') },
+  const columns = [
+    { key: 'name', label: t('common.name'), className: 'min-w-[11rem]' },
+    { key: 'code', label: t('platforms.code'), className: 'min-w-[9rem]' },
+    { key: 'description', label: t('common.description'), className: 'min-w-[14rem]' },
+    { key: 'status', label: t('common.status'), className: 'min-w-[6rem]' },
+    { key: 'actions', label: t('common.actions'), className: 'min-w-[6rem] text-right' },
   ]
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">{t('common.loading')}</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="text-red-800">Error: {error}</div>
-        <button 
-          onClick={loadPlatforms}
-          className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
-
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('platforms.title')}</h1>
-        <button
-          onClick={openCreate}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          {t('platforms.create')}
-        </button>
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {t('common.name')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {t('platforms.code')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {t('common.description')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {t('common.status')}
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {t('common.actions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {platforms.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                  {t('platforms.noPlatforms') || 'No platforms found. Create your first platform to get started.'}
-                </td>
-              </tr>
-            ) : (
-              platforms.map((platform) => (
-                <tr key={platform.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {platform.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {platform.code}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {platform.description}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      platform.status === 'active' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {platform.status === 'active' ? t('platforms.active') : t('platforms.inactive')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => openEdit(platform)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(platform.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <EntityModal
-        title={editing ? t('platforms.edit') || 'Edit Platform' : t('platforms.create')}
-        open={modalOpen}
-        fields={fields}
-        initialValues={editing ? { name: editing.name, code: editing.code, description: editing.description } : undefined}
-        submitting={submitting}
-        error={formError}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSubmit}
+    <>
+      <PageHeader
+        title={t('platforms.title')}
+        description={t('platforms.subtitle')}
+        actions={
+          <Button variant="primary" size="sm" onClick={openCreate}>
+            <Plus />
+            {t('platforms.create')}
+          </Button>
+        }
       />
-    </div>
+
+      {notice && (
+        <Badge variant={notice.variant} role="status" aria-live="polite">
+          {notice.text}
+        </Badge>
+      )}
+
+      {error ? (
+        <ErrorState
+          title={t('state.loadFailed')}
+          description={error || t('state.loadFailedHint')}
+          onRetry={loadPlatforms}
+          retryLabel={t('common.retry')}
+        />
+      ) : (
+        <TableShell
+          busy={loading}
+          toolbar={
+            <span className="tabular text-xs text-text-tertiary">
+              {loading ? t('state.loadingData') : t('platforms.count', { count: platforms.length })}
+            </span>
+          }
+          empty={
+            loading ? (
+              <SkeletonRows rows={5} columns={4} />
+            ) : platforms.length === 0 ? (
+              <EmptyState
+                icon={Globe}
+                title={t('platforms.empty')}
+                description={t('platforms.emptyHint')}
+                action={
+                  <Button variant="primary" size="sm" onClick={openCreate}>
+                    <Plus />
+                    {t('platforms.create')}
+                  </Button>
+                }
+              />
+            ) : undefined
+          }
+        >
+          <TableHead>
+            <tr>
+              {columns.map((column) => (
+                <TableHeaderCell key={column.key} className={column.className}>
+                  {column.label}
+                </TableHeaderCell>
+              ))}
+            </tr>
+          </TableHead>
+          <TableBody>
+            {platforms.map((platform) => (
+              <TableRow key={platform.id}>
+                <TableCell className="min-w-[11rem] font-medium text-text-primary">{platform.name}</TableCell>
+                <TableCell className="min-w-[9rem]">
+                  <code className="rounded-xs bg-surface-inset px-1.5 py-0.5 font-mono text-xs text-text-secondary">
+                    {platform.code}
+                  </code>
+                </TableCell>
+                <TableCell className="min-w-[14rem]">
+                  <span className="truncate-cell text-text-tertiary" title={platform.description}>
+                    {platform.description || '—'}
+                  </span>
+                </TableCell>
+                <TableCell className="min-w-[6rem]">
+                  <Badge variant={platform.status === 'active' ? 'success' : 'neutral'} dot>
+                    {platform.status === 'active' ? t('platforms.active') : t('platforms.inactive')}
+                  </Badge>
+                </TableCell>
+                <TableCell className="min-w-[6rem] text-right">
+                  <div className="inline-flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openEdit(platform)}
+                      aria-label={t('common.edit')}
+                      title={t('common.edit')}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-danger-fg hover:bg-danger-bg"
+                      onClick={() => {
+                        setDeleteError(null)
+                        setDeleting(platform)
+                      }}
+                      aria-label={t('common.delete')}
+                      title={t('common.delete')}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </TableShell>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => !saving && setDialogOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? t('platforms.editTitle') : t('platforms.createTitle')}</DialogTitle>
+            <DialogDescription>{t('platforms.createHint')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <FormField label={t('common.name')} hint={t('platforms.nameHint')} required error={fieldErrors.name}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={controlClassName}
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  autoFocus
+                />
+              )}
+            </FormField>
+
+            <FormField label={t('platforms.code')} hint={t('platforms.codeHint')} required={!editing} error={fieldErrors.code}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={controlClassName}
+                  value={form.code}
+                  disabled={Boolean(editing)}
+                  onChange={(event) => setForm({ ...form, code: event.target.value })}
+                />
+              )}
+            </FormField>
+
+            <FormField label={t('common.description')} hint={t('platforms.descHint')}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={controlClassName}
+                  value={form.description}
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                />
+              )}
+            </FormField>
+
+            {editing && (
+              <FormField label={t('common.status')}>
+                {(props) => (
+                  <div {...props}>
+                    <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">{t('platforms.active')}</SelectItem>
+                        <SelectItem value="inactive">{t('platforms.inactive')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </FormField>
+            )}
+
+            {formError && (
+              <p role="alert" className="rounded-md border border-danger-border bg-danger-bg px-2.5 py-2 text-xs text-danger-fg">
+                {formError}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void submit()} disabled={saving}>
+              {saving ? t('common.saving') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={t('platforms.deleteTitle')}
+        description={
+          <>
+            {deleting && <span className="font-medium text-text-secondary">{deleting.name}</span>}
+            {deleting && ' — '}
+            {t('platforms.deleteHint')}
+          </>
+        }
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        pendingLabel={t('common.deleting')}
+        pending={deletePending}
+        error={deleteError}
+        onConfirm={() => void confirmDelete()}
+      />
+    </>
   )
 }

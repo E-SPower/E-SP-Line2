@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 
+	"github.com/e-spl/e-sp-line2/internal/adapter"
 	"github.com/e-spl/e-sp-line2/internal/adapters"
 	"github.com/e-spl/e-sp-line2/internal/config"
 	"github.com/e-spl/e-sp-line2/internal/repository"
@@ -41,6 +42,11 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	services := &Services{
 		Repo:  repos,
 		repos: repos,
+	}
+
+	// 内置适配器来自平台注册表，启动时同步进库。
+	if err := adapter.SyncBuiltins(repos.Platform, repos.AdapterPackage); err != nil {
+		return nil, err
 	}
 
 	// Initialize services

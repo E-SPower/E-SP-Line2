@@ -1,131 +1,131 @@
-# 故障排除
+# Troubleshooting
 
-## 常见问题
+## Common problems
 
-### 1. 适配器无法启动
+### 1. The adapter will not start
 
-#### 症状
-- 适配器状态停留在 "Starting"
-- 日志显示连接失败
+#### Symptoms
+- The adapter status stays at "Starting"
+- The logs show a connection failure
 
-#### 可能原因
-1. Cookie 失效或格式错误
-2. 网络连接问题
-3. 平台服务不可用
-4. 配置参数错误
+#### Possible causes
+1. The Cookie is invalid or malformed
+2. Network connectivity problems
+3. The platform service is unavailable
+4. Wrong configuration parameters
 
-#### 解决步骤
+#### Resolution steps
 
-**检查 Cookie**
+**Check the Cookie**
 ```bash
-# 验证 Cookie 格式
+# Validate the Cookie format
 curl -H "Cookie: your_cookie_here" https://www.taobao.com
 ```
 
-**检查网络**
+**Check the network**
 ```bash
-# 测试网络连接
+# Test network connectivity
 ping www.taobao.com
 ping www.goofish.com
 ```
 
-**查看日志**
+**Check the logs**
 ```bash
-# 查看后端日志
+# View the backend logs
 tail -f logs/app.log
 ```
 
-### 2. 消息接收不到
+### 2. Messages are not received
 
-#### 症状
-- 适配器状态为 "Running"
-- 但没有收到任何消息
+#### Symptoms
+- The adapter status is "Running"
+- But no messages arrive
 
-#### 可能原因
-1. 路由规则未配置
-2. 路由规则未启用
-3. 下游应用未连接
-4. 平台消息延迟
+#### Possible causes
+1. No routing rules are configured
+2. The routing rules are not enabled
+3. The downstream application is not connected
+4. Platform message delay
 
-#### 解决步骤
+#### Resolution steps
 
-**检查路由规则**
-1. 进入"路由规则"页面
-2. 确认规则已启用
-3. 检查匹配条件是否正确
+**Check the routing rules**
+1. Go to the Routes page
+2. Confirm that the rules are enabled
+3. Check whether the match conditions are correct
 
-**检查下游应用**
-1. 确认应用已连接
-2. 检查应用 WebSocket 状态
-3. 查看应用日志
+**Check the downstream application**
+1. Confirm that the application is connected
+2. Check the application WebSocket status
+3. Check the application logs
 
-**测试消息流**
-1. 使用"路由测试"工具
-2. 发送测试消息
-3. 查看消息追踪
+**Test the message flow**
+1. Use the route testing tool
+2. Send a test message
+3. Check message tracking
 
-### 3. 消息发送失败
+### 3. Message sending fails
 
-#### 症状
-- 发送消息时返回错误
-- 消息状态为 "Failed"
+#### Symptoms
+- Sending a message returns an error
+- The message status is "Failed"
 
-#### 可能原因
-1. 目标用户不存在
-2. 消息格式错误
-3. 平台限制（频率、内容等）
-4. Cookie 权限不足
+#### Possible causes
+1. The target user does not exist
+2. The message format is wrong
+3. Platform limits (rate, content, etc.)
+4. Insufficient Cookie permissions
 
-#### 解决步骤
+#### Resolution steps
 
-**检查目标**
-- 确认目标用户 ID 正确
-- 确认会话已创建
+**Check the target**
+- Confirm that the target user ID is correct
+- Confirm that the conversation has been created
 
-**检查消息格式**
+**Check the message format**
 ```json
 {
   "type": "text",
-  "content": "消息内容"
+  "content": "Message content"
 }
 ```
 
-**查看错误详情**
-1. 进入"消息追踪"页面
-2. 找到失败的消息
-3. 查看详细错误信息
+**Check the error details**
+1. Go to the Messages page
+2. Find the failed message
+3. View the detailed error information
 
-### 4. 系统性能问题
+### 4. System performance problems
 
-#### 症状
-- 消息处理延迟
-- 系统响应缓慢
-- 内存使用过高
+#### Symptoms
+- Message processing delay
+- Slow system response
+- High memory usage
 
-#### 可能原因
-1. 消息队列积压
-2. 数据库性能问题
-3. 连接数过多
-4. 内存泄漏
+#### Possible causes
+1. Message queue backlog
+2. Database performance problems
+3. Too many connections
+4. Memory leak
 
-#### 解决步骤
+#### Resolution steps
 
-**检查队列状态**
+**Check the queue status**
 ```bash
-# 查看队列长度
+# View the queue length
 redis-cli llen message:queue
 ```
 
-**优化数据库**
+**Optimize the database**
 ```sql
--- 检查慢查询
+-- Check slow queries
 SHOW PROCESSLIST;
 
--- 优化索引
+-- Optimize indexes
 ANALYZE TABLE inbound_events;
 ```
 
-**调整配置**
+**Adjust the configuration**
 ```yaml
 # config.yaml
 server:
@@ -137,21 +137,21 @@ queue:
   consumer_count: 5
 ```
 
-### 5. WebSocket 连接断开
+### 5. WebSocket connection drops
 
-#### 症状
-- 应用频繁断开连接
-- 重连后丢失消息
+#### Symptoms
+- The application disconnects frequently
+- Messages are lost after reconnecting
 
-#### 可能原因
-1. 网络不稳定
-2. 心跳超时
-3. 服务器重启
-4. 负载均衡问题
+#### Possible causes
+1. Unstable network
+2. Heartbeat timeout
+3. Server restart
+4. Load balancing problems
 
-#### 解决步骤
+#### Resolution steps
 
-**检查心跳配置**
+**Check the heartbeat configuration**
 ```json
 {
   "heartbeat_interval": 30,
@@ -159,9 +159,9 @@ queue:
 }
 ```
 
-**实现重连逻辑**
+**Implement reconnect logic**
 ```javascript
-// 前端重连示例
+// Frontend reconnect example
 function connect() {
   const ws = new WebSocket('ws://localhost:8080/ws/app');
   
@@ -171,59 +171,59 @@ function connect() {
 }
 ```
 
-**检查服务器日志**
+**Check the server logs**
 ```bash
-# 查看 WebSocket 日志
+# View the WebSocket logs
 grep "WebSocket" logs/app.log
 ```
 
-## 日志分析
+## Log analysis
 
-### 日志级别
+### Log levels
 
-- **DEBUG**：调试信息，详细的技术细节
-- **INFO**：一般信息，正常操作流程
-- **WARN**：警告信息，可能的问题
-- **ERROR**：错误信息，需要处理的问题
-- **FATAL**：致命错误，系统无法继续运行
+- **DEBUG**: debug information, detailed technical details
+- **INFO**: general information, normal operation flow
+- **WARN**: warnings, possible problems
+- **ERROR**: error information, problems that need handling
+- **FATAL**: fatal errors, the system cannot keep running
 
-### 常用日志查询
+### Common log queries
 
-**查找错误**
+**Find errors**
 ```bash
 grep "ERROR" logs/app.log | tail -50
 ```
 
-**查找特定适配器**
+**Find a specific adapter**
 ```bash
 grep "adapter_id: instance-001" logs/app.log
 ```
 
-**查找特定时间段**
+**Find a specific time range**
 ```bash
 grep "2024-01-01 10:" logs/app.log
 ```
 
-### 日志格式
+### Log format
 
 ```
-[时间] [级别] [模块] 消息内容 key1=value1 key2=value2
+[time] [level] [module] message content key1=value1 key2=value2
 ```
 
-示例：
+Example:
 ```
 [2024-01-01 10:30:45] [INFO] [adapter] Adapter started adapter_id=instance-001 platform=taobao
 ```
 
-## 调试工具
+## Debugging tools
 
-### 1. 健康检查端点
+### 1. Health check endpoint
 
 ```bash
 curl http://localhost:8080/health
 ```
 
-响应：
+Response:
 ```json
 {
   "status": "ok",
@@ -232,13 +232,13 @@ curl http://localhost:8080/health
 }
 ```
 
-### 2. 系统状态端点
+### 2. System status endpoint
 
 ```bash
 curl http://localhost:8080/api/v1/system/status
 ```
 
-响应：
+Response:
 ```json
 {
   "adapters": {
@@ -258,45 +258,45 @@ curl http://localhost:8080/api/v1/system/status
 }
 ```
 
-### 3. 消息追踪
+### 3. Message tracking
 
-在管理界面使用"消息追踪"功能：
-1. 输入消息 ID 或 trace ID
-2. 查看消息完整生命周期
-3. 分析处理时间和状态
+Use message tracking on the Messages page:
+1. Enter a message ID or trace ID
+2. View the full message lifecycle
+3. Analyze the processing time and status
 
-### 4. 路由测试
+### 4. Route testing
 
-在管理界面使用"路由测试"功能：
-1. 构造测试消息
-2. 选择平台和实例
-3. 查看匹配的规则
-4. 验证路由结果
+Use route testing in the management interface:
+1. Build a test message
+2. Select a platform and instance
+3. View the matched rules
+4. Verify the routing result
 
-## 性能优化
+## Performance tuning
 
-### 数据库优化
+### Database tuning
 
-**索引优化**
+**Index tuning**
 ```sql
--- 添加常用查询索引
+-- Add indexes for common queries
 CREATE INDEX idx_inbound_events_platform ON inbound_events(platform_id);
 CREATE INDEX idx_inbound_events_status ON inbound_events(status);
 CREATE INDEX idx_inbound_events_created ON inbound_events(created_at);
 ```
 
-**查询优化**
+**Query tuning**
 ```sql
--- 使用分页查询
+-- Use paged queries
 SELECT * FROM inbound_events 
 WHERE status = 'received' 
 ORDER BY created_at DESC 
 LIMIT 100 OFFSET 0;
 ```
 
-### 缓存优化
+### Caching
 
-**Redis 配置**
+**Redis configuration**
 ```yaml
 cache:
   enabled: true
@@ -306,14 +306,14 @@ cache:
   ttl: 3600
 ```
 
-**缓存策略**
-- 平台配置：长期缓存
-- 路由规则：中期缓存
-- 会话状态：短期缓存
+**Caching strategy**
+- Platform configuration: long-term cache
+- Routing rules: medium-term cache
+- Conversation state: short-term cache
 
-### 连接池优化
+### Connection pool tuning
 
-**数据库连接池**
+**Database connection pool**
 ```yaml
 database:
   pool_size: 20
@@ -321,7 +321,7 @@ database:
   pool_timeout: 30
 ```
 
-**HTTP 连接池**
+**HTTP connection pool**
 ```yaml
 http_client:
   max_connections: 100
@@ -329,27 +329,27 @@ http_client:
   keep_alive: true
 ```
 
-## 监控告警
+## Monitoring and alerts
 
-### 关键指标
+### Key metrics
 
-1. **适配器状态**
-   - 运行中适配器数量
-   - 错误适配器数量
-   - 适配器启动成功率
+1. **Adapter status**
+   - Number of running adapters
+   - Number of adapters in error
+   - Adapter start success rate
 
-2. **消息指标**
-   - 消息接收速率
-   - 消息发送成功率
-   - 消息处理延迟
+2. **Message metrics**
+   - Message receive rate
+   - Message send success rate
+   - Message processing delay
 
-3. **系统指标**
-   - CPU 使用率
-   - 内存使用率
-   - 磁盘 I/O
-   - 网络流量
+3. **System metrics**
+   - CPU usage
+   - Memory usage
+   - Disk I/O
+   - Network traffic
 
-### 告警配置
+### Alert configuration
 
 ```yaml
 alerts:
@@ -369,26 +369,26 @@ alerts:
     notification: slack
 ```
 
-## 联系支持
+## Contact support
 
-如果以上方法无法解决问题，请提供以下信息：
+If the methods above do not solve the problem, provide the following information:
 
-1. **系统信息**
-   - 系统版本
-   - 操作系统
-   - 数据库类型和版本
+1. **System information**
+   - System version
+   - Operating system
+   - Database type and version
 
-2. **错误信息**
-   - 完整的错误日志
-   - 错误发生时间
-   - 错误复现步骤
+2. **Error information**
+   - The complete error logs
+   - When the error occurred
+   - Steps to reproduce the error
 
-3. **配置信息**
-   - 相关配置文件（脱敏）
-   - 适配器配置
-   - 路由规则配置
+3. **Configuration information**
+   - The relevant configuration files (redacted)
+   - Adapter configuration
+   - Routing rule configuration
 
-4. **环境信息**
-   - 网络环境
-   - 部署方式
-   - 相关服务状态
+4. **Environment information**
+   - Network environment
+   - Deployment method
+   - Status of the relevant services

@@ -14,20 +14,20 @@ import "time"
 //
 // The key is user-defined and editable. The WS address is configurable.
 type Adapter struct {
-	ID         string     `json:"id" gorm:"primaryKey"`
-	Name       string     `json:"name" gorm:"not null"`
-	Mode       string     `json:"mode" gorm:"default:'server'"` // server / client
-	ListenPath string     `json:"listen_path"`                  // server mode: listen path (default /ws/adapter-gateway/:id)
-	WSURL      string     `json:"ws_url"`                       // client mode: target WebSocket URL to connect to
-	Key        string     `json:"key"`                          // user-defined, editable access key
-	Platform   string     `json:"platform"`                     // taobao / xianyu / "" (all)
-	Scope      string     `json:"scope" gorm:"default:'read+write'"` // read / write / read+write
-	Status     string     `json:"status" gorm:"default:'active'"`    // active / disabled
-	Enabled    bool       `json:"enabled" gorm:"default:true"`
+	ID              string     `json:"id" gorm:"primaryKey"`
+	Name            string     `json:"name" gorm:"not null"`
+	Mode            string     `json:"mode" gorm:"default:'server'"`      // server / client
+	ListenPath      string     `json:"listen_path"`                       // server mode: listen path (default /ws/adapter-gateway/:id)
+	WSURL           string     `json:"ws_url"`                            // client mode: target WebSocket URL to connect to
+	Key             string     `json:"key"`                               // user-defined, editable access key
+	Platform        string     `json:"platform"`                          // taobao / xianyu / "" (all)
+	Scope           string     `json:"scope" gorm:"default:'read+write'"` // read / write / read+write
+	Status          string     `json:"status" gorm:"default:'active'"`    // active / disabled
+	Enabled         bool       `json:"enabled" gorm:"default:true"`
 	LastConnectedAt *time.Time `json:"last_connected_at"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	CreatedBy  string     `json:"created_by"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	CreatedBy       string     `json:"created_by"`
 }
 
 // TableName returns the table name for the Adapter model.

@@ -1,0 +1,44 @@
+# CODEOWNERS — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Rules are matched bottom-up: the LAST matching pattern wins, so the broad
+# default comes first and the narrow overrides below it. Only the last match is
+# used, not a union — putting a specific path above `*` does nothing.
+#
+# The default is the one handle that is certainly a member of the org. A team
+# (`@E-SPower/maintainers`) is the better shape once it exists and its members
+# are maintainers, but a handle that does not exist fails silently: GitHub
+# requests nobody and the PR looks owned. Replace all entries together, then.
+#
+# Every change needs a named reviewer.
+
+*                                   @TyperBody
+
+# Protocol v3, signing and the message field contract. A break here is expensive
+# to undo, so it does not ride along in a larger PR unreviewed.
+/backend/internal/protocol/         @TyperBody
+/backend/internal/messagefields/    @TyperBody
+/docs/developer-guide/protocol-v3.md @TyperBody
+/docs/developer-guide/message-fields.md @TyperBody
+
+# Platform registry: matrix.json generates public Go code and a public doc, so a
+# matrix edit is a code change even when the diff is one JSON line.
+/matrix.json                        @TyperBody
+/scripts/gen_platformspec.py        @TyperBody
+/scripts/gen_capabilities.py        @TyperBody
+/scripts/check_generated.py         @TyperBody
+/backend/internal/platformspec/     @TyperBody
+
+# The merge gate itself — workflows, template, labels, this file. A broken CI
+# config is invisible until it is on `main`.
+/.github/                           @TyperBody
+
+# Front end design tokens and the shared component library: a UI-SPEC violation
+# is review feedback, not a nit.
+/web/tailwind.config.js             @TyperBody
+/web/src/components/ui/             @TyperBody
+/web/UI-SPEC.md                     @TyperBody
+
+# Auth, secrets and the security policy.
+/backend/internal/middleware/       @TyperBody
+/backend/internal/service/auth.go   @TyperBody
+/.github/SECURITY.md                @TyperBody

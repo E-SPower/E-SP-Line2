@@ -128,6 +128,11 @@ func serializeRawMessage(raw interface{}) string {
 	if raw == nil {
 		return ""
 	}
+	// If already a string, return as-is
+	if str, ok := raw.(string); ok {
+		return str
+	}
+	// Otherwise, marshal to JSON
 	data, err := json.Marshal(raw)
 	if err != nil {
 		return ""

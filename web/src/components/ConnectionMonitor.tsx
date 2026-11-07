@@ -18,7 +18,6 @@ export default function ConnectionMonitor() {
     if (window.location.pathname === '/login') return
 
     let cancelled = false
-    let timer: ReturnType<typeof setInterval>
 
     const check = async () => {
       if (cancelled) return
@@ -44,12 +43,11 @@ export default function ConnectionMonitor() {
     }
 
     check()
-    timer = setInterval(check, 3000)
+    const timer = setInterval(check, 3000)
     return () => {
       cancelled = true
       clearInterval(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Only show after having been online at least once (to avoid flashing the

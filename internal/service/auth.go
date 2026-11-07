@@ -42,9 +42,9 @@ type LoginRequest struct {
 
 // AuthResponse represents an authentication response
 type AuthResponse struct {
-	Token     string         `json:"token"`
-	User      *models.User   `json:"user"`
-	ExpiresAt int64          `json:"expires_at"`
+	Token     string       `json:"token"`
+	User      *models.User `json:"user"`
+	ExpiresAt int64        `json:"expires_at"`
 }
 
 // Claims represents JWT claims

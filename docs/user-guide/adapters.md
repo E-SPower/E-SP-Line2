@@ -1,62 +1,48 @@
-# 适配器配置
+# Adapter configuration
 
-## 概述
+## Overview
 
-适配器是连接电商平台的核心组件，负责消息的接收和发送。每个适配器实例对应一个具体的账号或店铺。
+An adapter is the core component that connects to e-commerce platforms and handles message receipt and sending. Each adapter instance corresponds to a specific account or shop.
 
-## 支持的适配器
+## Supported adapters
 
-### 淘宝适配器（Taobao Adapter）
+Every platform in the capability matrix ships a built-in adapter. The full list, with each platform's login methods and per-command support, is in the [platform capability matrix](../developer-guide/platform-capabilities.md) and served by `GET /api/v1/platforms/spec`.
 
-**能力**：
-- 接收文本消息
-- 接收图片消息
-- 发送文本消息
-- 发送图片消息
-- 上传媒体文件
-- 获取历史消息
-- 创建会话
+Adapters come in two stages:
 
-**配置要求**：
-- Cookie：淘宝登录 Cookie
-- Device ID：设备标识（可选）
+- **Active** (12): Xiaohongshu, Douyin, TikTok, Bilibili, Kuaishou, Weibo, Xianyu, Taobao, JD, X, YouTube, 12306. These are registered when the server starts.
+- **Upcoming** (3): Jimeng, Maoyan Shows, M-Team. Registered as `inactive`; the capability table is kept so the same UI can show them.
 
-### 闲鱼适配器（Xianyu Adapter）
+Every adapter is `runtime_type: node`. Credentials are always per-platform: platforms that log in with a cookie take `cookie`, Jimeng takes the `dreamina` CLI credential, M-Team takes an API key, and 12306 needs none.
 
-**能力**：
-- 接收文本消息
-- 接收图片消息
-- 发送文本消息
-- 发送图片消息
-- 上传媒体文件
-- 获取历史消息
-- 创建会话
-- 获取商品信息
+Capabilities are derived from the matrix, so an adapter only advertises what its platform actually supports. Alongside the plain capability words (`receive_message`, `send_text`) each supported command is listed as `<resource>.<action>`; planned commands carry an extra `<resource>.<action>.planned` marker.
 
-**配置要求**：
-- Cookie：闲鱼登录 Cookie
-- Device ID：设备标识（可选）
+## Create an adapter instance
 
-## 创建适配器实例
+### Step 1: Select an adapter package
 
-### 步骤 1：选择适配器包
+On the Adapters page, click "Create instance" and select the adapter package you need.
 
-在"适配器管理"页面，点击"创建实例"，选择需要的适配器包。
+### Step 2: Fill in the configuration
 
-### 步骤 2：填写配置
+The config form is generated from the adapter's `config_schema`, so each platform only asks for what it needs. Common fields:
 
-#### 淘宝适配器配置
+| Field | Type | Meaning |
+|---|---|---|
+| `cookie` | string | Platform login cookie. Required on every cookie platform. |
+| `device_id` | string | Optional device identifier. |
+| `heartbeat_interval` | integer | Heartbeat interval in seconds. Defaults to 15. |
+| `reconnect_delay` | integer | Reconnect delay in seconds. Defaults to 5. |
 
-```json
-{
-  "cookie": "your_taobao_cookie_here",
-  "device_id": "optional_device_id",
-  "heartbeat_interval": 15,
-  "reconnect_delay": 5
-}
-```
+Platform-specific credentials:
 
-#### 闲鱼适配器配置
+| Platform | Field | Notes |
+|---|---|---|
+| Jimeng | `token` | Login state written by `dreamina relogin`; macOS only. |
+| M-Team | `api_key`, `uid` | API key sessions are read-only; `msg` needs a password session. `box` sets the default mailbox. |
+| 12306 | — | No credentials. |
+
+Xianyu example:
 
 ```json
 {
@@ -67,141 +53,137 @@
 }
 ```
 
-### 步骤 3：配置路由规则
+Fields in `security.sensitive_fields` are encrypted at rest and masked in logs — every credential field is on that list (`heartbeat_interval` and `reconnect_delay` are not).
 
-为适配器实例配置路由规则，决定消息如何分发。
+### Step 3: Configure routing rules
 
-### 步骤 4：启动实例
+Configure routing rules for the adapter instance to determine how messages are dispatched.
 
-点击"启动"按钮，系统会：
-1. 验证配置
-2. 连接到平台
-3. 开始接收消息
+### Step 4: Start the instance
 
-## 获取 Cookie
+Click the "Start" button; the system will:
+1. Validate the configuration
+2. Connect to the platform
+3. Begin receiving messages
 
-### 淘宝 Cookie
+## Get a Cookie
 
-1. 打开浏览器，访问 https://www.taobao.com
-2. 登录你的淘宝账号
-3. 按 F12 打开开发者工具
-4. 切换到"Network"标签
-5. 刷新页面
-6. 找到任意请求，查看 Request Headers
-7. 复制 `Cookie` 字段的全部内容
+Copy the cookie from an already signed-in browser:
 
-### 闲鱼 Cookie
+1. Sign in to the platform's web site in a normal window.
+2. Press F12 to open the developer tools.
+3. Switch to the "Network" tab and refresh the page.
+4. Find any same-site request and copy the entire `Cookie` request header.
+5. Paste it into the adapter's `cookie` field.
 
-1. 打开浏览器，访问 https://www.goofish.com
-2. 登录你的闲鱼账号
-3. 按 F12 打开开发者工具
-4. 切换到"Network"标签
-5. 刷新页面
-6. 找到任意请求，查看 Request Headers
-7. 复制 `Cookie` 字段的全部内容
+Export as the site you are actually logged in to: Xiaohongshu from `xiaohongshu.com`, Xianyu from `goofish.com`, and so on. A cookie from the wrong host is rejected at connect time.
 
-## 适配器状态
+Some platforms need more than a cookie — Douyin and TikTok write operations also need the signer material produced by the same sign-in (see the platform's notes in the capability matrix). YouTube needs `SAPISID` in the cookie, which is HttpOnly, so copy it from the request header rather than `document.cookie`.
 
-适配器实例有以下状态：
+Logging in through the browser that already holds the session and then closing that window is best: Google and some other platforms rotate session cookies while the browser keeps using them, and the exported copy then expires within minutes.
 
-- **Stopped**：已停止
-- **Starting**：启动中
-- **Running**：运行中
-- **Stopping**：停止中
-- **Error**：错误状态
-- **Disconnected**：已断开连接
+## Adapter status
 
-## 监控适配器
+An adapter instance has the following statuses:
 
-### 连接状态
+- **Stopped**: stopped
+- **Starting**: starting
+- **Running**: running
+- **Stopping**: stopping
+- **Error**: error state
+- **Disconnected**: disconnected
 
-在"适配器管理"页面可以查看：
-- 当前状态
-- 连接时间
-- 最后心跳时间
-- 消息计数
-- 错误计数
+## Monitor an adapter
 
-### 日志查看
+### Connection status
 
-点击适配器实例的"日志"按钮，可以查看：
-- 连接日志
-- 消息收发日志
-- 错误日志
+On the Adapters page you can view:
+- Current status
+- Connection time
+- Last heartbeat time
+- Message count
+- Error count
 
-## 适配器管理
+### View logs
 
-### 启动/停止
+Click the "Logs" button of an adapter instance to view:
+- Connection logs
+- Message send and receive logs
+- Error logs
 
-- **启动**：建立与平台的连接，开始接收消息
-- **停止**：断开连接，停止接收消息
+## Adapter management
 
-### 重启
+### Start/stop
 
-重启适配器会：
-1. 停止当前连接
-2. 重新验证配置
-3. 建立新连接
+- **Start**: establish a connection to the platform and begin receiving messages
+- **Stop**: disconnect and stop receiving messages
 
-### 删除
+### Restart
 
-删除适配器实例会：
-1. 停止实例（如果正在运行）
-2. 删除配置数据
-3. 删除相关路由规则
+Restarting an adapter will:
+1. Stop the current connection
+2. Validate the configuration again
+3. Establish a new connection
 
-## 最佳实践
+### Delete
 
-### Cookie 管理
+Deleting an adapter instance will:
+1. Stop the instance (if it is running)
+2. Delete the configuration data
+3. Delete the related routing rules
 
-1. **定期更新**：Cookie 会过期，建议定期更新
-2. **安全存储**：Cookie 包含敏感信息，确保存储安全
-3. **监控状态**：关注适配器状态，及时发现 Cookie 失效
+## Best practices
 
-### 性能优化
+### Cookie management
 
-1. **心跳间隔**：根据平台要求设置合适的心跳间隔
-2. **重连策略**：配置合理的重连延迟和最大重试次数
-3. **队列大小**：根据消息量调整队列大小
+1. **Update regularly**: Cookies expire, so update them regularly
+2. **Store securely**: Cookies contain sensitive information, so keep storage secure
+3. **Monitor status**: watch the adapter status to catch an invalid Cookie early
 
-### 故障处理
+### Performance tuning
 
-1. **自动重连**：系统会自动尝试重连
-2. **错误告警**：配置错误告警，及时发现问题
-3. **日志分析**：定期分析日志，优化配置
+1. **Heartbeat interval**: set a suitable heartbeat interval according to platform requirements
+2. **Reconnect strategy**: configure a sensible reconnect delay and maximum retry count
+3. **Queue size**: adjust the queue size to the message volume
 
-## 故障排除
+### Failure handling
 
-### Cookie 失效
+1. **Automatic reconnect**: the system retries the connection automatically
+2. **Error alerts**: configure error alerts to spot problems early
+3. **Log analysis**: analyze the logs regularly and tune the configuration
 
-**症状**：适配器状态变为 Error，日志显示认证失败
+## Troubleshooting
 
-**解决**：
-1. 重新获取 Cookie
-2. 更新适配器配置
-3. 重启适配器
+### Invalid Cookie
 
-### 连接超时
+**Symptoms**: the adapter status changes to Error and the logs show an authentication failure
 
-**症状**：适配器状态为 Starting，长时间无法变为 Running
+**Resolution**:
+1. Get the Cookie again
+2. Update the adapter configuration
+3. Restart the adapter
 
-**解决**：
-1. 检查网络连接
-2. 检查平台服务状态
-3. 增加超时时间配置
+### Connection timeout
 
-### 消息丢失
+**Symptoms**: the adapter status stays Starting and does not change to Running for a long time
 
-**症状**：部分消息没有收到
+**Resolution**:
+1. Check the network connection
+2. Check the platform service status
+3. Increase the timeout setting
 
-**解决**：
-1. 检查路由规则配置
-2. 查看消息追踪日志
-3. 确认下游应用在线
+### Message loss
 
-## 高级配置
+**Symptoms**: some messages are not received
 
-### 自定义心跳间隔
+**Resolution**:
+1. Check the routing rule configuration
+2. Check the message tracking logs
+3. Confirm that the downstream application is online
+
+## Advanced configuration
+
+### Custom heartbeat interval
 
 ```json
 {
@@ -209,7 +191,7 @@
 }
 ```
 
-### 自定义重连策略
+### Custom reconnect strategy
 
 ```json
 {
@@ -218,7 +200,7 @@
 }
 ```
 
-### 代理配置
+### Proxy configuration
 
 ```json
 {

@@ -25,7 +25,7 @@ import (
 // can never be modified at runtime. If a file in the sandbox copy no longer
 // matches its digest, the instance is refused to start (integrity check).
 type InstanceDirManager struct {
-	root       string // e.g. data/instances
+	root        string // e.g. data/instances
 	adaptersDir string // e.g. adapters or data/adapters
 }
 

@@ -1,46 +1,46 @@
-# 快速开始
+# Getting started
 
-## 简介
+## Introduction
 
-E-SP-Line2 是一个平台化接入器管理系统，支持多平台（闲鱼、淘宝等）的消息接入、路由和投递。系统采用四层架构设计，支持异步消息处理、多重可用性保障和多语言国际化。
+E-SP-Line2 is a platform-based adapter management system that supports message ingestion, routing, and delivery for multiple platforms (Xianyu, Taobao, and others). The system uses a four-layer architecture and supports asynchronous message processing, multiple availability safeguards, and multilingual internationalization.
 
-## 系统要求
+## System requirements
 
 - Go 1.22+
-- Node.js 18+
-- Python 3.9+（用于适配器）
-- Redis（可选，用于缓存）
-- PostgreSQL 或 SQLite
+- Node.js 20.11+
+- Python 3.9+ (for adapters)
+- Redis (optional, for caching)
+- PostgreSQL or SQLite
 
-## 安装步骤
+## Installation steps
 
-### 1. 克隆项目
+### 1. Clone the project
 
 ```bash
 git clone <repository-url>
 cd E-SP-Line2
 ```
 
-### 2. 后端安装
+### 2. Backend installation
 
 ```bash
 go mod download
 ```
 
-### 3. 前端安装
+### 3. Frontend installation
 
 ```bash
 cd web
 npm install
 ```
 
-### 4. 配置数据库
+### 4. Configure the database
 
-编辑 `config/config.yaml`：
+Edit `config/config.yaml`:
 
 ```yaml
 database:
-  driver: sqlite  # 或 postgres
+  driver: sqlite  # or postgres
   dsn: ./data/e-sp-line2.db
   
 server:
@@ -48,93 +48,92 @@ server:
   port: 8080
 ```
 
-### 5. 启动服务
+### 5. Start the services
 
 ```bash
-# 启动后端
+# Start the backend
 go run main.go
 
-# 启动前端（新终端）
+# Start the frontend (in a new terminal)
 cd web
 npm run dev
 ```
 
-访问 http://localhost:3000 即可使用管理界面。
+Visit http://localhost:3000 to use the management interface.
 
-## 首次使用
+## First use
 
-### 1. 创建管理员账户
+### 1. Create an administrator account
 
-首次访问系统时，需要创建管理员账户。
+You need to create an administrator account the first time you access the system.
 
-### 2. 配置平台
+### 2. Review the platforms
 
-在"平台管理"页面添加需要接入的电商平台：
+The 12 active platforms (Xiaohongshu, Douyin, TikTok, Bilibili, Kuaishou, Weibo, Xianyu, Taobao, JD, X, YouTube, 12306) are seeded from the platform registry on first start, so the Platforms page already lists them. Jimeng, Maoyan Shows and M-Team are registered as inactive until they ship.
 
-- 淘宝（Taobao）
-- 闲鱼（Xianyu）
+Each platform's supported commands and limitations are in the [capability matrix](../developer-guide/platform-capabilities.md).
 
-### 3. 创建适配器实例
+### 3. Create an adapter instance
 
-在"适配器管理"页面创建适配器实例：
+Create an adapter instance on the Adapters page:
 
-1. 选择平台
-2. 填写账号信息（Cookie 等）
-3. 配置路由规则
+1. Select a platform
+2. Enter the account information (Cookie, etc.)
+3. Configure routing rules
 
-### 4. 启动适配器
+### 4. Start the adapter
 
-点击"启动"按钮启动适配器实例，系统会自动连接到平台并开始接收消息。
+Click the "Start" button to start the adapter instance; the system connects to the platform automatically and begins receiving messages.
 
-## 核心概念
+## Core concepts
 
-### 四层架构
+### Four-layer architecture
 
-1. **平台层（Platform）**：定义业务平台类型（淘宝、闲鱼等）
-2. **接入器包层（Adapter Package）**：具体平台的接入实现，带版本和能力声明
-3. **接入器实例层（Adapter Instance）**：真实账号或店铺的运行配置
-4. **运行会话层（Adapter Session）**：实例当前在线连接状态
+1. **Platform layer**: defines a business platform type (Taobao, Xianyu, etc.)
+2. **Adapter package layer**: the adapter implementation for a specific platform, with a version and capability declarations
+3. **Adapter instance layer**: the runtime configuration of a real account or shop
+4. **Adapter session layer**: the current online connection state of an instance
 
-### 消息流
+### Message flow
 
 ```
-平台 WebSocket → 接入器实例 → 事件总线 → 核心路由 → 下游应用
+Platform WebSocket → adapter instance → event bus → core routing → downstream application
                                               ↓
-                                        出站命令队列
+                                        outbound command queue
                                               ↓
-                                        接入器实例 → 平台发送
+                                        adapter instance → platform send
 ```
 
-### 路由规则
+### Routing rules
 
-路由规则决定消息如何分发到下游应用：
+Routing rules determine how messages are dispatched to downstream applications:
 
-- **平台匹配**：按平台类型匹配
-- **实例匹配**：按具体实例匹配
-- **条件匹配**：按消息内容、发送者等条件匹配
+- **Platform matching**: match by platform type
+- **Instance matching**: match by a specific instance
+- **Condition matching**: match by message content, sender, and other conditions
 
-## 常见问题
+## FAQ
 
-### Q: 适配器启动失败？
+### Q: The adapter fails to start?
 
-A: 检查以下几点：
-1. Cookie 是否有效
-2. 网络连接是否正常
-3. 查看后端日志获取详细错误信息
+A: Check the following:
+1. Whether the Cookie is valid
+2. Whether the network connection works
+3. Check the backend logs for detailed error information
 
-### Q: 消息没有路由到应用？
+### Q: Messages are not routed to the application?
 
-A: 检查：
-1. 是否配置了路由规则
-2. 路由规则是否启用
-3. 下游应用是否在线
+A: Check:
+1. Whether any routing rules are configured
+2. Whether the routing rules are enabled
+3. Whether the downstream application is online
 
-### Q: 如何添加新平台？
+### Q: How do I add a new platform?
 
-A: 参考开发者文档中的"适配器开发指南"。
+A: See "Adapter development guide" in the developer documentation.
 
-## 下一步
+## Next steps
 
-- 阅读 [适配器配置](./adapters.md) 了解详细配置
-- 阅读 [路由规则](./routing.md) 了解消息路由
-- 阅读 [故障排除](./troubleshooting.md) 解决常见问题
+- Read [Adapter configuration](./adapters.md) for detailed configuration
+- Read [Routing rules](./routing.md) to learn about message routing
+- Read [Troubleshooting](./troubleshooting.md) to solve common problems

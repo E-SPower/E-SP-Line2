@@ -1,7 +1,15 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { CheckCheck, Inbox, Plus } from 'lucide-react'
 import apiClient from '../api/client'
+import { PageHeader } from '../components/ui/page-header'
+import { TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableShell } from '../components/ui/table-shell'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { EmptyState } from '../components/ui/empty-state'
+import { ErrorState } from '../components/ui/error-state'
+import { SkeletonRows } from '../components/ui/skeleton'
+import { cn } from '@/lib/cn'
 
 interface Message {
   id: string
@@ -15,17 +23,30 @@ interface Message {
   created_at: string
 }
 
+/** Status → badge variant, so the table never re-derives colours. */
+const statusVariant = (status: string) => {
+  if (status === 'acked') return 'success' as const
+  if (status === 'delivered') return 'info' as const
+  return 'warning' as const
+}
+
+const statusLabelKey = (status: string) => {
+  if (status === 'acked') return 'state.status.acked'
+  if (status === 'delivered') return 'state.status.delivered'
+  return 'state.status.pending'
+}
+
+type Filter = 'all' | 'pending'
+
 export default function Messages() {
   const { t } = useTranslation()
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
+  const [ackingId, setAckingId] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadMessages()
-  }, [])
-
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     setLoading(true)
     setError(null)
     const result = await apiClient.getMessages()
@@ -36,124 +57,155 @@ export default function Messages() {
       setMessages(result.data || [])
     }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    void loadMessages()
+  }, [loadMessages])
 
   const handleAck = async (id: string) => {
-    await apiClient.ackMessage(id)
-    loadMessages()
+    setAckingId(id)
+    setError(null)
+    try {
+      const result = await apiClient.ackMessage(id)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      await loadMessages()
+    } finally {
+      setAckingId(null)
+    }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">{t('common.loading')}</div>
-      </div>
-    )
-  }
+  const pendingCount = useMemo(() => messages.filter((message) => message.status !== 'acked').length, [messages])
 
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="text-red-800">Error: {error}</div>
-        <button 
-          onClick={loadMessages}
-          className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
+  const visible = useMemo(
+    () => (filter === 'pending' ? messages.filter((message) => message.status !== 'acked') : messages),
+    [messages, filter],
+  )
+
+  const filters: { id: Filter; label: string; count: number }[] = [
+    { id: 'all', label: t('common.all'), count: messages.length },
+    { id: 'pending', label: t('messages.pendingOnly'), count: pendingCount },
+  ]
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('messages.title')}</h1>
-      </div>
+    <>
+      <PageHeader
+        title={t('messages.title')}
+        description={t('messages.subtitle')}
+        actions={
+          <Button variant="primary" size="sm">
+            <Plus />
+            {t('common.create')}
+          </Button>
+        }
+      />
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('messages.platform')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('messages.instance')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('messages.sender')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('messages.content')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('messages.timestamp')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('common.status')}
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('common.actions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {messages.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {t('messages.noMessages') || 'No messages found.'}
-                </td>
-              </tr>
-            ) : (
-              messages.map((message) => (
-                <tr key={message.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                    {message.platform_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {message.instance_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                    {message.sender_name || message.sender_id}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300 max-w-xs truncate">
-                    {message.message_content}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(message.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      message.status === 'acked'
-                        ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300'
-                        : message.status === 'delivered'
-                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300'
-                        : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300'
-                    }`}>
-                      {message.status === 'acked'
-                        ? t('messages.statusAcked')
-                        : message.status === 'delivered'
-                        ? t('messages.statusDelivered')
-                        : t('messages.statusPending')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {message.status !== 'acked' && (
-                      <button 
-                        onClick={() => handleAck(message.id)}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
+      {error ? (
+        <ErrorState
+          title={t('state.loadFailed')}
+          description={error || t('state.loadFailedHint')}
+          onRetry={loadMessages}
+          retryLabel={t('common.retry')}
+        />
+      ) : (
+        <TableShell
+          busy={loading}
+          striped
+          toolbar={
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div role="group" aria-label={t('common.status')} className="flex items-center gap-1">
+                {filters.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFilter(item.id)}
+                    aria-pressed={filter === item.id}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                      filter === item.id
+                        ? 'border-transparent bg-primary text-primary-foreground'
+                        : 'border-border bg-surface-raised text-text-tertiary hover:bg-surface-hover hover:text-text-secondary',
                     )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                  >
+                    {item.label}
+                    <span className="tabular opacity-70">{item.count}</span>
+                  </button>
+                ))}
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => void loadMessages()}>
+                {t('common.refresh')}
+              </Button>
+            </div>
+          }
+          empty={
+            loading ? (
+              <SkeletonRows rows={6} columns={5} />
+            ) : visible.length === 0 ? (
+              <EmptyState
+                icon={Inbox}
+                title={t('messages.empty')}
+                description={t('messages.emptyHint')}
+              />
+            ) : undefined
+          }
+        >
+          <TableHead>
+            <tr>
+              <TableHeaderCell className="min-w-[9rem]">{t('messages.instance')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[9rem]">{t('messages.sender')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[16rem]">{t('messages.content')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[9rem]">{t('messages.timestamp')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[6rem]">{t('common.status')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[5rem] text-right">{t('common.actions')}</TableHeaderCell>
+            </tr>
+          </TableHead>
+          <TableBody>
+            {visible.map((message) => (
+              <TableRow key={message.id}>
+                <TableCell className="min-w-[9rem] font-mono text-xs text-text-tertiary">
+                  {message.instance_id}
+                </TableCell>
+                <TableCell className="min-w-[9rem] font-medium text-text-primary">
+                  <span className="truncate-cell" title={message.sender_name || message.sender_id}>
+                    {message.sender_name || message.sender_id}
+                  </span>
+                </TableCell>
+                <TableCell className="min-w-[16rem]">
+                  <span className="truncate-cell text-text-secondary" title={message.message_content}>
+                    {message.message_content}
+                  </span>
+                </TableCell>
+                <TableCell className="tabular min-w-[9rem] whitespace-nowrap text-xs text-text-tertiary">
+                  {new Date(message.created_at).toLocaleString()}
+                </TableCell>
+                <TableCell className="min-w-[6rem]">
+                  <Badge variant={statusVariant(message.status)} dot>
+                    {t(statusLabelKey(message.status))}
+                  </Badge>
+                </TableCell>
+                <TableCell className="min-w-[5rem] text-right">
+                  {message.status !== 'acked' && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-success-fg hover:bg-success-bg"
+                      onClick={() => void handleAck(message.id)}
+                      disabled={ackingId === message.id}
+                      aria-label={t('messages.ackAction')}
+                      title={t('messages.ackAction')}
+                    >
+                      <CheckCheck />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </TableShell>
+      )}
+    </>
   )
 }
