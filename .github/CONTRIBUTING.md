@@ -17,7 +17,7 @@ Thanks for wanting to make E-SP-Line2 better. This guide covers setting up a dev
 | npm or pnpm | current | front-end dependencies |
 | Git | any recent | |
 
-Component versions matter: `backend/go.mod` and `web/package.json` pin what maintainers and the toolchain use. Do not bump a dependency just because — bump it in its own PR with a reason.
+Component versions matter: `go.mod` and `web/package.json` pin what maintainers and the toolchain use. Do not bump a dependency just because — bump it in its own PR with a reason.
 
 ### Backend
 
@@ -63,25 +63,30 @@ Read [web/UI-SPEC.md](../web/UI-SPEC.md) before you touch a page. Every colour c
 
 ### Database
 
-GORM `AutoMigrate` creates the schema on startup, so a fresh checkout needs nothing. Hand-written SQL migrations live in `backend/migrations/` with their own [README](../backend/migrations/README.md); note that `main.go` does not currently expose a `migrate` subcommand, so the SQL files are reference material until it does. Add a migration when you change a persisted model, and keep `IF NOT EXISTS` / `ON CONFLICT` so re-runs are safe.
+GORM `AutoMigrate` creates the schema on startup, so a fresh checkout needs nothing. Hand-written SQL migrations live in `migrations/` with their own [README](../migrations/README.md); note that `main.go` does not currently expose a `migrate` subcommand, so the SQL files are reference material until it does. Add a migration when you change a persisted model, and keep `IF NOT EXISTS` / `ON CONFLICT` so re-runs are safe.
 
 ## 3. Project layout
 
+The Go module is the repository root (`go.mod`, `main.go`).
+
 ```
-backend/
-├── internal/
-│   ├── adapter/      # adapter registry, manager and bridge
-│   ├── config/       # configuration loading
-│   ├── handler/      # HTTP and WebSocket handlers
-│   ├── message/      # event hub, router and dispatcher
-│   ├── middleware/   # auth, CORS and logging middleware
-│   ├── models/       # GORM models
-│   ├── protocol/v3/  # v3 envelope, message chain, signing
-│   ├── repository/   # data access
-│   ├── server/       # server wiring and routes
-│   └── service/      # business logic
-├── migrations/       # SQL migrations
-└── pkg/logger/       # shared logging helpers
+internal/
+├── adapter/          # adapter registry, manager and bridge
+├── adapters/         # embedded adapter bundles
+├── adaptergateway/   # gateway client for the bridges
+├── config/           # configuration loading
+├── handler/          # HTTP and WebSocket handlers
+├── message/          # event hub, router and dispatcher
+├── middleware/       # auth, CORS and logging middleware
+├── models/           # GORM models
+├── protocol/v3/      # v3 envelope, message chain, signing
+├── repository/       # data access
+├── server/           # server wiring and routes
+└── service/          # business logic
+adapters/             # per-platform bridge implementations
+cmd/esp-desktop/      # desktop shell
+migrations/           # SQL migrations
+pkg/logger/           # shared logging helpers
 web/src/
 ├── api/              # typed API client
 ├── components/       # layout and UI component library
@@ -96,7 +101,7 @@ Backend layering is `handler → service → repository`; handlers do not touch 
 
 ### Code
 
-- **Go**: [Effective Go](https://go.dev/doc/effective_go) and [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments). Run `make fmt` and `make lint` before pushing — CI runs both, and `make lint` uses `backend/.golangci.yml`.
+- **Go**: [Effective Go](https://go.dev/doc/effective_go) and [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments). Run `make fmt` and `make lint` before pushing — CI runs both, and `make lint` uses `.golangci.yml`.
 - **TypeScript/React**: the repo's ESLint config (`web/.eslintrc.cjs`), `npm run lint` must be clean, and `tsc` must pass — `npm run build` runs it. The `--max-warnings` budget in `web/package.json` is a ratchet: a new `any` over it is red, and removing one means lowering the number in the same PR.
 - **Comments and user-facing strings in English.** User-facing text goes through i18next; add the key to both `web/src/locales/zh-CN.json` and `en-US.json`, and never delete an existing key.
 - Keep error returns wrapped with context (`fmt.Errorf("...: %w", err)`) rather than logged and swallowed.

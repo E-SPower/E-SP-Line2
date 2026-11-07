@@ -32,7 +32,7 @@ Both fail **silently**, which is the reason they are called out here rather than
 | Version bump / dependency update | Bundled alone, with the upstream changelog linked and `dependencies` label. Never mixed into a feature. |
 | Hotfix to a released tag | Branch from the tag, not `main`, and open the backport PR to `main` in the same sitting. |
 | Adding a new job | Pin every action to a major tag and every toolchain version explicitly. An unpinned tool is a future red build nobody owns. |
-| Dependency is unavailable to the linter | Fix it in the PR that needs it. Disabling a linter for the whole repo to unblock one PR is a separate commit with the reason in the config, as `errcheck` has in `backend/.golangci.yml`. |
+| Dependency is unavailable to the linter | Fix it in the PR that needs it. Disabling a linter for the whole repo to unblock one PR is a separate commit with the reason in the config, as `errcheck` has in `.golangci.yml`. |
 
 ## What the reviewer checks
 
@@ -89,9 +89,9 @@ CI runs these. Run them locally when CI is red for a reason you do not trust, or
 # from the repository root, once:
 export CGO_ENABLED=1
 
-make -C backend test          # CGO_ENABLED=1 is mandatory, see below
-(cd backend && go vet ./...)  # the Go module root is backend/
-make -C backend lint          # golangci-lint, config in backend/.golangci.yml
+make test          # CGO_ENABLED=1 is mandatory, see below
+go vet ./...                  # the Go module root is the repository root
+make lint                     # golangci-lint, config in .golangci.yml
 gofmt -l backend              # must print nothing
 
 # `vite build` writes a `vite.config.ts.timestamp-*.mjs` next to the config, so run

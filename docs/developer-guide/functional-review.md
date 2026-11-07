@@ -34,7 +34,9 @@
 
 ## 1. Blocker
 
-### B1. `AuthRequired` 完全不校验 JWT，任何字符串都是合法令牌
+### B1. ~~`AuthRequired` 完全不校验 JWT~~（基线更新时已在主干修复）
+
+> **已修复（本条保留作背景）**：`internal/middleware/auth.go` 现在有 `ParseToken`，`AuthRequired` 真验签并由 claims 写 context。本树实测：`Bearer total-garbage` → **401**，真 token 打 `/auth/me` → **200** 且返回真实用户。下面记录的是修复前的状态。
 
 **现象**：`middleware.AuthRequired` 只做两件事——要求 `Authorization` 头存在、且形如 `Bearer <something>`；然后无条件写入写死的身份并放行。
 
@@ -49,10 +51,10 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 连真实 JWT 也是 404 —— 因为 `userID` 被写死成 `user-123`，库里根本没有这个用户。注册流程返回的那个可用令牌，从来没被校验过。
 
 **定位**：
-- `backend/internal/middleware/auth.go:34` — `// TODO: Validate token using auth service`
-- `backend/internal/middleware/auth.go:36` — `_ = token`（拿到令牌后直接丢弃）
-- `backend/internal/middleware/auth.go:39-41` — 写死 `userID`/`username`/`role`
-- `backend/internal/service/auth.go:109` — 实现了 `ValidateToken`，**全仓零调用点**（`grep -rn ValidateToken` 只命中定义本身）
+- `internal/middleware/auth.go:34` — `// TODO: Validate token using auth service`
+- `internal/middleware/auth.go:36` — `_ = token`（拿到令牌后直接丢弃）
+- `internal/middleware/auth.go:39-41` — 写死 `userID`/`username`/`role`
+- `internal/service/auth.go:109` — 实现了 `ValidateToken`，**全仓零调用点**（`grep -rn ValidateToken` 只命中定义本身）
 
 **影响**：鉴权等于没有。任何人只要发一个 `Authorization: Bearer x` 就能读写全部资源；`AdminRequired`（`middleware/auth.go:48`）也读不到真实 `role`，且当前没有任何路由挂它。
 
@@ -73,13 +75,13 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 `instance_id` / `app_id` 两个 query 参数只用于打日志，从未参与任何注册。
 
-**根因**：`message.NewHub()`（`backend/internal/message/hub.go:22`）**在全仓没有调用点**。`Dispatcher` / `Router` / `Hub` 三个类型连同 `RegisterConnection`、`ProcessMessage`、`SendCommand` 全是死代码——`grep -rln 'internal/message"' backend` 的结果是**没有任何包导入 `internal/message`**。`service.Services`（`backend/internal/service/services.go:10-21`）里也没有 `Hub` 字段。
+**根因**：`message.NewHub()`（`internal/message/hub.go:22`）**在全仓没有调用点**。`Dispatcher` / `Router` / `Hub` 三个类型连同 `RegisterConnection`、`ProcessMessage`、`SendCommand` 全是死代码——`grep -rln 'internal/message"' backend` 的结果是**没有任何包导入 `internal/message`**。`service.Services`（`internal/service/services.go:10-21`）里也没有 `Hub` 字段。
 
 **定位**：
-- `backend/internal/handler/websocket.go:60` 与 `:112` — 两处 `// Echo back for now (implement actual message processing)`
-- `backend/internal/handler/websocket.go:50`、`:102` — 读循环只用局部变量，不回填 dispatcher
-- `backend/internal/message/hub.go:22` — `NewHub` 无调用方
-- `backend/internal/server/server.go:146-150` — 两条 WS 路由直接传 service，没有 hub 参与
+- `internal/handler/websocket.go:60` 与 `:112` — 两处 `// Echo back for now (implement actual message processing)`
+- `internal/handler/websocket.go:50`、`:102` — 读循环只用局部变量，不回填 dispatcher
+- `internal/message/hub.go:22` — `NewHub` 无调用方
+- `internal/server/server.go:146-150` — 两条 WS 路由直接传 service，没有 hub 参与
 
 **影响**：适配器连上来发消息，服务端不会解析、不会入库、不会路由、不会转发给应用。WebSocket 在产品意义上是空的。
 
@@ -89,11 +91,11 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 **现象**：`messages` 组只注册了 `GET ""`、`GET "/:id"`、`POST "/:id/ack"`。`POST /api/v1/messages` 实测 **404 page not found**。
 
-`MessageService.Create`（`backend/internal/service/message.go:35`）写好了幂等、trace、状态，但**没有任何 handler 调它**。
+`MessageService.Create`（`internal/service/message.go:35`）写好了幂等、trace、状态，但**没有任何 handler 调它**。
 
 **定位**：
-- `backend/internal/server/server.go:118-122` — 消息路由组只有三个只读/审批动作
-- `backend/internal/service/message.go:35` — `Create` 无调用方
+- `internal/server/server.go:118-122` — 消息路由组只有三个只读/审批动作
+- `internal/service/message.go:35` — `Create` 无调用方
 
 **影响**：入站消息唯一可能的来源是 B2 里那个回显的 WebSocket，而它也不入库。所以 `GET /messages` 永远是空数组——实测连续发 WS 帧后 `GET /messages` 仍返回 `{"data":[],"total":0}`。
 
@@ -114,9 +116,9 @@ second insert with empty idempotency_key:
 一旦 B3 把入口接上，这个问题会立刻变成"**第二条消息开始全部 500**"。
 
 **定位**：
-- `backend/internal/models/models.go:75` — `IdempotencyKey string` + `gorm:"uniqueIndex"`
-- `backend/internal/service/message.go:37-42` — 只有 key 非空时才查重，空 key 直接走插入
-- `backend/internal/service/message.go:44-59` — 空 key 原样 `""` 写库
+- `internal/models/models.go:75` — `IdempotencyKey string` + `gorm:"uniqueIndex"`
+- `internal/service/message.go:37-42` — 只有 key 非空时才查重，空 key 直接走插入
+- `internal/service/message.go:44-59` — 空 key 原样 `""` 写库
 
 **影响**：接入接完后即刻触发，且因为 B3 尚未接通，目前是**潜伏缺陷**——上线接消息就炸。
 
@@ -129,9 +131,9 @@ second insert with empty idempotency_key:
 `CommandService` 里 `MarkSent`、`MarkFailed`、`ListPending` 三个方法全仓无调用方。
 
 **定位**：
-- `backend/internal/handler/command.go:45-60` — `CreateCommand` 只调 `commandService.Create`
-- `backend/internal/service/command.go:86`、`:99`、`:78` — `MarkSent` / `MarkFailed` / `ListPending` 无调用方
-- `backend/internal/message/hub.go:98` — `SendCommand` 同样无调用方
+- `internal/handler/command.go:45-60` — `CreateCommand` 只调 `commandService.Create`
+- `internal/service/command.go:86`、`:99`、`:78` — `MarkSent` / `MarkFailed` / `ListPending` 无调用方
+- `internal/message/hub.go:98` — `SendCommand` 同样无调用方
 
 **影响**：下行方向（应用→平台）完全不通。命令表只是个流水账。
 
@@ -141,16 +143,16 @@ second insert with empty idempotency_key:
 
 ## 2. Major
 
-### M1. 所有实体归属写死 `user-123`，用户之间没有隔离
+### M1. ~~所有实体归属写死 `user-123`~~（基线更新时已在主干修复）
 
 **现象**：`CreateInstance` 从 context 取 `userID`，但那是 B1 写死的值。实测 alice 建的实例 `user_id` 是 `"user-123"`；bob 登录后 `GET /instances` **看得到** alice 的实例，`DELETE` 也能删掉（200）。
 
 `AdapterInstance` 有 `UserID` 字段和索引（`models.go:48`），`FindByUserID`（`repository/instance.go:34`）也写好了，但 `List` 走的是无过滤的 `repo.List`（`service/instance.go:102-110`）。
 
 **定位**：
-- `backend/internal/handler/instance.go:54-55` — 取的是假 `userID`
-- `backend/internal/service/instance.go:102-110` — `List` 不按用户过滤
-- `backend/internal/repository/instance.go:34` — `FindByUserID` 无反调用方
+- `internal/handler/instance.go:54-55` — 取的是假 `userID`
+- `internal/service/instance.go:102-110` — `List` 不按用户过滤
+- `internal/repository/instance.go:34` — `FindByUserID` 无反调用方
 
 **影响**：多租户不存在。任何登录用户可增删改别人的实例、适配器、路由。
 
@@ -160,7 +162,7 @@ second insert with empty idempotency_key:
 
 **现象**：无条件 `Access-Control-Allow-Origin: *` 同时 `Access-Control-Allow-Credentials: true`。实测来自 `https://evil.example` 的预检照样拿到这两个头。
 
-**定位**：`backend/internal/middleware/middleware.go:70` 与 `:74`。
+**定位**：`internal/middleware/middleware.go:70` 与 `:74`。
 
 **影响**：`*` 时浏览器带不了凭据；将来若改用 Cookie 承载会话，跨域请求会静默丢 Cookie。当前前端把 JWT 放 `Authorization` 头（不受此限），所以**现在是隐患而非活故障**——属于"配置错但暂时没踩到"。
 
@@ -168,7 +170,7 @@ second insert with empty idempotency_key:
 
 ### M3. 默认 JWT secret 两处硬编码，且没有任何"是否已改"的检查
 
-**定位**：`backend/internal/config/config.go:126`（viper 默认值）、`backend/config/config.yaml:32`（随仓库提交的值），内容都是 `change-this-secret-in-production`。
+**定位**：`internal/config/config.go:126`（viper 默认值）、`config/config.yaml:32`（随仓库提交的值），内容都是 `change-this-secret-in-production`。
 
 **影响**：部署方照抄配置就等于用公开密钥签发令牌，可离线伪造任意身份（叠加 B1 之后更不需要密钥，但修好 B1 就会立刻变成真问题）。
 
@@ -176,7 +178,7 @@ second insert with empty idempotency_key:
 
 ### M4. WebSocket `CheckOrigin` 恒真，且握手不做鉴权
 
-**定位**：`backend/internal/handler/websocket.go:17` — `return true // Allow all origins for development`。
+**定位**：`internal/handler/websocket.go:17` — `return true // Allow all origins for development`。
 
 **影响**：任意站点可开 WS 订阅/灌入消息。叠加 B1/B2，WS 侧连"令牌形状"都不要求（两条 WS 路由不挂任何中间件，见 `server.go:145-150`），只要知道 `instance_id` / `app_id` 就能冒充。
 
@@ -188,7 +190,7 @@ second insert with empty idempotency_key:
 
 同类：`AdapterSession` 的 `GetSession` / `UpdateSessionHeartbeat`（`service/instance.go:113,118`）也无入口。
 
-**定位**：`backend/internal/handler/platform.go:45/64/84`、`backend/internal/server/server.go:74-86`。
+**定位**：`internal/handler/platform.go:45/64/84`、`internal/server/server.go:74-86`。
 
 **影响**：平台数据只能靠启动时 `SyncBuiltins` 灌，运维侧无法增改；且 `/platforms` 与 `/platforms/spec` 两套模型并存，前端用后者、API 文档写前者（见 m4）。
 
@@ -213,7 +215,7 @@ second insert with empty idempotency_key:
 
 **建议**：补 `delete*/update*` 客户端方法 + 表单弹窗。这是纯增量工作，接口层（除 M5 缺的三条）已就绪。
 
-### M7. 硬编码 `http://localhost:8080`，生产构建产物必然连本机
+### M7. ~~硬编码 `http://localhost:8080`~~（基线更新时已在主干修复）
 
 **现象**：API 基址与健康检查地址都写死。实测 `vite build` 产物中 `localhost:8080` 出现 2 次，打进 bundle。
 
@@ -225,7 +227,7 @@ second insert with empty idempotency_key:
 
 **建议**：改成 `import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`，健康检查同样走相对路径；部署用反向代理托管同源。
 
-### M8. 无 401 处理：令牌过期后原地报错，没有跳登录
+### M8. ~~无 401 处理~~（基线更新时已在主干修复）
 
 **现象**：`request()` 在 `!response.ok` 时统一 `return { error }`，不区分状态码；`401` 也只是一个字符串错误。没有拦截器、没有 `clearToken()` 调用、没有跳转。
 
@@ -253,7 +255,7 @@ second insert with empty idempotency_key:
 
 `running` 状态同样永远拿不到：`AdapterInstance.Status` 只在建实例时写死 `"stopped"`（`service/instance.go:48`），`StartAdapter` 改的是 **`AdapterPackage.Status`**（`service/adapter.go:120-134`，`AdapterService` 压根没持有 `InstanceRepository`）；`running` 只存在于 `adapter.Manager` 那个未接线的内存模型里（`adapter/manager.go:19`）。
 
-**定位**：`web/src/pages/Monitoring.tsx:86-88`、`backend/internal/models/models.go:41-51`、`backend/internal/service/instance.go:48`、`backend/internal/service/adapter.go:120`。
+**定位**：`web/src/pages/Monitoring.tsx:86-88`、`internal/models/models.go:41-51`、`internal/service/instance.go:48`、`internal/service/adapter.go:120`。
 
 **影响**：监控页除"总数"外的所有数字恒为 0，状态恒为 "stopped"，错误率恒 `0.00%`。页面看起来在工作，数据是假的。
 
@@ -285,7 +287,7 @@ DELETE /routes/nope                 → 200 {"message":"route deleted"}
 - 全仓**没有一处 409**，但 `api-reference.md` 的"Error codes"表把 409 列为 `Resource conflict`
 - 注册重名回 400 且把 `"username already exists"` 原文回吐（`handler/auth.go:21`），409 更贴切
 
-**定位**：`backend/internal/handler/*.go` 的错误分支、`backend/internal/repository/message.go:165-167`、`docs/developer-guide/api-reference.md:799-808`（Error codes 表）。
+**定位**：`internal/handler/*.go` 的错误分支、`internal/repository/message.go:165-167`、`docs/developer-guide/api-reference.md:799-808`（Error codes 表）。
 
 **影响**：客户端无法据状态码做分支；文档与实现对不上。
 
@@ -314,7 +316,7 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 
 ### M15. `http.Server` 未设任何超时，无请求体大小限制
 
-**定位**：`backend/internal/server/server.go:50-53` 只设了 `Addr` 和 `Handler`；全仓无 `MaxBytesReader`（`grep` 无命中）。
+**定位**：`internal/server/server.go:50-53` 只设了 `Addr` 和 `Handler`；全仓无 `MaxBytesReader`（`grep` 无命中）。
 
 **影响**：Slowloris 可一直挂着连接；超大 body 全量读进内存。实测 2MB 的 JSON 能过（回 400 是业务校验，不是大小拒绝）。
 
@@ -327,7 +329,7 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 - `Makefile:39` → `go run main.go migrate`
 - `Makefile:43` → `go run main.go --dev`
 
-**定位**：`backend/Makefile:38-43`、`backend/main.go:18`。
+**定位**：`Makefile:38-43`、`main.go:18`。
 
 **影响**：`make migrate` 看起来成功（进程在跑），实际什么也没做，得手动 Ctrl-C。`migrations/README.md:27` 其实已经自首"未实现"。
 
@@ -350,7 +352,7 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 - `api-reference.md` 的"Error codes"列了 409，后端一处没有
 - 无 `POST /platforms` 文档，实际也 404（M5）
 - `api-reference.md:753-798` 的 WS 示例用 `"type":"message.received"`，而 `envelope.go:22` 的 JSON tag 是 `event_type`；文档的"Message format"与代码里的 `Validate`（`protocol.go:59-79`）要求也对不上
-- 文档说"Rate limiting 100/min、认证接口 10/min"，**没有任何限流中间件**（`grep rate backend/internal/middleware/` 无命中）
+- 文档说"Rate limiting 100/min、认证接口 10/min"，**没有任何限流中间件**（`grep rate internal/middleware/` 无命中）
 
 ### m5. `v3.MessageEnvelope.Sign` 不可重入
 `Sign`（`envelope.go:88`）把整个结构体（含 `Signature` 字段）一起 marshal，二次签名会把旧签名也签进去。实测同一 envelope 连签两次，第二次 `Verify` 返回 `false`。`Verify` 那边 copy 后清了 `Signature`（`envelope.go:106-107`），两边不对称。
@@ -434,7 +436,7 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 - **密码 bcrypt、令牌 HS256 + 24h 过期、`PasswordHash` 有 `json:"-"`**：`service/auth.go:65`、`:147`、`models.go:116` 都做对了。登录"用户不存在"与"密码错"回同一句 `invalid credentials`（`auth.go:94`、`:102`）也是正确的防枚举写法。
 - **`jwt.expiration` 是小时数**：`config.yaml:33` 的注释写清了，`auth.go:133` 也是按小时乘的，没有单位歧义。
 - **`/docs` 产线需要额外部署动作**：`web/DOCS.md:6` 明确写了"生产构建必须把 `docs/` 拷到 `dist/` 旁边或前置反代"——也就是说这是已知的部署动作，不是缺陷；m8 只是提醒别漏了这一步。
-- **`golangci-lint` 已启用，`errcheck` 被有意关掉**：`ci.yml:135-139` 把它作为 `format-lint` 的一步跑（`v2.1.6`，配置在 `backend/.golangci.yml`），配置里写明关掉 `errcheck` 的理由（实测 25 处：非测试 22、测试 3，都是 `Close`/`rand.Read`/`logger.Sync` 这类失败无可恢复路径的调用；开在今天只会得到一条开局即红的门）。
+- **`golangci-lint` 已启用，`errcheck` 被有意关掉**：`ci.yml:135-139` 把它作为 `format-lint` 的一步跑（`v2.1.6`，配置在 `.golangci.yml`），配置里写明关掉 `errcheck` 的理由（实测 25 处：非测试 22、测试 3，都是 `Close`/`rand.Read`/`logger.Sync` 这类失败无可恢复路径的调用；开在今天只会得到一条开局即红的门）。
 - **`--max-warnings 23` 是刻意的债务预算**：`web/.eslintrc.cjs:18-20` 说明了它只许降不许升，不是把报警压掉。
 
 ---
