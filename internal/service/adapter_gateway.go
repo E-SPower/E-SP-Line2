@@ -168,14 +168,18 @@ func (s *AdapterGatewayService) List(limit, offset int) ([]models.Adapter, int64
 
 // GetByID gets an adapter by ID.
 func (s *AdapterGatewayService) GetByID(id string) (*models.Adapter, error) {
-	return s.adapterRepo.FindByID(id)
+	adapter, err := s.adapterRepo.FindByID(id)
+	if err != nil {
+		return nil, notFound("adapter", id, err)
+	}
+	return adapter, nil
 }
 
 // Update updates an adapter.
 func (s *AdapterGatewayService) Update(id string, req *UpdateGatewayAdapterRequest) (*models.Adapter, error) {
 	adapter, err := s.adapterRepo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, notFound("adapter", id, err)
 	}
 
 	if req.Name != nil {
@@ -227,11 +231,10 @@ func (s *AdapterGatewayService) Update(id string, req *UpdateGatewayAdapterReque
 	return adapter, nil
 }
 
-// Delete deletes an adapter.
+// Delete deletes an adapter. Deleting an unknown id is 404, not a silent 200.
 func (s *AdapterGatewayService) Delete(id string) error {
-	err := s.adapterRepo.Delete(id)
-	if err != nil {
-		return err
+	if err := s.adapterRepo.Delete(id); err != nil {
+		return notFound("adapter", id, err)
 	}
 
 	if s.onChange != nil {

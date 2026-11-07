@@ -65,9 +65,17 @@ func (r *AdapterGatewayRepository) UpdateLastConnected(id string, t interface{})
 		Update("last_connected_at", t).Error
 }
 
-// Delete deletes an adapter.
+// Delete deletes an adapter. It returns gorm.ErrRecordNotFound when no row was
+// deleted.
 func (r *AdapterGatewayRepository) Delete(id string) error {
-	return r.db.Delete(&models.Adapter{}, "id = ?", id).Error
+	res := r.db.Delete(&models.Adapter{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all adapters.

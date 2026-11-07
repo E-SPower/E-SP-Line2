@@ -281,6 +281,7 @@ func (s *Server) setupRoutes() {
 		// correct bridge instance.
 		ws.GET("/adapter", handler.AdapterWebSocket(
 			s.services.Adapter,
+			s.services.Instance,
 			s.services.Message,
 			s.gateway,
 			func(payload map[string]interface{}) {

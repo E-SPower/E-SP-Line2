@@ -57,9 +57,17 @@ func (r *AdapterTokenRepository) UpdateLastUsed(id string, t interface{}) error 
 		Update("last_used_at", t).Error
 }
 
-// Delete deletes a token.
+// Delete deletes a token. It returns gorm.ErrRecordNotFound when no row was
+// deleted.
 func (r *AdapterTokenRepository) Delete(id string) error {
-	return r.db.Delete(&models.AdapterToken{}, "id = ?", id).Error
+	res := r.db.Delete(&models.AdapterToken{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all tokens.

@@ -37,17 +37,25 @@ type AdapterCapability struct {
 	Enabled    bool   `json:"enabled" gorm:"default:true"`
 }
 
-// AdapterInstance represents a specific account/shop instance
+// AdapterInstance represents a specific account/shop instance.
+//
+// LastHeartbeat, MessageCount and ErrorCount are the instance-level runtime
+// metrics the monitoring view reads. They are maintained on the hot paths
+// (heartbeat received, inbound message persisted, outbound command failed) so
+// the numbers are real rather than always zero.
 type AdapterInstance struct {
-	ID         string    `json:"id" gorm:"primaryKey"`
-	AdapterID  string    `json:"adapter_id" gorm:"index;not null"`
-	PlatformID string    `json:"platform_id" gorm:"index;not null"`
-	Name       string    `json:"name" gorm:"not null"`
-	Config     string    `json:"config" gorm:"type:text"`         // JSON config
-	Status     string    `json:"status" gorm:"default:'stopped'"` // stopped, running, error
-	UserID     string    `json:"user_id" gorm:"index"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID            string     `json:"id" gorm:"primaryKey"`
+	AdapterID     string     `json:"adapter_id" gorm:"index;not null"`
+	PlatformID    string     `json:"platform_id" gorm:"index;not null"`
+	Name          string     `json:"name" gorm:"not null"`
+	Config        string     `json:"config" gorm:"type:text"`         // JSON config
+	Status        string     `json:"status" gorm:"default:'stopped'"` // stopped, running, error
+	UserID        string     `json:"user_id" gorm:"index"`
+	LastHeartbeat *time.Time `json:"last_heartbeat"`                 // last bridge report
+	MessageCount  int64      `json:"message_count" gorm:"default:0"` // inbound messages
+	ErrorCount    int64      `json:"error_count" gorm:"default:0"`   // failed deliveries
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // AdapterSession represents current running session

@@ -45,10 +45,18 @@ func (r *InboundEventRepository) Update(event *models.InboundEvent) error {
 	return r.db.Save(event).Error
 }
 
-// UpdateStatus updates event status
+// UpdateStatus updates event status. It returns gorm.ErrRecordNotFound when
+// no row matched, so acknowledging an unknown id is not reported as success.
 func (r *InboundEventRepository) UpdateStatus(id, status string) error {
-	return r.db.Model(&models.InboundEvent{}).Where("id = ?", id).
-		Update("status", status).Error
+	res := r.db.Model(&models.InboundEvent{}).Where("id = ?", id).
+		Update("status", status)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all events
@@ -107,10 +115,18 @@ func (r *OutboundCommandRepository) Update(cmd *models.OutboundCommand) error {
 	return r.db.Save(cmd).Error
 }
 
-// UpdateStatus updates command status
+// UpdateStatus updates command status. It returns gorm.ErrRecordNotFound when
+// no row matched.
 func (r *OutboundCommandRepository) UpdateStatus(id, status string) error {
-	return r.db.Model(&models.OutboundCommand{}).Where("id = ?", id).
-		Update("status", status).Error
+	res := r.db.Model(&models.OutboundCommand{}).Where("id = ?", id).
+		Update("status", status)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all commands
@@ -161,9 +177,17 @@ func (r *RouteRuleRepository) Update(rule *models.RouteRule) error {
 	return r.db.Save(rule).Error
 }
 
-// Delete deletes a route rule
+// Delete deletes a route rule. It returns gorm.ErrRecordNotFound when no row
+// was deleted, so DELETE of an unknown id is not a silent 200.
 func (r *RouteRuleRepository) Delete(id string) error {
-	return r.db.Delete(&models.RouteRule{}, "id = ?", id).Error
+	res := r.db.Delete(&models.RouteRule{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all route rules

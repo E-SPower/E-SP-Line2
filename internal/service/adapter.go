@@ -1,7 +1,7 @@
 package service
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
@@ -70,7 +70,7 @@ func (s *AdapterService) Create(req *CreateAdapterRequest) (*models.AdapterPacka
 		platformCode = req.PlatformID
 	}
 	if platformCode == "" {
-		return nil, errors.New("platform_code is required")
+		return nil, fmt.Errorf("%w: platform_code is required", ErrInvalid)
 	}
 
 	adapter := &models.AdapterPackage{
@@ -95,7 +95,11 @@ func (s *AdapterService) Create(req *CreateAdapterRequest) (*models.AdapterPacka
 
 // GetByID gets an adapter by ID
 func (s *AdapterService) GetByID(id string) (*models.AdapterPackage, error) {
-	return s.repo.FindByID(id)
+	adapter, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, notFound("adapter", id, err)
+	}
+	return adapter, nil
 }
 
 // GetByPlatformID gets adapters by platform ID
@@ -107,7 +111,7 @@ func (s *AdapterService) GetByPlatformID(platformID string) ([]models.AdapterPac
 func (s *AdapterService) Update(id string, req *UpdateAdapterRequest) (*models.AdapterPackage, error) {
 	adapter, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, notFound("adapter", id, err)
 	}
 
 	if req.Name != "" {
@@ -149,7 +153,10 @@ func (s *AdapterService) Delete(id string) error {
 			}
 		}
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return notFound("adapter", id, err)
+	}
+	return nil
 }
 
 // List lists all adapters
@@ -167,11 +174,11 @@ func (s *AdapterService) List(limit, offset int) ([]models.AdapterPackage, int64
 func (s *AdapterService) StartAdapter(id string) error {
 	adapter, err := s.repo.FindByID(id)
 	if err != nil {
-		return err
+		return notFound("adapter", id, err)
 	}
 
 	if adapter.Status == "active" {
-		return errors.New("adapter is already active")
+		return fmt.Errorf("%w: adapter is already active", ErrConflict)
 	}
 
 	// Upsert a running session for the adapter instance

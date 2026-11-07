@@ -33,7 +33,7 @@ func GetRoute(routeService *service.RouteService) gin.HandlerFunc {
 		id := c.Param("id")
 		route, err := routeService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -52,7 +52,7 @@ func CreateRoute(routeService *service.RouteService) gin.HandlerFunc {
 
 		route, err := routeService.Create(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -72,7 +72,7 @@ func UpdateRoute(routeService *service.RouteService) gin.HandlerFunc {
 
 		route, err := routeService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -85,7 +85,7 @@ func DeleteRoute(routeService *service.RouteService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := routeService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 

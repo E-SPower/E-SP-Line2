@@ -33,6 +33,7 @@ var upgrader = websocket.Upgrader{
 // routed back to the correct bridge.
 func AdapterWebSocket(
 	adapterService *service.AdapterService,
+	instanceService *service.InstanceService,
 	messageService *service.MessageService,
 	gateway *adaptergateway.Gateway,
 	onInbound ...func(payload map[string]interface{}),
@@ -53,6 +54,11 @@ func AdapterWebSocket(
 		}
 
 		logger.Info("Adapter connected", logger.String("instance_id", instanceID))
+
+		// Liveness: a bridge that just connected is alive, and every frame it
+		// sends refreshes the heartbeat below. Without this the monitoring view
+		// had no instance-level liveness signal at all.
+		instanceService.RecordHeartbeat(instanceID)
 
 		// Register the bridge connection with the gateway so outbound commands
 		// can be routed back to it. A single writer goroutine pumps ALL frames
@@ -112,6 +118,9 @@ func AdapterWebSocket(
 				logger.Error("Adapter read error", logger.String("error", err.Error()))
 				break
 			}
+			// Any frame from the bridge proves the instance is alive, including
+			// heartbeats and acknowledgements that carry no message.
+			instanceService.RecordHeartbeat(instanceID)
 
 			logger.Debug("Adapter message received",
 				logger.Int("type", messageType),
@@ -120,6 +129,18 @@ func AdapterWebSocket(
 			// Parse inbound message and persist it
 			var payload map[string]interface{}
 			if err := json.Unmarshal(message, &payload); err == nil {
+				// A bridge-reported error frame is a failure notification, not a
+				// message: count it and acknowledge without persisting, so the
+				// message and error counters stay disjoint.
+				if frameType, _ := payload["type"].(string); frameType == "error" {
+					instanceService.RecordCommandError(instanceID)
+					writeJSON(map[string]interface{}{
+						"type":      "ack",
+						"timestamp": time.Now().Unix(),
+					})
+					continue
+				}
+
 				// Tool (inactive field) result frames are NOT messages: they
 				// carry the answer to an outstanding tool_call and must be
 				// handed back to the gateway's pending-call registry.
@@ -152,6 +173,11 @@ func AdapterWebSocket(
 				}
 
 				eventID := persistInboundMessage(messageService, instanceID, payload)
+				if eventID == "" {
+					instanceService.RecordCommandError(instanceID)
+				} else {
+					instanceService.RecordMessageReceived(instanceID)
+				}
 
 				// Inject instance_id into the payload for adapter gateway routing.
 				// The bridge connects with ?instance_id=xxx in the query string, but

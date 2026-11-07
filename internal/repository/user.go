@@ -45,9 +45,17 @@ func (r *UserRepository) Update(user *models.User) error {
 	return r.db.Save(user).Error
 }
 
-// Delete deletes a user
+// Delete deletes a user. It returns gorm.ErrRecordNotFound when no row was
+// deleted.
 func (r *UserRepository) Delete(id string) error {
-	return r.db.Delete(&models.User{}, "id = ?", id).Error
+	res := r.db.Delete(&models.User{}, "id = ?", id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all users

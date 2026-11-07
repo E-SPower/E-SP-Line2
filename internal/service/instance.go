@@ -2,11 +2,13 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
 	"github.com/e-spl/e-sp-line2/internal/repository"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // InstanceService handles adapter instance operations
@@ -52,7 +54,10 @@ func (s *InstanceService) Start(id string) error {
 	if s.runner == nil {
 		return errors.New("python runner is not initialized")
 	}
-	return s.runner.Start(id)
+	if err := s.runner.Start(id); err != nil {
+		return startStopError(err)
+	}
+	return nil
 }
 
 // Stop stops the instance's Python adapter process.
@@ -60,7 +65,24 @@ func (s *InstanceService) Stop(id string) error {
 	if s.runner == nil {
 		return errors.New("python runner is not initialized")
 	}
-	return s.runner.Stop(id)
+	if err := s.runner.Stop(id); err != nil {
+		return startStopError(err)
+	}
+	return nil
+}
+
+// startStopError classifies a runner start/stop failure: the runner reports a
+// missing instance or unresolvable platform as a plain error, a second start
+// as "already running", and everything else (missing cookie, sandbox
+// unavailable) is a bad-request condition for the caller.
+func startStopError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if err.Error() == "instance already running" {
+		return fmt.Errorf("%w: %s", ErrConflict, err.Error())
+	}
+	return fmt.Errorf("%w: %s", ErrInvalid, err.Error())
 }
 
 // ReadLog returns the instance's adapter process log, optionally filtered by
@@ -196,6 +218,38 @@ func (s *InstanceService) updateInstanceStatus(instanceID, status string) error 
 	return s.repo.Update(instance)
 }
 
+// RecordHeartbeat stamps the instance's last heartbeat and, when the instance
+// was not already marked running, flips its status to "running". It is called
+// whenever the bridge (Python adapter) reports in, so the monitoring view has
+// a liveness signal instead of a column that is never written.
+func (s *InstanceService) RecordHeartbeat(id string) {
+	now := time.Now()
+	if err := s.repo.RecordHeartbeat(id, now); err != nil {
+		logger.Warn("Failed to record instance heartbeat",
+			logger.String("instance_id", id),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordMessageReceived bumps the instance's inbound message counter.
+func (s *InstanceService) RecordMessageReceived(id string) {
+	if err := s.repo.IncrementMessageCount(id); err != nil {
+		logger.Warn("Failed to increment instance message count",
+			logger.String("instance_id", id),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordCommandError bumps the instance's outbound error counter (commands that
+// could not be handed to the bridge, or the bridge reported as failed).
+func (s *InstanceService) RecordCommandError(id string) {
+	if err := s.repo.IncrementErrorCount(id); err != nil {
+		logger.Warn("Failed to increment instance error count",
+			logger.String("instance_id", id),
+			logger.String("error", err.Error()))
+	}
+}
+
 // InitStatus returns the dependency installation status for an instance.
 // If the installer is not attached, it reports the instance as ready.
 func (s *InstanceService) InitStatus(instanceID string) map[string]interface{} {
@@ -272,7 +326,11 @@ func messageForStatus(status string) string {
 
 // GetByID gets an instance by ID
 func (s *InstanceService) GetByID(id string) (*models.AdapterInstance, error) {
-	return s.repo.FindByID(id)
+	instance, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, notFound("instance", id, err)
+	}
+	return instance, nil
 }
 
 // GetByUserID gets instances by user ID
@@ -284,7 +342,7 @@ func (s *InstanceService) GetByUserID(userID string) ([]models.AdapterInstance, 
 func (s *InstanceService) Update(id string, req *UpdateInstanceRequest) (*models.AdapterInstance, error) {
 	instance, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, notFound("instance", id, err)
 	}
 
 	if req.Name != "" {
@@ -309,6 +367,9 @@ func (s *InstanceService) Update(id string, req *UpdateInstanceRequest) (*models
 // running, it is stopped first to avoid orphan processes. The instance's
 // sandboxed adapter copy under data/instances/<id> is removed as well.
 func (s *InstanceService) Delete(id string) error {
+	if _, err := s.repo.FindByID(id); err != nil {
+		return notFound("instance", id, err)
+	}
 	if s.runner != nil && s.runner.IsRunning(id) {
 		if err := s.runner.Stop(id); err != nil {
 			return err
@@ -321,7 +382,10 @@ func (s *InstanceService) Delete(id string) error {
 				logger.String("error", err.Error()))
 		}
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return notFound("instance", id, err)
+	}
+	return nil
 }
 
 // List lists all instances

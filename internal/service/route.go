@@ -64,14 +64,18 @@ func (s *RouteService) Create(req *CreateRouteRequest) (*models.RouteRule, error
 
 // GetByID gets a route rule by ID
 func (s *RouteService) GetByID(id string) (*models.RouteRule, error) {
-	return s.repo.FindByID(id)
+	rule, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, notFound("route", id, err)
+	}
+	return rule, nil
 }
 
 // Update updates a route rule
 func (s *RouteService) Update(id string, req *UpdateRouteRequest) (*models.RouteRule, error) {
 	rule, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, notFound("route", id, err)
 	}
 
 	if req.Name != "" {
@@ -101,9 +105,12 @@ func (s *RouteService) Update(id string, req *UpdateRouteRequest) (*models.Route
 	return rule, nil
 }
 
-// Delete deletes a route rule
+// Delete deletes a route rule. Deleting an unknown id is 404, not a silent 200.
 func (s *RouteService) Delete(id string) error {
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return notFound("route", id, err)
+	}
+	return nil
 }
 
 // List lists all route rules

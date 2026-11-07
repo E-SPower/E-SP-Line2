@@ -439,6 +439,9 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
   "name": "Store A",
   "status": "running",
   "config": "{}",
+  "last_heartbeat": "2024-01-01T00:05:00Z",
+  "message_count": 128,
+  "error_count": 2,
   "session": {
     "connected_at": "2024-01-01T00:00:00Z",
     "last_heartbeat": "2024-01-01T00:05:00Z"
@@ -800,12 +803,23 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 | Error code | Description |
 |--------|------|
-| 400 | Invalid request parameters |
-| 401 | Unauthenticated |
-| 403 | Forbidden |
-| 404 | Resource not found |
-| 409 | Resource conflict |
-| 500 | Internal server error |
+| 400 | Invalid request parameters (malformed body, semantically wrong value) |
+| 401 | Unauthenticated (missing/expired token, bad credentials, disabled account) |
+| 403 | Forbidden (authenticated, insufficient role) |
+| 404 | Resource not found (unknown `:id`, including `DELETE` of a missing resource) |
+| 409 | Resource conflict (duplicate unique key, operation already in progress) |
+| 500 | Internal server error (database/filesystem failure) |
+
+Rules the API follows:
+
+- Addressing a resource that does not exist is **404** on `GET`, `PUT` and
+  `DELETE` alike. A `DELETE` that removed no row is a 404, never a 200.
+- Creating a resource whose unique key already exists (platform `code`,
+  username) is **409**.
+- Starting an already-running instance/adapter is **409**; starting one that is
+  not runnable yet (missing cookie, still initializing) is **400**.
+- The error body is always `{"error": "<message>"}`; a 404 carries a stable
+  `resource not found` message rather than a raw database error.
 
 ## Rate limiting
 

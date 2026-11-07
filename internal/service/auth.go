@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/config"
@@ -60,14 +61,14 @@ func (s *AuthService) Register(req *RegisterRequest) (*AuthResponse, error) {
 	// Respect the registration toggle (default: enabled).
 	if s.settings != nil {
 		if v, err := s.settings.Get(RegistrationEnabledKey); err == nil && v == "false" {
-			return nil, errors.New("registration is disabled")
+			return nil, fmt.Errorf("%w: registration is disabled", ErrInvalid)
 		}
 	}
 
 	// Check if username already exists
 	existing, _ := s.repo.FindByUsername(req.Username)
 	if existing != nil {
-		return nil, errors.New("username already exists")
+		return nil, fmt.Errorf("%w: username already exists", ErrConflict)
 	}
 
 	// Hash password
@@ -100,15 +101,15 @@ func (s *AuthService) Register(req *RegisterRequest) (*AuthResponse, error) {
 func (s *AuthService) Login(req *LoginRequest) (*AuthResponse, error) {
 	user, err := s.repo.FindByUsername(req.Username)
 	if err != nil {
-		return nil, errors.New("invalid credentials")
+		return nil, fmt.Errorf("%w: invalid credentials", ErrUnauthorized)
 	}
 
 	if user.Status != "active" {
-		return nil, errors.New("account is disabled")
+		return nil, fmt.Errorf("%w: account is disabled", ErrUnauthorized)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		return nil, errors.New("invalid credentials")
+		return nil, fmt.Errorf("%w: invalid credentials", ErrUnauthorized)
 	}
 
 	return s.generateAuthResponse(user)

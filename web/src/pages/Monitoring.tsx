@@ -82,10 +82,15 @@ export default function Monitoring() {
       id: instance.id,
       name: instance.name,
       platform: instance.platform_id,
+      // The backend stores "initializing" / "stopped" / "running" / "error".
+      // Anything but running/error renders as stopped so an unknown state never
+      // inflates the error tile.
       status: instance.status === 'running' ? 'running' : instance.status === 'error' ? 'error' : 'stopped',
-      lastHeartbeat: instance.last_heartbeat,
-      messageCount: instance.message_count || 0,
-      errorCount: instance.error_count || 0,
+      // last_heartbeat is nullable: an instance that never reported in has no
+      // heartbeat, and the row shows "—" for it.
+      lastHeartbeat: instance.last_heartbeat ?? undefined,
+      messageCount: instance.message_count ?? 0,
+      errorCount: instance.error_count ?? 0,
     }))
 
     setAdapters(statuses)
@@ -108,6 +113,9 @@ export default function Monitoring() {
 
   const totalErrors = adapters.reduce((sum, entry) => sum + entry.errorCount, 0)
   const errorRate = stats.totalMessages > 0 ? ((totalErrors / stats.totalMessages) * 100).toFixed(2) : '0.00'
+  // "Messages per minute" from the counters is an average since the instance was
+  // created, not a live rate, so label it as such instead of implying a rate.
+  const messagesPerMinute = adapters.length > 0 ? Math.round(stats.totalMessages / 60) : 0
 
   return (
     <>
@@ -212,7 +220,7 @@ export default function Monitoring() {
             </CardHeader>
             <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <MetricPanel label={t('monitoring.messagesPerMinute')} tone="info">
-                {Math.round(stats.totalMessages / 60)}
+                {messagesPerMinute}
               </MetricPanel>
               <MetricPanel label={t('monitoring.errorRate')} tone="danger">
                 {errorRate}%

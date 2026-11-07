@@ -33,7 +33,7 @@ func GetInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 		id := c.Param("id")
 		instance, err := instanceService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "instance not found"})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -56,7 +56,7 @@ func CreateInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 
 		instance, err := instanceService.Create(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -76,7 +76,7 @@ func UpdateInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 
 		instance, err := instanceService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -89,7 +89,7 @@ func DeleteInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := instanceService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -121,7 +121,7 @@ func GetInstanceLogs(instanceService *service.InstanceService) gin.HandlerFunc {
 		to := c.Query("to")
 		logs, err := instanceService.ReadLog(id, maxLines, level, keyword, from, to)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": logs})
@@ -135,7 +135,7 @@ func GetInstanceLogHeatmap(instanceService *service.InstanceService) gin.Handler
 		level := c.Query("level")
 		heatmap, err := instanceService.LogHeatmap(id, level)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": heatmap})
@@ -148,7 +148,7 @@ func ClearInstanceLogs(instanceService *service.InstanceService) gin.HandlerFunc
 		id := c.Param("id")
 		removed, err := instanceService.ClearLog(id)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "logs cleared", "removed_bytes": removed})
@@ -160,7 +160,7 @@ func StartInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := instanceService.Start(id); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "instance started"})
@@ -172,7 +172,7 @@ func StopInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := instanceService.Stop(id); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "instance stopped"})

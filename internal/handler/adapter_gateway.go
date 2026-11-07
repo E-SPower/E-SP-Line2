@@ -41,7 +41,7 @@ func CreateGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 
 		adapter, err := gateway.Create(&req, createdBy)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -55,7 +55,7 @@ func GetGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFunc {
 		id := c.Param("id")
 		adapter, err := gateway.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "adapter not found"})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, adapter)
@@ -74,7 +74,7 @@ func UpdateGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 
 		adapter, err := gateway.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -87,7 +87,7 @@ func DeleteGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := gateway.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "adapter deleted"})

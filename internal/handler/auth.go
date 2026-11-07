@@ -18,7 +18,7 @@ func Register(authService *service.AuthService) gin.HandlerFunc {
 
 		resp, err := authService.Register(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err, 0)
 			return
 		}
 
@@ -37,7 +37,7 @@ func Login(authService *service.AuthService) gin.HandlerFunc {
 
 		resp, err := authService.Login(&req)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			respondError(c, err, http.StatusUnauthorized)
 			return
 		}
 
@@ -56,7 +56,7 @@ func GetCurrentUser(authService *service.AuthService) gin.HandlerFunc {
 
 		user, err := authService.GetUserByID(userID.(string))
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			respondError(c, err, 0)
 			return
 		}
 
