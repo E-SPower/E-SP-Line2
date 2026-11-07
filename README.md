@@ -130,8 +130,12 @@ The dev server starts on `http://localhost:3000`.
 
 ### WebSocket
 
-- `ws://localhost:8080/ws/adapter?instance_id=xxx` - Adapter WebSocket
-- `ws://localhost:8080/ws/app?app_id=xxx` - Application WebSocket
+- `ws://localhost:8080/ws/adapter?instance_id=xxx&token=<JWT>` - Adapter WebSocket
+- `ws://localhost:8080/ws/app?app_id=xxx&token=<JWT>` - Application WebSocket
+
+Both sockets need a token at the handshake; the same JWT `/auth/login` returns,
+passed as `?token=` (or an `Authorization: Bearer` header from a non-browser
+client). An unlisted `Origin` is refused too — see `server.allowed_origins`.
 
 The full contract lives in the [API reference](docs/developer-guide/api-reference.md).
 

@@ -161,9 +161,12 @@ queue:
 
 **Implement reconnect logic**
 ```javascript
-// Frontend reconnect example
+// Frontend reconnect example. The handshake needs the JWT (the browser
+// WebSocket API cannot set an Authorization header, so it goes in the query)
+// and an allow-listed Origin.
 function connect() {
-  const ws = new WebSocket('ws://localhost:8080/ws/app');
+  const token = localStorage.getItem('auth_token');
+  const ws = new WebSocket(`ws://localhost:8080/ws/app?app_id=app-1&token=${token}`);
   
   ws.onclose = () => {
     setTimeout(connect, 5000);

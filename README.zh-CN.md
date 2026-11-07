@@ -121,8 +121,12 @@ pnpm dev
 
 ### WebSocket 接口
 
-- `ws://localhost:8080/ws/adapter?instance_id=xxx` - 接入器 WebSocket
-- `ws://localhost:8080/ws/app?app_id=xxx` - 应用 WebSocket
+- `ws://localhost:8080/ws/adapter?instance_id=xxx&token=<JWT>` - 接入器 WebSocket
+- `ws://localhost:8080/ws/app?app_id=xxx&token=<JWT>` - 应用 WebSocket
+
+两条 WS 都要在握手带令牌（与 `/auth/login` 返回的同一个 JWT，走 `?token=`；
+非浏览器客户端可改发 `Authorization: Bearer`）。`Origin` 不在白名单同样会被拒，
+白名单见 `server.allowed_origins`。
 
 ## 架构设计
 

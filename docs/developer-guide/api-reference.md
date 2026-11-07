@@ -10,6 +10,54 @@ E-SP-Line2 provides a RESTful API and WebSocket interfaces for managing platform
 - **Authentication**: Bearer Token
 - **Response format**: JSON
 
+## CORS and origins
+
+The server only names a browser origin it was configured to accept, so the
+`Access-Control-Allow-Origin` value is the caller's own origin, never `*`, and
+it is paired with `Access-Control-Allow-Credentials: true` (a pair that only
+means something when the origin is echoed rather than starred).
+
+The allow-list is one setting, `server.allowed_origins`, shared by the REST
+surface and the WebSocket handshake:
+
+```yaml
+server:
+  allowed_origins:
+    - "http://localhost:3000"   # the Vite dev server default
+```
+
+- A deployment served behind one reverse proxy is same-origin and needs no
+  entries. The REST surface sees no `Origin` at all, and the WebSocket
+  handshake compares the `Origin` host against the request `Host`, so the
+  embedded desktop build (UI and API on one port) works untouched.
+- Add the UI's real scheme+host+port when the UI is hosted separately.
+- An entry of `"*"` allows any origin. The origin is still echoed, so the
+  credentials flag stays meaningful.
+- Matching is exact. `http://localhost:3000.evil.example` does not pass for
+  `http://localhost:3000`, and a different port is a different origin.
+- A request with no `Origin` at all (curl, a native client) always passes.
+
+An origin that is not listed still gets a normal HTTP response; the browser
+just refuses to hand it to the page. The WebSocket handshake is stricter — the
+upgrade is refused with `403`.
+
+## Server limits
+
+`http.Server` runs with the timeouts below and every request body is capped.
+Both are configured under `server` in `config/config.yaml` and are in seconds;
+`0` disables the corresponding timeout.
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `read_header_timeout` | 5 | A client must finish sending headers in this window (Slowloris) |
+| `read_timeout` | 60 | Whole-request read budget, body included |
+| `write_timeout` | 60 | Response write budget |
+| `idle_timeout` | 120 | Keep-alive reuse budget |
+| `max_body_bytes` | 8388608 (8 MiB) | Request body cap; over it the API answers `413` |
+
+Active WebSocket connections are not affected: the upgrade takes the socket off
+the HTTP deadlines, so a long-lived socket is not cut at `write_timeout`.
+
 ## Authentication endpoints
 
 ### User registration
@@ -752,9 +800,27 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 ## WebSocket interface
 
+Both socket routes authenticate **at the handshake**: the token goes in the
+query string as `?token=<JWT>` because the browser `WebSocket` constructor
+cannot set request headers. A non-browser client may send
+`Authorization: Bearer <JWT>` instead. Either way, the token is the same JWT
+`/auth/login` returns and it is signature-checked before the upgrade.
+
+Failure is an ordinary HTTP response, so a client can tell "not
+authenticated" from "network down":
+
+| Situation | Response |
+| --- | --- |
+| No token | `401` |
+| Malformed, unsigned or expired token | `401` |
+| `Origin` present and not allow-listed | `403` |
+
+The check proves the caller holds a valid token. It does not prove the caller
+owns the `instance_id` / `app_id` in the query — those remain caller-supplied.
+
 ### Adapter WebSocket
 
-**URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>`
+**URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>&token=<JWT>`
 
 **Message format**:
 ```json
@@ -776,7 +842,7 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 ### App WebSocket
 
-**URL**: `ws://localhost:8080/ws/app?app_id=<app_id>`
+**URL**: `ws://localhost:8080/ws/app?app_id=<app_id>&token=<JWT>`
 
 **Message format**:
 ```json
@@ -805,6 +871,7 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 | 403 | Forbidden |
 | 404 | Resource not found |
 | 409 | Resource conflict |
+| 413 | Request body over `server.max_body_bytes` |
 | 500 | Internal server error |
 
 ## Rate limiting

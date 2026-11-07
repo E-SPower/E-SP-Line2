@@ -38,7 +38,8 @@ In scope, for example:
 - a request sent anywhere other than the platform endpoint it targets;
 - the JWT secret accepted in its default `change-this-secret-in-production` value in a deployment that never changed it;
 - path traversal through upload or file handling;
-- the WebSocket upgrade accepting a cross-origin connection that should be rejected.
+- the WebSocket upgrade accepting a cross-origin connection that should be rejected, or an unauthenticated socket being accepted at all;
+- a request body read without a size ceiling, or a connection held open without a header deadline.
 
 Out of scope:
 
@@ -54,6 +55,9 @@ Out of scope:
 - Passwords are stored as bcrypt hashes, never in plaintext.
 - API tokens are JWTs signed with HS256 and carry an expiry (`jwt.expiration`, 24 hours by default). Rotate `jwt.secret` in `backend/config/config.yaml` per deployment.
 - The `/api/v1` surface except `/auth/register` and `/auth/login` sits behind `AuthRequired`. `AdminRequired` exists but is not wired into any route yet.
+- Both WebSocket routes (`/ws/adapter`, `/ws/app`) require a valid JWT at the handshake (`?token=`) and reject an unlisted `Origin` before upgrading. The gateway routes (`/ws`, `/ws/adapter-gateway/...`) keep their own per-adapter `?key=`.
+- CORS and the WebSocket `CheckOrigin` read one allow-list, `server.allowed_origins`. The accepted origin is echoed rather than sent as `*`, which is the only form where the accompanying `Access-Control-Allow-Credentials` has an effect.
+- `http.Server` runs with header, read, write and idle timeouts, and every request body is capped at `server.max_body_bytes` (8 MiB default) — an unbounded body used to be read whole into memory.
 - An adapter's `security` policy declares `sensitive_fields` (for Taobao and Xianyu, `cookie`) so a manifest can mark what must not be echoed back.
 
 ### What is not there yet
@@ -62,8 +66,9 @@ Be aware of these when you deploy, and please send a report if one of them bites
 
 - The adapter instance `config` column stores its Cookie as plain JSON in the database, despite the `encrypted_fields` declaration. Treat the SQLite/PostgreSQL file as a secret.
 - `AuthRequired` is still a placeholder: it checks the presence and `Bearer` shape of the header but does not yet verify the JWT signature, and it sets a fixed `user-123` identity. Do not expose the API to the internet and assume per-user isolation until that lands.
-- CORS sends `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`, and the WebSocket upgrader accepts any origin. Put the front end behind the same origin as the API in production.
-- The default `jwt.secret` is a placeholder; change it before you deploy.
+- The WebSocket handshake check proves the caller holds a valid token, not that it owns the `instance_id` / `app_id` it asks to bind. One logged-in user can still attach to another user's instance.
+- The default `jwt.secret` is a placeholder. Startup logs a WARN while it is unchanged; change it before you deploy. It is not fatal, so a forgotten deployment still comes up — quietly forgeable.
+
 
 ### Front end
 
