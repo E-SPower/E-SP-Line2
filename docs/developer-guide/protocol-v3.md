@@ -366,6 +366,27 @@ func GenerateTraceID() string {
 }
 ```
 
+### Envelope handling over the bridge WebSocket
+
+A bridge reports inbound traffic on `/ws/adapter?instance_id=...` as either a
+flat payload or a full envelope. The envelope's `platform` is a platform *code*
+(`xianyu`), while persisted messages carry the platform row id — the backend
+resolves the row from the instance, and `adapter_id` is the instance id the
+socket registered with.
+
+Accepted and persisted: any frame that parses as JSON and is not one of the two
+control frames below. The `ack` echoes the stored `event_id`.
+
+Not persisted, handled as control frames:
+
+- `tool_result` — the answer to an outstanding `tool.call.requested`; routed back
+  to the waiting tool call.
+- `tool_catalog` — the bridge's tool declarations; registered, not stored.
+
+Routing happens after persistence against the enabled route rules, so a message
+may be stored without being delivered (no matching rule) and is replayed later.
+The envelope `signature` is not verified on the socket today.
+
 ### Sending a command example
 
 ```json

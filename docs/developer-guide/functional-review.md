@@ -62,7 +62,13 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 ### B2. 两条 WebSocket 链路都是回显，没有接进 `message.Dispatcher` / `message.Router`
 
-**现象**：`/ws/adapter` 和 `/ws/app` 读完一条消息后，包一层 `{"type":"ack","data":"<原样字符串>"}` 写回**同一个连接**，注释就写着 "Echo back for now"。
+> **已修复（P0 批次，本条保留作背景）**：`Services` 持有 `Hub`，两条 handler 改为用
+> `instance_id` / `app_id` 向 hub 注册，读写循环、写序列化与心跳交给 `readPump` /
+> `writePump`；帧经 `MessageService.Create` 落库后路由。集成用例
+> `internal/handler/websocket_test.go`（发一帧 → 库里多一行 + 对端 app 收到）钉住。
+> 下面记录的是修复前的状态。
+
+**现象：`/ws/adapter` 和 `/ws/app` 读完一条消息后，包一层 `{"type":"ack","data":"<原样字符串>"}` 写回**同一个连接**，注释就写着 "Echo back for now"。
 
 实测（真实 WebSocket 握手 + 发一帧 v3 envelope）：
 
@@ -89,7 +95,11 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 ### B3. 没有消息入库的任意入口，`MessageService.Create` 不可达
 
-**现象**：`messages` 组只注册了 `GET ""`、`GET "/:id"`、`POST "/:id/ack"`。`POST /api/v1/messages` 实测 **404 page not found**。
+> **已修复（P0 批次）**：新增 `POST /api/v1/messages`（`handler.CreateMessage`），
+> 落库后交 hub 路由；`GET /messages` 不再是恒空。用例见
+> `internal/handler/websocket_test.go:TestCreateMessageEndpointPersistsAndRoutes`。
+
+**现象：`messages` 组只注册了 `GET ""`、`GET "/:id"`、`POST "/:id/ack"`。`POST /api/v1/messages` 实测 **404 page not found**。
 
 `MessageService.Create`（`internal/service/message.go:35`）写好了幂等、trace、状态，但**没有任何 handler 调它**。
 
@@ -103,7 +113,13 @@ $ curl -H 'Authorization: Bearer garbage'               /api/v1/auth/me      →
 
 ### B4. `inbound_events.idempotency_key` 唯一索引 + 空串，第二条不带 key 的消息必然失败
 
-**现象**：`IdempotencyKey` 标了 `uniqueIndex`，但 SQLite 的 `UNIQUE` 允许**多行 NULL、只允许一行空串**。Go 的 `string` 零值是 `""` 而非 NULL，所以第二条 `idempotency_key` 为空的插入直接撞唯一约束。
+> **已修复（P0 批次，与 B3 同批）**：字段改 `*string`，`Create` 对空键生成兜底值
+> （`models.GenerateIdempotencyKey`），迁移 `003_inbound_idempotency_nullable.sql`
+> 把列改为可空 + 显式唯一索引且可重跑。用例
+> `internal/service/message_test.go:TestCreateMessageWithoutIdempotencyKeyTwice`
+> 在修复前报同一条 `UNIQUE constraint failed`，修复后通过。
+
+**现象：`IdempotencyKey` 标了 `uniqueIndex`，但 SQLite 的 `UNIQUE` 允许**多行 NULL、只允许一行空串**。Go 的 `string` 零值是 `""` 而非 NULL，所以第二条 `idempotency_key` 为空的插入直接撞唯一约束。
 
 已用最小复现验证：
 
@@ -126,7 +142,13 @@ second insert with empty idempotency_key:
 
 ### B5. 建命令只落库不派发，`MarkSent` / `MarkFailed` 无处调用
 
-**现象**：`POST /api/v1/commands` 写一行 `status:"created"` 就返回 201，之后没有任何东西把它推给适配器，也没有东西推进状态。实测建完命令后 status 一直是 `created`。
+> **已修复（P0 批次）**：`CreateCommand` 落库后经 `CommandService.DispatchCommand`
+> → `hub.SendCommand` 派发，成功 `MarkSent`、失败 `MarkFailed`；`ListPending`
+> 由 30s 扫描器消费 `created/queued/retrying`，达 `MaxRetries` 后落 `failed`。
+> `SendCommand` 在无连接时返回错误（不再静默成功）。用例
+> `internal/handler/command_test.go`。
+
+**现象：`POST /api/v1/commands` 写一行 `status:"created"` 就返回 201，之后没有任何东西把它推给适配器，也没有东西推进状态。实测建完命令后 status 一直是 `created`。
 
 `CommandService` 里 `MarkSent`、`MarkFailed`、`ListPending` 三个方法全仓无调用方。
 

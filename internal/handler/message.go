@@ -53,3 +53,36 @@ func AckMessage(messageService *service.MessageService) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "message acknowledged"})
 	}
 }
+
+// CreateMessage ingests an inbound message over HTTP.
+//
+// This is the non-WebSocket entry point: the body is bound to
+// CreateMessageRequest, persisted, and handed to the hub for routing. It answers
+// 201 for a new message and 200 with the existing row when the idempotency key
+// was seen before (so a retrying caller can tell the cases apart).
+func CreateMessage(messageService *service.MessageService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req service.CreateMessageRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// A caller-supplied key that already exists must be answered with the
+		// original row, not a 500 from the unique index.
+		if req.IdempotencyKey != "" {
+			if existing, err := messageService.FindByIdempotencyKey(req.IdempotencyKey); err == nil && existing != nil {
+				c.JSON(http.StatusOK, existing)
+				return
+			}
+		}
+
+		message, err := messageService.Create(&req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusCreated, message)
+	}
+}

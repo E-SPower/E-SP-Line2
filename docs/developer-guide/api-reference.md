@@ -517,6 +517,44 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 }
 ```
 
+### Create (ingest) message
+
+**POST** `/messages`
+
+The entry point for inbound messages that do not arrive over a bridge
+WebSocket. The message is persisted and then routed through the message hub
+against the enabled route rules.
+
+`platform_id` may be omitted when `instance_id` names an existing instance; the
+instance's platform is authoritative. `event_type` defaults to
+`message.received` and may be set to a lifecycle event (`order.shipped`,
+`logistics.updated`, ...) so rules can match on it.
+
+`idempotency_key` is optional. A repeated key returns the original message
+instead of inserting a second one; a message without a key still gets a
+generated one, so two keyless messages never collide.
+
+**Request body**:
+```json
+{
+  "platform_id": "platform-001",
+  "instance_id": "instance-001",
+  "conversation_id": "conv-001",
+  "sender_id": "user-123",
+  "sender_name": "Buyer A",
+  "message_type": "text",
+  "message_content": "Hello",
+  "idempotency_key": "xianyu-user-123-conv-001-1704067200000",
+  "event_type": "message.received"
+}
+```
+
+**Response** `201 Created` with the stored message, or `200 OK` with the
+existing one when the idempotency key was already seen.
+
+**Status** is `received` while it is pending routing, `routed` once a rule
+matched, and `acked` after `POST /messages/:id/ack`.
+
 ### Get message details
 
 **GET** `/messages/:id`
@@ -584,6 +622,12 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 ### Create command
 
 **POST** `/commands`
+
+The command is persisted and then dispatched to the adapter socket for
+`instance_id`. The response carries the resulting status: `sent` (written to a
+connected adapter), or `retrying` when no adapter is connected — the pending
+scanner replays those until `max_retries` is exhausted, after which the row
+settles on `failed`.
 
 **Request body**:
 ```json
@@ -752,6 +796,17 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 
 ## WebSocket interface
 
+Both WebSocket endpoints register the socket with the message hub. `instance_id`
+and `app_id` are the routing keys: a command for an instance is written to that
+instance's adapter socket, and a routed message is written to the app socket a
+rule targets. The server owns the read loop, the write serialization and the
+ping/pong heartbeat; a socket that connects without its parameter is rejected.
+
+A bridge frame may be a flat payload or a full v3 envelope. Either way it is
+persisted (echoing the event's id in the `ack`) and routed. The non-message
+frames `tool_result` and `tool_catalog` are handed to the adapter gateway and
+not persisted.
+
 ### Adapter WebSocket
 
 **URL**: `ws://localhost:8080/ws/adapter?instance_id=<instance_id>`
@@ -777,6 +832,9 @@ Public. Returns the message field contract that [message-fields.md](./message-fi
 ### App WebSocket
 
 **URL**: `ws://localhost:8080/ws/app?app_id=<app_id>`
+
+The app id is what a route rule's `target_id` refers to. Messages routed here
+arrive as full v3 envelopes.
 
 **Message format**:
 ```json

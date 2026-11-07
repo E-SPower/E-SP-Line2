@@ -6,6 +6,7 @@ import (
 	"github.com/e-spl/e-sp-line2/internal/adapter"
 	"github.com/e-spl/e-sp-line2/internal/adapters"
 	"github.com/e-spl/e-sp-line2/internal/config"
+	"github.com/e-spl/e-sp-line2/internal/message"
 	"github.com/e-spl/e-sp-line2/internal/repository"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
@@ -26,6 +27,10 @@ type Services struct {
 
 	// Adapter gateway (接入器) service
 	AdapterGateway *AdapterGatewayService
+
+	// Hub routes inbound messages to app connections and carries outbound
+	// commands to adapter connections.
+	Hub *message.Hub
 
 	Repo  *repository.Repositories // exposed for stats / diagnostics
 	repos *repository.Repositories // alias for internal use
@@ -55,7 +60,9 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	services.Platform = NewPlatformService(repos.Platform)
 	services.Adapter = NewAdapterService(repos.Adapter, repos.AdapterPackage, repos.AdapterSession)
 	services.Instance = NewInstanceService(repos.Instance, repos.AdapterSession)
+	services.Hub = message.NewHub()
 	services.Message = NewMessageService(repos.InboundEvent, repos.Instance)
+	services.Message.SetHub(services.Hub)
 	services.Command = NewCommandService(repos.OutboundCommand)
 	services.Route = NewRouteService(repos.RouteRule)
 
@@ -215,6 +222,11 @@ func (s *Services) Close() error {
 	// Stop all managed Python adapter processes.
 	if s.Runner != nil {
 		s.Runner.StopAll()
+	}
+	if s.Hub != nil {
+		if err := s.Hub.Close(); err != nil {
+			logger.Warn("Failed to close message hub", logger.String("error", err.Error()))
+		}
 	}
 	return s.repos.Close()
 }

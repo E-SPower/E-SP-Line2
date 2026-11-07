@@ -42,3 +42,7 @@ config/config.local.yaml
 .vscode/
 *.swp
 .DS_Store
+
+# Local build/test scratch (writable TMPDIR/GOCACHE target)
+.tmp/
+.run/

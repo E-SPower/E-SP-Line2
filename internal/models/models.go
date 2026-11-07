@@ -63,16 +63,23 @@ type AdapterSession struct {
 
 // InboundEvent represents an inbound message event
 type InboundEvent struct {
-	ID             string    `json:"id" gorm:"primaryKey"`
-	PlatformID     string    `json:"platform_id" gorm:"index;not null"`
-	InstanceID     string    `json:"instance_id" gorm:"index;not null"`
-	ConversationID string    `json:"conversation_id" gorm:"index"`
-	SenderID       string    `json:"sender_id"`
-	SenderName     string    `json:"sender_name"`
-	MessageType    string    `json:"message_type"` // text, image, audio, product_card
-	MessageContent string    `json:"message_content" gorm:"type:text"`
-	RawMessage     string    `json:"raw_message" gorm:"type:text"`
-	IdempotencyKey string    `json:"idempotency_key" gorm:"uniqueIndex"`
+	ID             string `json:"id" gorm:"primaryKey"`
+	PlatformID     string `json:"platform_id" gorm:"index;not null"`
+	InstanceID     string `json:"instance_id" gorm:"index;not null"`
+	ConversationID string `json:"conversation_id" gorm:"index"`
+	SenderID       string `json:"sender_id"`
+	SenderName     string `json:"sender_name"`
+	MessageType    string `json:"message_type"` // text, image, audio, product_card
+	MessageContent string `json:"message_content" gorm:"type:text"`
+	RawMessage     string `json:"raw_message" gorm:"type:text"`
+	// IdempotencyKey is unique across the table. It is a pointer because
+	// SQLite's UNIQUE constraint allows many NULLs but only a single empty
+	// string, and Go's zero value for the field used to be "": the second
+	// message without a caller-supplied key failed with
+	// "UNIQUE constraint failed: inbound_events.idempotency_key".
+	// MessageService.Create guarantees a value (a generated fallback), and the
+	// nullable column keeps direct inserts and backfills safe.
+	IdempotencyKey *string   `json:"idempotency_key" gorm:"uniqueIndex"`
 	TraceID        string    `json:"trace_id" gorm:"index"`
 	Status         string    `json:"status" gorm:"default:'received'"` // received, routed, delivered, acked, retry_pending, dead_letter
 	CreatedAt      time.Time `json:"created_at"`

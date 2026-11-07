@@ -69,10 +69,13 @@ func (r *InboundEventRepository) ListByInstanceID(instanceID string, limit, offs
 	return events, err
 }
 
-// ListPending lists pending events for delivery
+// ListPending lists events that have not been routed yet. Routing happens in
+// the same call as the insert, so "received" here means a routing attempt that
+// did not happen (hub down, no rule at the time) or failed; "routed" and
+// terminal states are already done and must not be replayed forever.
 func (r *InboundEventRepository) ListPending(limit int) ([]models.InboundEvent, error) {
 	var events []models.InboundEvent
-	err := r.db.Where("status IN ?", []string{"received", "routed"}).
+	err := r.db.Where("status = ?", "received").
 		Limit(limit).Order("created_at ASC").Find(&events).Error
 	return events, err
 }

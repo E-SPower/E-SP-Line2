@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
 	"github.com/e-spl/e-sp-line2/internal/config"
 	"github.com/e-spl/e-sp-line2/internal/handler"
+	"github.com/e-spl/e-sp-line2/internal/message"
 	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/models"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
@@ -28,6 +30,7 @@ type Server struct {
 	router     *gin.Engine
 	services   *service.Services
 	gateway    *adaptergateway.Gateway
+	retryStop  chan struct{}
 }
 
 // New creates a new server instance
@@ -84,8 +87,17 @@ func New(cfg *config.Config) (*Server, error) {
 		s.gateway.SyncAdapters(ptrs)
 	}
 
+	// Make persisted routing rules effective: load the enabled ones into the
+	// hub's in-memory table and keep it in step on every route mutation.
+	s.syncRouteRules()
+
 	s.setupRoutes()
 	s.registerVersionCheck()
+
+	// Retry anything still pending (created/queued/retrying commands,
+	// unrouted messages) — a row can be left behind by a crash between the
+	// insert and the socket write.
+	s.startRetryScanners()
 
 	// When compiled with the `desktop` build tag the frontend is embedded into
 	// the binary (pkg/webui). Register it as the catch-all route so unmatched
@@ -195,6 +207,10 @@ func (s *Server) setupRoutes() {
 		messages.Use(middleware.AuthRequired())
 		{
 			messages.GET("", handler.ListMessages(s.services.Message))
+			// Ingest entry point: persists an inbound message, then hands it to
+			// the hub for routing. Without this the only inbound path is the
+			// bridge socket and GET /messages stays empty forever.
+			messages.POST("", handler.CreateMessage(s.services.Message))
 			messages.GET("/:id", handler.GetMessage(s.services.Message))
 			messages.POST("/:id/ack", handler.AckMessage(s.services.Message))
 		}
@@ -233,7 +249,7 @@ func (s *Server) setupRoutes() {
 		commands.Use(middleware.AuthRequired())
 		{
 			commands.GET("", handler.ListCommands(s.services.Command))
-			commands.POST("", handler.CreateCommand(s.services.Command))
+			commands.POST("", handler.CreateCommand(s.services.Command, s.services.Hub))
 			commands.GET("/:id", handler.GetCommand(s.services.Command))
 		}
 
@@ -242,10 +258,10 @@ func (s *Server) setupRoutes() {
 		routes.Use(middleware.AuthRequired())
 		{
 			routes.GET("", handler.ListRoutes(s.services.Route))
-			routes.POST("", handler.CreateRoute(s.services.Route))
+			routes.POST("", s.syncRoutesAfter(handler.CreateRoute(s.services.Route)))
 			routes.GET("/:id", handler.GetRoute(s.services.Route))
-			routes.PUT("/:id", handler.UpdateRoute(s.services.Route))
-			routes.DELETE("/:id", handler.DeleteRoute(s.services.Route))
+			routes.PUT("/:id", s.syncRoutesAfter(handler.UpdateRoute(s.services.Route)))
+			routes.DELETE("/:id", s.syncRoutesAfter(handler.DeleteRoute(s.services.Route)))
 		}
 
 		// Documentation
@@ -280,14 +296,14 @@ func (s *Server) setupRoutes() {
 		// The gateway is passed so outbound commands can be routed back to the
 		// correct bridge instance.
 		ws.GET("/adapter", handler.AdapterWebSocket(
-			s.services.Adapter,
+			s.services.Hub,
 			s.services.Message,
 			s.gateway,
 			func(payload map[string]interface{}) {
 				s.broadcastToAdapterGateway(payload)
 			},
 		))
-		ws.GET("/app", handler.AppWebSocket(s.services.Message))
+		ws.GET("/app", handler.AppWebSocket(s.services.Hub, s.services.Message))
 
 		// Adapter gateway (接入器) — external systems connect here with ?key=xxx
 		// Default listen path is simply /ws (简洁).
@@ -330,6 +346,18 @@ func (s *Server) handleGatewayWithID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		adapterID := c.Param("adapterID")
 		s.gateway.ServeHTTPWithID(c.Writer, c.Request, adapterID)
+	}
+}
+
+// syncRoutesAfter reloads the hub's in-memory routing table after a mutation
+// handler ran. Rule changes take effect on the next message instead of on the
+// next restart.
+func (s *Server) syncRoutesAfter(h gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		h(c)
+		if c.Writer.Status() < http.StatusBadRequest {
+			s.syncRouteRules()
+		}
 	}
 }
 
@@ -428,9 +456,79 @@ func (s *Server) Start() error {
 	return s.httpServer.ListenAndServe()
 }
 
+// syncRouteRules replaces the hub's in-memory routing table with the enabled
+// rules currently in the database.
+func (s *Server) syncRouteRules() {
+	if s.services.Hub == nil || s.services.Route == nil {
+		return
+	}
+	rules, err := s.services.Route.ListEnabled()
+	if err != nil {
+		logger.Warn("Failed to load route rules", logger.String("error", err.Error()))
+		return
+	}
+
+	targets := make([]*message.RouteRule, 0, len(rules))
+	for i := range rules {
+		rule := &rules[i]
+		targets = append(targets, &message.RouteRule{
+			ID:         rule.ID,
+			PlatformID: rule.PlatformID,
+			Priority:   rule.Priority,
+			Conditions: parseConditions(rule.Conditions),
+			TargetType: rule.TargetType,
+			TargetID:   rule.TargetID,
+			Enabled:    rule.Enabled,
+		})
+	}
+	s.services.Hub.SyncRules(targets)
+	logger.Info("Route rules loaded into hub", logger.Int("count", len(targets)))
+}
+
+// parseConditions decodes the stored JSON conditions; an unparsable blob is
+// treated as "no conditions" so a broken rule still matches instead of blocking
+// the whole platform.
+func parseConditions(raw string) map[string]interface{} {
+	if raw == "" {
+		return nil
+	}
+	var conditions map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &conditions); err != nil {
+		return nil
+	}
+	return conditions
+}
+
+// startRetryScanners starts the periodic replay loops and stops them on server
+// shutdown.
+func (s *Server) startRetryScanners() {
+	s.retryStop = make(chan struct{})
+
+	if s.services.Command != nil {
+		go s.services.Command.StartRetryScanner(30*time.Second, s.retryStop, s.dispatchPendingCommand)
+	}
+	if s.services.Message != nil {
+		s.services.Message.StartRetryScanner(30*time.Second, s.retryStop)
+	}
+}
+
+// dispatchPendingCommand is the retry hook the command scanner calls for a
+// pending row. It reuses the same dispatch path as the HTTP handler so the
+// status transitions stay in one place.
+func (s *Server) dispatchPendingCommand(cmd *models.OutboundCommand) {
+	if err := s.services.Command.DispatchCommand(s.services.Hub, cmd); err != nil {
+		logger.Warn("Retried command dispatch failed",
+			logger.String("command_id", cmd.ID),
+			logger.String("error", err.Error()))
+	}
+}
+
 // Stop gracefully stops the HTTP server
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Info("Stopping HTTP server")
+	if s.retryStop != nil {
+		close(s.retryStop)
+	}
 	if s.gateway != nil {
 		s.gateway.Close()
 	}

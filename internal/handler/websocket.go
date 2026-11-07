@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/adaptergateway"
+	"github.com/e-spl/e-sp-line2/internal/message"
+	"github.com/e-spl/e-sp-line2/internal/models"
 	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/e-spl/e-sp-line2/pkg/logger"
@@ -24,15 +26,19 @@ var upgrader = websocket.Upgrader{
 
 // AdapterWebSocket handles adapter (bridge) WebSocket connections.
 // The bridge connects here over /ws/adapter?instance_id=xxx and reports
-// inbound messages. Each reported message is persisted (with its full
-// payload) and, if a broadcast callback is provided, fanned out to the
-// adapter gateway (接入器) so external frameworks receive it.
+// inbound messages.
 //
-// The bridge connection is also registered with the adapter gateway so that
-// outbound commands (replies from external frameworks like LangBot) can be
-// routed back to the correct bridge.
+// The socket is registered with the message hub as an adapter connection, and
+// the hub's readPump/writePump take over the read loop, the write serialization
+// and the ping/pong heartbeat. Inbound frames are persisted and routed through
+// the hub, so a live app connection actually receives them instead of the
+// bridge only getting its own frame echoed back.
+//
+// The bridge is also registered with the adapter gateway (接入器) so outbound
+// commands (replies from external frameworks like LangBot) can be routed back
+// to this bridge.
 func AdapterWebSocket(
-	adapterService *service.AdapterService,
+	hub *message.Hub,
 	messageService *service.MessageService,
 	gateway *adaptergateway.Gateway,
 	onInbound ...func(payload map[string]interface{}),
@@ -43,26 +49,40 @@ func AdapterWebSocket(
 			logger.Error("WebSocket upgrade failed", logger.String("error", err.Error()))
 			return
 		}
-		defer conn.Close()
 
-		// Get adapter instance ID from query params
+		// instance_id identifies the connection for routing; it is the
+		// dispatcher key for adapter-bound frames (commands), no longer just a
+		// log field.
 		instanceID := c.Query("instance_id")
 		if instanceID == "" {
-			conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"instance_id required"}`))
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"instance_id required"}`))
+			_ = conn.Close()
 			return
 		}
 
 		logger.Info("Adapter connected", logger.String("instance_id", instanceID))
 
 		// Register the bridge connection with the gateway so outbound commands
-		// can be routed back to it. A single writer goroutine pumps ALL frames
-		// (welcome, acks and outbound commands) onto this WebSocket so we never
-		// have concurrent writes to the same connection.
+		// can be routed back to it.
 		bc := adaptergateway.NewBridgeConn(instanceID)
 		if gateway != nil {
 			gateway.RegisterBridge(instanceID, bc)
 		}
-		writeDone := make(chan struct{})
+
+		wsConn := &message.Connection{
+			ID:         models.GenerateID(),
+			Conn:       conn,
+			InstanceID: instanceID,
+			PlatformID: c.Query("platform_id"),
+			Send:       make(chan []byte, 256),
+			CreatedAt:  time.Now(),
+			LastPing:   time.Now(),
+		}
+
+		// Frames the gateway pushes for this bridge (outbound commands) are
+		// copied onto the connection's send channel, which writePump owns — the
+		// only writer to the socket.
+		forwardDone := make(chan struct{})
 		go func() {
 			for {
 				select {
@@ -70,196 +90,192 @@ func AdapterWebSocket(
 					if !ok {
 						return
 					}
-					_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-					if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-						return
+					if !enqueue(wsConn, data) {
+						logger.Warn("Adapter connection send buffer full",
+							logger.String("instance_id", instanceID))
 					}
-				case <-writeDone:
+				case <-forwardDone:
 					return
 				}
 			}
 		}()
-		defer func() {
-			close(writeDone)
+
+		wsConn.OnFrame = func(_ *message.Connection, raw []byte) {
+			handleAdapterFrame(wsConn, instanceID, messageService, gateway, onInbound, raw)
+		}
+		wsConn.OnClose = func(*message.Connection) {
+			close(forwardDone)
 			if gateway != nil {
 				gateway.UnregisterBridge(instanceID, bc)
 			}
-		}()
-
-		// Helper to marshal a JSON frame and push it through the single writer.
-		writeJSON := func(v interface{}) {
-			data, err := json.Marshal(v)
-			if err != nil {
-				return
-			}
-			if !bc.Send(data) {
-				logger.Warn("Adapter bridge send buffer full",
-					logger.String("instance_id", instanceID))
-			}
+			logger.Info("Adapter disconnected", logger.String("instance_id", instanceID))
 		}
 
-		// Send welcome message
-		writeJSON(map[string]interface{}{
+		hub.RegisterAdapter(wsConn)
+
+		enqueueJSON(wsConn, map[string]interface{}{
 			"type":      "connected",
 			"timestamp": time.Now().Unix(),
 			"message":   "Adapter WebSocket connected",
 		})
-
-		// Message handling loop
-		for {
-			messageType, message, err := conn.ReadMessage()
-			if err != nil {
-				logger.Error("Adapter read error", logger.String("error", err.Error()))
-				break
-			}
-
-			logger.Debug("Adapter message received",
-				logger.Int("type", messageType),
-				logger.String("message", string(message)))
-
-			// Parse inbound message and persist it
-			var payload map[string]interface{}
-			if err := json.Unmarshal(message, &payload); err == nil {
-				// Tool (inactive field) result frames are NOT messages: they
-				// carry the answer to an outstanding tool_call and must be
-				// handed back to the gateway's pending-call registry.
-				if frameType, _ := payload["type"].(string); frameType == "tool_result" {
-					if gateway != nil {
-						result := payload
-						if p, ok := payload["payload"].(map[string]interface{}); ok {
-							result = p
-						}
-						gateway.HandleToolResult(instanceID, result)
-					}
-					writeJSON(map[string]interface{}{
-						"type":      "ack",
-						"timestamp": time.Now().Unix(),
-					})
-					continue
-				}
-
-				// Tool catalog frames let a bridge declare/advertise its own
-				// inactive-field tools. They are registered but not persisted.
-				if frameType, _ := payload["type"].(string); frameType == "tool_catalog" {
-					if gateway != nil {
-						registerToolsFromFrame(gateway, payload)
-					}
-					writeJSON(map[string]interface{}{
-						"type":      "ack",
-						"timestamp": time.Now().Unix(),
-					})
-					continue
-				}
-
-				eventID := persistInboundMessage(messageService, instanceID, payload)
-
-				// Inject instance_id into the payload for adapter gateway routing.
-				// The bridge connects with ?instance_id=xxx in the query string, but
-				// the payload it sends does not contain instance_id.  The adapter
-				// gateway (接入器) and downstream frameworks (e.g. LangBot's ESPL
-				// adapter) need instance_id on the event so they can route outbound
-				// (reply) messages back to the correct bridge instance.
-				//
-				// We set both "instance_id" (canonical) and "instance" (legacy
-				// alias used by some external adapters) so routing works regardless
-				// of which key the downstream looks for.
-				if instanceID != "" {
-					if _, exists := payload["instance_id"]; !exists {
-						payload["instance_id"] = instanceID
-					}
-					if _, exists := payload["instance"]; !exists {
-						payload["instance"] = instanceID
-					}
-				}
-
-				// Fan out the full message to the adapter gateway (接入器).
-				if len(onInbound) > 0 && onInbound[0] != nil {
-					onInbound[0](payload)
-				}
-
-				writeJSON(map[string]interface{}{
-					"type":      "ack",
-					"timestamp": time.Now().Unix(),
-					"event_id":  eventID,
-				})
-				continue
-			}
-
-			// Raw text message, acknowledge without persistence
-			writeJSON(map[string]interface{}{
-				"type":      "ack",
-				"timestamp": time.Now().Unix(),
-				"data":      string(message),
-			})
-		}
-
-		logger.Info("Adapter disconnected", logger.String("instance_id", instanceID))
 	}
 }
 
-// AppWebSocket handles app WebSocket connections
-func AppWebSocket(messageService *service.MessageService) gin.HandlerFunc {
+// handleAdapterFrame processes one frame reported by a bridge.
+func handleAdapterFrame(
+	wsConn *message.Connection,
+	instanceID string,
+	messageService *service.MessageService,
+	gateway *adaptergateway.Gateway,
+	onInbound []func(payload map[string]interface{}),
+	raw []byte,
+) {
+	logger.Debug("Adapter message received", logger.String("message", string(raw)))
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		// Raw text frame: acknowledge without persistence.
+		enqueueJSON(wsConn, map[string]interface{}{
+			"type":      "ack",
+			"timestamp": time.Now().Unix(),
+			"data":      string(raw),
+		})
+		return
+	}
+
+	// Tool (inactive field) result frames are NOT messages: they carry the
+	// answer to an outstanding tool_call and must be handed back to the
+	// gateway's pending-call registry.
+	if frameType, _ := payload["type"].(string); frameType == "tool_result" {
+		if gateway != nil {
+			result := payload
+			if p, ok := payload["payload"].(map[string]interface{}); ok {
+				result = p
+			}
+			gateway.HandleToolResult(instanceID, result)
+		}
+		enqueueJSON(wsConn, map[string]interface{}{"type": "ack", "timestamp": time.Now().Unix()})
+		return
+	}
+
+	// Tool catalog frames let a bridge declare/advertise its own inactive-field
+	// tools. They are registered but not persisted.
+	if frameType, _ := payload["type"].(string); frameType == "tool_catalog" {
+		if gateway != nil {
+			registerToolsFromFrame(gateway, payload)
+		}
+		enqueueJSON(wsConn, map[string]interface{}{"type": "ack", "timestamp": time.Now().Unix()})
+		return
+	}
+
+	eventID := persistInboundMessage(messageService, instanceID, payload)
+
+	// Inject instance_id into the payload for adapter gateway routing. The
+	// bridge connects with ?instance_id=xxx in the query string, but the payload
+	// it sends does not contain instance_id. The adapter gateway (接入器) and
+	// downstream frameworks (e.g. LangBot's ESPL adapter) need instance_id on the
+	// event so they can route outbound (reply) messages back to the correct
+	// bridge instance.
+	//
+	// Both "instance_id" (canonical) and "instance" (legacy alias used by some
+	// external adapters) are set so routing works regardless of which key the
+	// downstream looks for.
+	if instanceID != "" {
+		if _, exists := payload["instance_id"]; !exists {
+			payload["instance_id"] = instanceID
+		}
+		if _, exists := payload["instance"]; !exists {
+			payload["instance"] = instanceID
+		}
+	}
+
+	// Fan out the full message to the adapter gateway (接入器).
+	if len(onInbound) > 0 && onInbound[0] != nil {
+		onInbound[0](payload)
+	}
+
+	enqueueJSON(wsConn, map[string]interface{}{
+		"type":      "ack",
+		"timestamp": time.Now().Unix(),
+		"event_id":  eventID,
+	})
+}
+
+// AppWebSocket handles app WebSocket connections.
+//
+// Like the adapter socket it is registered with the hub (as an app connection)
+// and the hub pumps own the socket. The app_id is the dispatcher key that
+// routing rules target, so routed inbound messages are delivered here.
+func AppWebSocket(hub *message.Hub, messageService *service.MessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			logger.Error("WebSocket upgrade failed", logger.String("error", err.Error()))
 			return
 		}
-		defer conn.Close()
 
-		// Get app ID from query params
 		appID := c.Query("app_id")
 		if appID == "" {
-			conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"app_id required"}`))
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"app_id required"}`))
+			_ = conn.Close()
 			return
 		}
 
 		logger.Info("App connected", logger.String("app_id", appID))
 
-		// Send welcome message
-		welcome := map[string]interface{}{
+		wsConn := &message.Connection{
+			ID:        models.GenerateID(),
+			Conn:      conn,
+			AppID:     appID,
+			Send:      make(chan []byte, 256),
+			CreatedAt: time.Now(),
+			LastPing:  time.Now(),
+		}
+
+		wsConn.OnFrame = func(_ *message.Connection, raw []byte) {
+			var payload map[string]interface{}
+			if err := json.Unmarshal(raw, &payload); err != nil {
+				enqueueJSON(wsConn, map[string]interface{}{
+					"type":      "ack",
+					"timestamp": time.Now().Unix(),
+					"data":      string(raw),
+				})
+				return
+			}
+
+			eventID := persistInboundMessage(messageService, "", payload)
+			enqueueJSON(wsConn, map[string]interface{}{
+				"type":      "ack",
+				"timestamp": time.Now().Unix(),
+				"event_id":  eventID,
+			})
+		}
+		wsConn.OnClose = func(*message.Connection) {
+			logger.Info("App disconnected", logger.String("app_id", appID))
+		}
+
+		hub.RegisterApp(wsConn)
+
+		enqueueJSON(wsConn, map[string]interface{}{
 			"type":      "connected",
 			"timestamp": time.Now().Unix(),
 			"message":   "App WebSocket connected",
-		}
-		conn.WriteJSON(welcome)
-
-		// Message handling loop
-		for {
-			messageType, message, err := conn.ReadMessage()
-			if err != nil {
-				logger.Error("App read error", logger.String("error", err.Error()))
-				break
-			}
-
-			logger.Debug("App message received",
-				logger.Int("type", messageType),
-				logger.String("message", string(message)))
-
-			// Parse inbound message and persist it
-			var payload map[string]interface{}
-			if err := json.Unmarshal(message, &payload); err == nil {
-				eventID := persistInboundMessage(messageService, "", payload)
-				response := map[string]interface{}{
-					"type":      "ack",
-					"timestamp": time.Now().Unix(),
-					"event_id":  eventID,
-				}
-				conn.WriteJSON(response)
-				continue
-			}
-
-			// Raw text message, acknowledge without persistence
-			response := map[string]interface{}{
-				"type":      "ack",
-				"timestamp": time.Now().Unix(),
-				"data":      string(message),
-			}
-			conn.WriteJSON(response)
-		}
-
-		logger.Info("App disconnected", logger.String("app_id", appID))
+		})
 	}
+}
+
+// enqueue pushes a frame onto a connection's send channel without blocking.
+func enqueue(conn *message.Connection, data []byte) bool {
+	return conn.Enqueue(data)
+}
+
+// enqueueJSON marshals v and enqueues it.
+func enqueueJSON(conn *message.Connection, v interface{}) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	enqueue(conn, data)
 }
 
 // persistInboundMessage persists an inbound message through the message service.
@@ -273,14 +289,34 @@ func AppWebSocket(messageService *service.MessageService) gin.HandlerFunc {
 //   - a full V3 envelope (protocol_version / event_id / event_type / payload)
 //     whose payload is an InboundMessagePayload with a message_chain.
 //
+// Persisting through the service also hands the message to the hub, which is
+// what makes it reach routed app connections.
+//
 // It returns the created event ID, or an empty string if persistence fails.
 func persistInboundMessage(messageService *service.MessageService, instanceID string, payload map[string]interface{}) string {
-	// If the payload is a full V3 envelope, unwrap its inner payload.
+	if messageService == nil {
+		return ""
+	}
+
+	// If the payload is a full V3 envelope, unwrap its inner payload. The
+	// envelope carries fields the inner payload usually omits (platform,
+	// event_type) at its top level; they act as defaults so the persisted row
+	// is still attributable and routable.
 	inner := payload
+	envelope := map[string]interface{}(nil)
 	if protocolVersion, _ := payload["protocol_version"].(string); protocolVersion == v3.Version {
 		if p, ok := payload["payload"].(map[string]interface{}); ok {
+			envelope = payload
 			inner = p
 		}
+	}
+
+	// field reads a key from the inner payload, falling back to the envelope.
+	field := func(key string) string {
+		if v := getStringField(inner, key); v != "" {
+			return v
+		}
+		return getStringField(envelope, key)
 	}
 
 	// Extract the message chain (if present) and preserve it in the raw field.
@@ -295,15 +331,21 @@ func persistInboundMessage(messageService *service.MessageService, instanceID st
 	}
 
 	req := &service.CreateMessageRequest{
-		PlatformID:     getStringField(inner, "platform_id"),
+		PlatformID:     field("platform_id"),
 		InstanceID:     instanceID,
-		ConversationID: getStringField(inner, "conversation_id"),
-		SenderID:       getStringField(inner, "sender_id"),
-		SenderName:     getStringField(inner, "sender_name"),
-		MessageType:    getStringField(inner, "message_type"),
-		MessageContent: getStringField(inner, "message_content"),
+		ConversationID: field("conversation_id"),
+		SenderID:       field("sender_id"),
+		SenderName:     field("sender_name"),
+		MessageType:    field("message_type"),
+		MessageContent: field("message_content"),
 		RawMessage:     raw,
-		IdempotencyKey: getStringField(inner, "idempotency_key"),
+		IdempotencyKey: field("idempotency_key"),
+		EventType:      field("event_type"),
+	}
+	// The envelope names the platform as "platform" (v3 envelope field), not
+	// "platform_id"; accept both spellings.
+	if req.PlatformID == "" {
+		req.PlatformID = field("platform")
 	}
 
 	// Fall back to the sender object if flat sender fields are absent.

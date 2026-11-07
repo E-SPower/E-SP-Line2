@@ -40,6 +40,8 @@ XXX_description.sql
 | Version | File | Description |
 |------|------|------|
 | 001 | 001_initial_schema.sql | Initial database schema |
+| 002 | 002_adapter_gateway.sql | Adapter gateway entities and connections |
+| 003 | 003_inbound_idempotency_nullable.sql | `inbound_events.idempotency_key` nullable + unique index |
 
 ## Writing a migration
 
