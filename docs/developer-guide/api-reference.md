@@ -436,6 +436,40 @@ Authorization: Bearer <token>
 }
 ```
 
+### 启动 / 停止实例
+
+**POST** `/instances/:id/start`、**POST** `/instances/:id/stop`
+
+拉起方式由接入器的 `runtime_type` 决定（见 [接入器运行时](./adapter-runtime.md)）：
+桥式等进程回连 WebSocket，独立式直接进入 `running` 且不需要 cookie。
+
+### 给独立式实例下发命令
+
+**POST** `/instances/:id/command`
+
+只对 `runtime_type: standalone` 的实例有效（桥式实例返回 400）。一行命令进、
+一个 JSON 信封出，信封原样来自接入器。
+
+**请求体**:
+```json
+{ "command_type": "send_text", "payload": { "cid": "c1", "toid": "u1", "text": "在的" }, "timeout_ms": 30000 }
+```
+
+`command_type: "cli"` 时 `payload.args` 是拼好的 CLI 词表，用于读取类命令：
+
+```json
+{ "command_type": "cli", "payload": { "args": ["xianyu", "item", "get", "123456"] } }
+```
+
+**响应**:
+```json
+{ "data": { "id": "...", "ok": false, "data": null, "page": null,
+            "error": { "code": "AUTH_REQUIRED", "message": "item get 需要登录",
+                       "hint": "catbus xianyu auth login", "detail": null } } }
+```
+
+接入器自己的错误是 HTTP 200 + `ok: false`（可以区分传输失败和业务失败）。
+
 ### 删除实例
 
 **DELETE** `/instances/:id`

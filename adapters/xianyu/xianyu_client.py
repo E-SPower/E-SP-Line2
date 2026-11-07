@@ -19,6 +19,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import threading
 import time
 import uuid
@@ -38,6 +39,46 @@ try:
     HAS_REQUESTS = True
 except Exception:  # pragma: no cover
     HAS_REQUESTS = False
+
+
+# ------------------------------------------------------------------ egress ---
+# 实例若配置了 proxy，运行器会把它塞进 HTTP(S)_PROXY / ALL_PROXY 环境变量。
+# requests 自动认这些变量；websockets 只有 >= 14 才自己读，更早的版本必须由
+# 调用方显式传 proxy=，否则那个平台 WebSocket 会绕过代理直连。
+def _is_loopback(uri: str) -> bool:
+    host = (uri.split("://", 1)[-1].split("/", 1)[0].rsplit("@", 1)[-1])
+    if host.startswith("["):
+        host = host[1:].split("]", 1)[0]
+    else:
+        host = host.split(":", 1)[0]
+    return host in ("localhost", "127.0.0.1", "::1", "0.0.0.0")
+
+
+def ws_proxy_kwargs(uri: str) -> Dict[str, Any]:
+    """返回 websockets.connect 的代理关键字参数。
+
+    回连后端的 WebSocket 是本机地址，必须直连，否则代理会绕回自己。
+    """
+    if _is_loopback(uri):
+        return {"proxy": None}
+
+    try:
+        major = int(str(getattr(websockets, "__version__", "0")).split(".")[0])
+    except Exception:
+        major = 0
+    if major >= 14:
+        # proxy=True 让库自己按 HTTP(S)_PROXY / NO_PROXY 决定。
+        return {"proxy": True}
+
+    url = (
+        os.environ.get("HTTPS_PROXY")
+        or os.environ.get("https_proxy")
+        or os.environ.get("ALL_PROXY")
+        or os.environ.get("all_proxy")
+        or os.environ.get("HTTP_PROXY")
+        or os.environ.get("http_proxy")
+    )
+    return {"proxy": url} if url else {}
 
 
 # ---------------------------------------------------------------- constants --
@@ -137,7 +178,9 @@ class XianyuLiveClient:
         """连接闲鱼 WebSocket 并持续监听。"""
         headers = self._ws_headers()
         self.running = True
-        async with websockets.connect(GOOFISH_WS, extra_headers=headers) as websocket:
+        async with websockets.connect(
+            GOOFISH_WS, extra_headers=headers, **ws_proxy_kwargs(GOOFISH_WS)
+        ) as websocket:
             self.ws = websocket
             logger.info("XianYu WebSocket connected")
             await self._init(websocket)

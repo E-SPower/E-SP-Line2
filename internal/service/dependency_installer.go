@@ -50,9 +50,14 @@ func isStorePythonStub(bin string) bool {
 // is persisted to data/instances/<id>/state.json and exposed to the WebUI so
 // the instance shows "初始化中" until installation completes.
 type DependencyInstaller struct {
-	mu       sync.Mutex
-	python   string
-	dirs     *InstanceDirManager
+	mu     sync.Mutex
+	python string
+	node   string
+	dirs   *InstanceDirManager
+
+	// runtimes maps instanceID -> the runtime used for its dependency check.
+	// A standalone instance skips pip entirely and runs the adapter self-check.
+	runtimes map[string]dependencyRuntime
 
 	// states: instanceID -> installState (in-memory cache)
 	states map[string]*installState
@@ -60,7 +65,7 @@ type DependencyInstaller struct {
 
 // installState tracks a single instance's dependency installation.
 type installState struct {
-	Status    string    `json:"status"` // installing, done, failed
+	Status    string    `json:"status"`   // installing, done, failed
 	Progress  int       `json:"progress"` // 0-100
 	Message   string    `json:"message"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -71,9 +76,11 @@ type installState struct {
 // NewDependencyInstaller creates a dependency installer.
 func NewDependencyInstaller(python, adaptersDir string) *DependencyInstaller {
 	return &DependencyInstaller{
-		python: python,
-		dirs:   NewInstanceDirManager(adaptersDir),
-		states: make(map[string]*installState),
+		python:   python,
+		node:     "node",
+		dirs:     NewInstanceDirManager(adaptersDir),
+		states:   make(map[string]*installState),
+		runtimes: make(map[string]dependencyRuntime),
 	}
 }
 
@@ -208,6 +215,17 @@ func (d *DependencyInstaller) install(instanceID, adapterDir, platformCode strin
 
 	// Write an initial log line so the WebUI can show install progress.
 	d.appendLog(instanceID, "开始安装适配器依赖...")
+
+	// Standalone adapters do not use pip: their dependencies are the Node
+	// runtime and the external CLI, which the adapter's own --self-check
+	// verifies. Branch before any requirements.txt handling.
+	if rt := d.runtimeOf(instanceID); rt.Type == RuntimeStandalone {
+		d.runStandaloneSelfCheck(instanceID, adapterDir, rt)
+		if updateStatus != nil {
+			_ = updateStatus(instanceID, "stopped")
+		}
+		return
+	}
 
 	// Locate requirements.txt inside the sandbox copy.
 	reqPath := filepath.Join(adapterDir, "requirements.txt")
@@ -396,9 +414,9 @@ func (d *DependencyInstaller) installAttempts() []installAttempt {
 	}
 	return []installAttempt{
 		{
-			name: "python -m pip",
-			args: func() []string { return append([]string{"-m", "pip"}, reqInstall("-r", "requirements.txt")...) },
-			env:  []string{"PIP_DISABLE_PIP_VERSION_CHECK=1"},
+			name:  "python -m pip",
+			args:  func() []string { return append([]string{"-m", "pip"}, reqInstall("-r", "requirements.txt")...) },
+			env:   []string{"PIP_DISABLE_PIP_VERSION_CHECK=1"},
 			isPip: true,
 		},
 		{
@@ -556,15 +574,193 @@ func (d *DependencyInstaller) appendLog(instanceID, text string) {
 	defer f.Close()
 	// Prefix each line with a level marker so the log viewer's level filter
 	// (info/warning/error) works for install output.
+	//
+	// Standalone adapters already emit `时间 | 级别 | [tag] 消息` themselves and
+	// answer with a JSON envelope: those lines go through verbatim instead of
+	// being prefixed twice and re-classified by keyword (an envelope contains
+	// the literal `"error":null`, which would otherwise mark it ERROR).
 	for _, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if hasLevelColumn(line) {
+			_, _ = f.WriteString(line + "\n")
+			continue
+		}
 		marker := "INFO"
 		lower := strings.ToLower(line)
-		if strings.Contains(lower, "error") || strings.Contains(lower, "failed") || strings.Contains(lower, "exception") {
+		switch {
+		case strings.HasPrefix(strings.TrimSpace(line), "{"):
+			marker = envelopeLevel(line, marker)
+		case strings.Contains(lower, "error") || strings.Contains(lower, "failed") || strings.Contains(lower, "exception"):
 			marker = "ERROR"
-		} else if strings.Contains(lower, "warning") {
+		case strings.Contains(lower, "warning"):
 			marker = "WARNING"
 		}
 		ts := time.Now().Format("2006-01-02 15:04:05")
 		_, _ = f.WriteString(fmt.Sprintf("%s | %-7s | %s\n", ts, marker, line))
 	}
+}
+
+// hasLevelColumn reports whether a line already starts with our log record
+// format `YYYY-MM-DD HH:MM:SS | LEVEL`.
+func hasLevelColumn(line string) bool {
+	if len(line) < 21 || line[4] != '-' || line[10] != ' ' || line[13] != ':' {
+		return false
+	}
+	return strings.Contains(line[19:], "|")
+}
+
+// envelopeLevel derives the log level of a JSON envelope from its ok flag.
+func envelopeLevel(line, fallback string) string {
+	var env struct {
+		Ok *bool `json:"ok"`
+	}
+	if err := json.Unmarshal([]byte(line), &env); err != nil || env.Ok == nil {
+		return fallback
+	}
+	if *env.Ok {
+		return "INFO"
+	}
+	return "ERROR"
+}
+
+// ---------------------------------------------------------------- runtime ---
+
+// dependencyRuntime is how a dependency check runs for one instance. The
+// default checks the adapter family's requirements.txt with pip; the standalone
+// runtime additionally runs the adapter's own `--self-check` so a missing Node
+// or catbus CLI is reported at creation time, not on the first start.
+type dependencyRuntime struct {
+	// Type is the adapter runtime_type.
+	Type string
+	// Spec is the standalone runtime declaration (interpreter/entry/args).
+	Spec RuntimeSpec
+	// Config is the instance config, handed to the self-check via --config so
+	// the adapter sees the same values a real start would give it.
+	Config string
+}
+
+// SetNodeBin sets the interpreter used for standalone adapters (default node).
+func (d *DependencyInstaller) SetNodeBin(bin string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.node = bin
+}
+
+// adoptRuntime must be called before InstallDependencies to switch the
+// dependency path away from pip. It is a no-op for python adapters, keeping
+// their behaviour byte-for-byte identical.
+func (d *DependencyInstaller) adoptRuntime(instanceID, runtimeType string, spec RuntimeSpec, cfg string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.runtimes == nil {
+		d.runtimes = make(map[string]dependencyRuntime)
+	}
+	if runtimeType == RuntimeStandalone {
+		d.runtimes[instanceID] = dependencyRuntime{Type: runtimeType, Spec: spec, Config: cfg}
+		return
+	}
+	delete(d.runtimes, instanceID)
+}
+
+// runtimeOf returns the registered runtime for an instance (python default).
+func (d *DependencyInstaller) runtimeOf(instanceID string) dependencyRuntime {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	rt, ok := d.runtimes[instanceID]
+	if !ok {
+		return dependencyRuntime{Type: RuntimePython}
+	}
+	return rt
+}
+
+// runStandaloneSelfCheck executes `<interpreter> <entry> --self-check` in the
+// sandbox and records the result in the instance log and install state.
+//
+// The check is deliberately the adapter's own: only the adapter knows which
+// CLI and credentials it needs. Exit code 0 with a JSON envelope means ready;
+// anything else leaves the instance in "error" with the adapter's explanation.
+func (d *DependencyInstaller) runStandaloneSelfCheck(instanceID, adapterDir string, rt dependencyRuntime) {
+	interpreter := rt.Spec.Interpreter
+	if interpreter == "" {
+		interpreter = d.node
+	}
+	if interpreter == "" {
+		interpreter = "node"
+	}
+	entry := rt.Spec.Entry
+	args := []string{entry, "--self-check", "--instance-id", instanceID}
+	args = append(args, rt.Spec.Args...)
+
+	// Hand the instance config over exactly like a real start does, so the
+	// self-check validates the configured CLI instead of a guessed default.
+	var cfg map[string]interface{}
+	if strings.TrimSpace(rt.Config) != "" {
+		_ = json.Unmarshal([]byte(rt.Config), &cfg)
+	}
+	if path, err := d.writeSelfCheckConfig(instanceID, cfg); err == nil {
+		args = append(args, "--config", path)
+	}
+
+	d.setProgress(instanceID, 40, "正在检查独立式运行时依赖 ...")
+	d.appendLog(instanceID, "[standalone] 依赖自检: "+interpreter+" "+strings.Join(args, " "))
+
+	cmd := exec.Command(interpreter, args...)
+	cmd.Dir = adapterDir
+	cmd.Env = os.Environ()
+	out, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(out))
+	if text != "" {
+		d.appendLog(instanceID, text)
+	}
+	if err != nil {
+		msg := "独立式运行时自检失败"
+		if text != "" {
+			msg += ": " + lastLine(text)
+		}
+		d.appendLog(instanceID, "[standalone] "+msg+"; 安装 Node（或补齐 catbus CLI）后重试")
+		d.finish(instanceID, "failed", 100, msg, err.Error())
+		return
+	}
+	d.appendLog(instanceID, "[standalone] 自检通过")
+	d.finish(instanceID, "done", 100, "独立式运行时依赖自检通过", "")
+}
+
+// writeSelfCheckConfig writes the instance config next to the sandbox copy for
+// the self-check run.
+func (d *DependencyInstaller) writeSelfCheckConfig(instanceID string, cfg map[string]interface{}) (string, error) {
+	if cfg == nil {
+		cfg = map[string]interface{}{}
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(d.dirs.AdapterDir(instanceID))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "config.runtime.json")
+	// The command runs with cmd.Dir set to the sandbox, so this must be
+	// absolute or the adapter resolves it against the wrong directory.
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return abs, os.WriteFile(abs, data, 0o600)
+}
+
+// lastLine returns the last non-empty line of text (trimmed), for short errors.
+func lastLine(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if s := strings.TrimSpace(lines[i]); s != "" {
+			if len(s) > 300 {
+				return s[:300]
+			}
+			return s
+		}
+	}
+	return ""
 }

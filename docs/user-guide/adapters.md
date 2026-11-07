@@ -218,11 +218,42 @@
 }
 ```
 
+### 运行时类型
+
+接入器有两种运行方式，由它自己的 `adapter.yaml` 声明，用户在实例页不用选：
+
+- **桥式**（`runtime_type: python`）：跟以前一样，后端起一个 Python 进程，进程回连后端。
+- **独立式**（`runtime_type: standalone`）：进程自己起，只有命令进出，不回连。
+  适合现成的 CLI。目前只有「猫巴士独立式接入器」用这种方式，它调用
+  [catbus](https://github.com/cv-cat/catbus) 的命令。
+
+独立式实例创建时会先跑一次自检（Node 版本、catbus 可执行文件），不通过会停在
+「错误」并把原因写进实例日志。自检不过的常见原因是没装 Node 22+ 或没装 catbus：
+在实例配置里填 `catbus 可执行文件`（或先 `npm i -g catbus-cli`）再重建实例。
+独立式与桥式一样要填登录态：在终端跑 `catbus xianyu auth login`，登录态放在
+`catbus 数据目录`（默认 `~/.catbus`），实例里把这个目录填成同一个。独立式实例不填
+Cookie 也能启动，没登录时 catbus 的每个命令会自己回 `AUTH_REQUIRED` 与登录提示。
+
 ### 代理配置
+
+接入器沙箱里的 Python 进程要出网访问平台；在只能经代理出网的环境里，`proxy` 字段
+可以让**单个实例**走代理。它按实例生效，同一接入器下的两个实例可以走不同代理，也可以
+都不走。实例表单里的「代理（可选）」就是这个字段。
+
+三种取值：
+
+```json
+{ "proxy": "http://127.0.0.1:7890" }
+```
+
+```json
+{ "proxy": "socks5://user:pass@127.0.0.1:7891" }
+```
 
 ```json
 {
   "proxy": {
+    "scheme": "http",
     "host": "proxy.example.com",
     "port": 8080,
     "username": "user",
@@ -230,3 +261,20 @@
   }
 }
 ```
+
+| 取值 | 含义 |
+|------|------|
+| 留空 / 不填 | 继承后端进程自己的代理环境（后端没设就是直连） |
+| 一个代理 URL | 该实例强制走这个代理，协议支持 `http` / `https` / `socks5` |
+| `none` | 强制直连，并清掉继承来的代理变量 |
+
+`no_proxy` 是配套的直连白名单，默认 `localhost,127.0.0.1,::1`。**默认值不要删**：
+适配器进程要回连后端的 `/ws/adapter` 本地 WebSocket，走代理会绕回自己。
+
+```json
+{ "proxy": "http://127.0.0.1:7890", "no_proxy": "localhost,127.0.0.1,::1,corp.internal" }
+```
+
+代理写错了会在**启动时**报错（`invalid proxy configuration: ...`），不会静默直连。
+代理密码写进实例日志时会打码成 `user:***@host`。启动横幅的 `proxy` 一行会打出当前
+实际生效的取值，排查「到底走没走代理」看那一行。

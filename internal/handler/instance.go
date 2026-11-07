@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
@@ -176,6 +177,39 @@ func StopInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "instance stopped"})
+	}
+}
+
+// RunInstanceCommand sends one command to a standalone instance and returns the
+// adapter's JSON envelope.
+//
+// Body: {"command_type":"send_text","payload":{...},"timeout_ms":30000}
+// or   {"command_type":"cli","payload":{"args":["xianyu","item","get","1"]}}
+func RunInstanceCommand(instanceService *service.InstanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		var req struct {
+			CommandType string                 `json:"command_type" binding:"required"`
+			Payload     map[string]interface{} `json:"payload"`
+			TimeoutMS   int                    `json:"timeout_ms"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		command := map[string]interface{}{"command_type": req.CommandType}
+		if req.Payload != nil {
+			command["payload"] = req.Payload
+		}
+		timeout := time.Duration(req.TimeoutMS) * time.Millisecond
+
+		env, err := instanceService.RunCommand(id, command, timeout)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": env})
 	}
 }
 

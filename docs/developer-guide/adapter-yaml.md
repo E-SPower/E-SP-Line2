@@ -25,7 +25,8 @@ adapters/
 | `platform_code` | string | ✅ | 处理的消息平台代码，须与 `config/form-options.yaml` 的 `platform_codes` 一致（如 `xianyu`、`taobao`） |
 | `name` | string | ✅ | 显示名称（如 `闲鱼接入器`） |
 | `version` | string | ✅ | 版本号（如 `1.0.0`） |
-| `runtime_type` | string | ✅ | 运行时类型：`python` / `node` / `go` |
+| `runtime_type` | string | ✅ | 拉起方式：`python`（桥式，默认）或 `standalone`（独立式，命令驱动）。`node` / `go` 只是语言标签。见 [接入器运行时](./adapter-runtime.md) |
+| `runtime` | map | 仅 standalone | 独立式的拉起参数：`interpreter`、`entry`（必填）、`args` |
 | `description` | string | 否 | 接入器描述 |
 | `hidden` | bool | 否 | 是否在 WebUI 隐藏（`false` 显示，`true` 隐藏但仍可用） |
 | `icon` | string | 否 | 显示图标（emoji 或路径） |
@@ -44,6 +45,32 @@ adapters/
 | `placeholder` | string | 否 | 输入框占位提示 |
 | `help` | string | 否 | 帮助说明文字 |
 | `default` | any | 否 | 默认值 |
+
+### 保留配置键
+
+下面两个键由**运行器**读取（不是接入器脚本自己读），接入器作者只管在 `config_schema`
+里把它们声明出来让用户在表单里填，不要自己解析：
+
+| 键 | 说明 |
+|----|------|
+| `proxy` | 该实例的出网代理。`http://` / `https://` / `socks5://`，或对象 `{scheme,host,port,username,password}`，或 `none` 强制直连。留空＝继承后端代理。 |
+| `no_proxy` | 不走代理的地址，逗号分隔，默认 `localhost,127.0.0.1,::1`。 |
+
+运行器会把这些值转成 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY`（大小写
+两套）注入沙箱进程的环境变量，所以用 `requests`、`aiohttp`、`websockets` 写的接入器
+不需要改代码就能走代理。行为细节见 [适配器配置](../user-guide/adapters.md)。
+
+### runtime（独立式）
+
+`runtime_type: standalone` 时必填，告诉后端拉哪个入口：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `entry` | string | ✅ | 入口脚本，必须在接入器目录内（如 `main.mjs`） |
+| `interpreter` | string | 否 | 解释器，省略时用 `adapter.node_bin`（默认 `node`） |
+| `args` | list | 否 | 追加的字面参数 |
+
+独立式的线协议、起动参数与实例生命周期见 [接入器运行时](./adapter-runtime.md)。
 
 ## 完整示例
 

@@ -52,6 +52,18 @@ config_schema:
     type: number
     required: false
     default: 5
+  proxy:
+    label: 代理（可选）
+    type: text
+    required: false
+    placeholder: 例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:7891
+    help: 留空表示沿用后端的代理环境（后端没设就是直连）；填 none 强制直连，即使后端在代理后面。仅对本实例生效。
+  no_proxy:
+    label: 不走代理的地址
+    type: text
+    required: false
+    placeholder: 可选，逗号分隔，默认 localhost,127.0.0.1,::1
+    help: 通常保持默认即可，否则实例回连后端 WebSocket 也会被代理。
 
 # 能力声明（可选）
 capabilities:

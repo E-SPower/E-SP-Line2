@@ -66,6 +66,33 @@ function serializeConfig(config: Record<string, any>): string {
   return JSON.stringify(config)
 }
 
+// The proxy is stored either as a URL string or as the structured
+// {scheme,host,port,username,password} object. The form renders one text input,
+// so the object form is folded back into a URL before prefill — otherwise the
+// input would show "[object Object]" and round-trip it back into the config.
+function proxyForForm(proxy: unknown): string {
+  if (typeof proxy === 'string') return proxy
+  if (!proxy || typeof proxy !== 'object') return ''
+  const o = proxy as Record<string, any>
+  if (o.url) return String(o.url)
+  const host = String(o.host || '').trim()
+  if (!host) return ''
+  const scheme = String(o.scheme || 'http').trim() || 'http'
+  const port = o.port ? `:${o.port}` : ''
+  const auth = o.username
+    ? `${encodeURIComponent(String(o.username))}${o.password ? `:${encodeURIComponent(String(o.password))}` : ''}@`
+    : ''
+  return `${scheme}://${auth}${host}${port}`
+}
+
+// Form values to prefill when editing: the stored config, with the proxy folded
+// into its single-input form.
+function configForForm(config: string | null | undefined): Record<string, any> {
+  const cfg = parseConfig(config)
+  if ('proxy' in cfg) cfg.proxy = proxyForForm(cfg.proxy)
+  return cfg
+}
+
 export default function Instances() {
   const { t } = useTranslation()
   const [instances, setInstances] = useState<Instance[]>([])
@@ -598,7 +625,7 @@ export default function Instances() {
             ? {
                 name: editing.name,
                 adapter_id: editing.adapter_id,
-                ...parseConfig(editing.config),
+                ...configForForm(editing.config),
               }
             : undefined
         }

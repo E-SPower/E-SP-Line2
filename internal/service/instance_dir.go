@@ -25,7 +25,7 @@ import (
 // can never be modified at runtime. If a file in the sandbox copy no longer
 // matches its digest, the instance is refused to start (integrity check).
 type InstanceDirManager struct {
-	root       string // e.g. data/instances
+	root        string // e.g. data/instances
 	adaptersDir string // e.g. adapters or data/adapters
 }
 
@@ -339,11 +339,18 @@ func (m *InstanceDirManager) Remove(instanceID string) error {
 
 // EnsureSandbox copies the adapter source into the instance sandbox if it does
 // not exist yet (used for pre-existing instances on startup reconcile).
-func (m *InstanceDirManager) EnsureSandbox(instanceID, platformCode string) (string, bool, error) {
+//
+// entry is the runtime's launcher file relative to the sandbox (main.py for the
+// bridge model, runtime.entry for standalone adapters). Re-copying wipes the
+// whole instance dir, so getting this wrong costs every adapter-written file and
+// state.json on every server start.
+func (m *InstanceDirManager) EnsureSandbox(instanceID, platformCode, entry string) (string, bool, error) {
 	dest := m.AdapterDir(instanceID)
-	if _, err := os.Stat(filepath.Join(dest, "main.py")); err == nil {
-		if _, mErr := os.Stat(m.ManifestPath(instanceID)); mErr == nil {
-			return dest, false, nil
+	if entry != "" {
+		if _, err := os.Stat(filepath.Join(dest, entry)); err == nil {
+			if _, mErr := os.Stat(m.ManifestPath(instanceID)); mErr == nil {
+				return dest, false, nil
+			}
 		}
 	}
 	// Re-copy (missing or incomplete sandbox).

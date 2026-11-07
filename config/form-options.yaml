@@ -45,16 +45,25 @@ platform_codes:
     label_en: "Slack"
 
 # 接入器运行时类型(Adapter.runtime_type)
+#
+# 这个值决定后端**怎么拉起**接入器进程，不是备注：
+#   python     —— 桥式：python main.py --instance-id X --backend URL，进程回连 /ws/adapter
+#   standalone —— 独立式：按 adapter.yaml 的 runtime.entry 拉进程，命令走 stdin，
+#                 结果走 stdout JSON 信封，不回连（见 docs/developer-guide/adapter-runtime.md）
+# node / go 只是标签：适配器确实用该语言写，但仍按 python 桥式拉起时用。
 runtime_types:
   - value: "python"
-    label: "Python"
-    label_en: "Python"
+    label: "Python（桥式）"
+    label_en: "Python (bridge)"
+  - value: "standalone"
+    label: "独立式（命令驱动）"
+    label_en: "Standalone (command driven)"
   - value: "node"
-    label: "Node.js"
-    label_en: "Node.js"
+    label: "Node.js（标签）"
+    label_en: "Node.js (label)"
   - value: "go"
-    label: "Go"
-    label_en: "Go"
+    label: "Go（标签）"
+    label_en: "Go (label)"
 
 # 接入器状态(Adapter.status)
 adapter_statuses:

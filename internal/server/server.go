@@ -63,6 +63,24 @@ func New(cfg *config.Config) (*Server, error) {
 		services.AdapterGateway,
 	)
 
+	// Standalone (runtime_type: standalone) adapter instances are driven over
+	// stdin instead of a bridge WebSocket. Wire the gateway's outbound path to
+	// the runner so replies still reach them; commands are delivered through
+	// the shell contract, never silently dropped.
+	s.gateway.SetStandaloneSender(func(instanceID string, command map[string]interface{}) bool {
+		return services.Runner.DeliverStandalone(instanceID, command)
+	})
+	// Standalone adapters declare their inactive-field tools over stdout at
+	// startup (the bridge model uses the WebSocket for the same frame).
+	services.Runner.SetToolCatalogSink(func(instanceID string, frame map[string]interface{}) {
+		payload, ok := frame["payload"].(map[string]interface{})
+		if !ok {
+			return
+		}
+		payload["instance_id"] = instanceID
+		s.gateway.RegisterToolsFromCatalogFrame(frame)
+	})
+
 	// Register the change callback: whenever an adapter is created, updated or
 	// deleted, the gateway reloads client-mode outbound connections live.
 	services.AdapterGateway.SetOnChangeCallback(func() {
@@ -175,6 +193,9 @@ func (s *Server) setupRoutes() {
 			instances.DELETE("/:id", handler.DeleteInstance(s.services.Instance))
 			instances.POST("/:id/start", handler.StartInstance(s.services.Instance))
 			instances.POST("/:id/stop", handler.StopInstance(s.services.Instance))
+			// Drive a standalone (runtime_type: standalone) instance: one
+			// command in, one JSON envelope out. Bridge instances answer 400.
+			instances.POST("/:id/command", handler.RunInstanceCommand(s.services.Instance))
 			instances.GET("/:id/logs", handler.GetInstanceLogs(s.services.Instance))
 			instances.GET("/:id/logs/heatmap", handler.GetInstanceLogHeatmap(s.services.Instance))
 			instances.DELETE("/:id/logs", handler.ClearInstanceLogs(s.services.Instance))

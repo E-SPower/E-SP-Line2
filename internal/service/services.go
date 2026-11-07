@@ -112,6 +112,7 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	// service token (using the JWT secret) so Python adapters can call the API.
 	services.Runner.SetCatalog(catalog)
 	services.Runner.SetJWTSecret(cfg.JWT.Secret)
+	services.Runner.SetNodeBin(cfg.Adapter.NodeBin)
 
 	// Initialize the instance sandbox manager (data/instances/<id>/adapter).
 	dirs := NewInstanceDirManager(adaptersDir)
@@ -119,6 +120,7 @@ func NewServices(cfg *config.Config) (*Services, error) {
 	// Initialize the dependency installer and attach it to the runner and the
 	// instance service so new instances auto-install adapter dependencies.
 	installer := NewDependencyInstaller(cfg.Adapter.PythonBin, adaptersDir)
+	installer.SetNodeBin(cfg.Adapter.NodeBin)
 	services.Runner.SetInstaller(installer)
 	services.Instance.SetInstaller(installer)
 	services.Runner.SetDirManager(dirs)
@@ -156,8 +158,8 @@ func (s *Services) reconcileInitializing() {
 	}
 	count := 0
 	for _, inst := range instances {
-		// Resolve the source platform code (via the runner's catalog lookup).
-		platformCode, perr := s.Runner.resolvePlatformCode(inst.ID)
+		// Resolve the source directory (via the runner's catalog lookup).
+		platformCode, perr := s.Runner.resolveSourceDir(inst.ID)
 		if perr != nil {
 			logger.Warn("Failed to resolve platform code during reconcile",
 				logger.String("instance_id", inst.ID),
@@ -165,10 +167,13 @@ func (s *Services) reconcileInitializing() {
 			continue
 		}
 
-		// Ensure a sandbox copy exists; copy it if missing.
+		// Ensure a sandbox copy exists; copy it if missing. The completeness
+		// check is per runtime (a standalone sandbox has no main.py).
 		created := false
 		if s.Instance.dirs != nil {
-			adapterDir, createdNow, cerr := s.Instance.dirs.EnsureSandbox(inst.ID, platformCode)
+			runtimeType, spec := s.Instance.adapterRuntime(&inst)
+			adapterDir, createdNow, cerr := s.Instance.dirs.EnsureSandbox(
+				inst.ID, platformCode, requiredEntry(runtimeType, spec))
 			created = createdNow
 			if cerr != nil {
 				logger.Warn("Failed to ensure instance sandbox",
@@ -194,6 +199,8 @@ func (s *Services) reconcileInitializing() {
 			state, stateExists := s.Instance.installer.GetState(inst.ID)
 			installFailed := stateExists && state.Status == "failed"
 			if inst.Status == "initializing" || created || !stateExists || installFailed {
+				runtimeType, spec := s.Instance.adapterRuntime(&inst)
+				s.Instance.installer.adoptRuntime(inst.ID, runtimeType, spec, inst.Config)
 				s.Instance.installer.InstallDependencies(inst.ID, adapterDir, platformCode, s.Instance.updateInstanceStatus)
 				count++
 			}
