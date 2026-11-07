@@ -7,12 +7,21 @@ import (
 	"github.com/spf13/viper"
 )
 
+// PlaceholderJWTSecret is the value shipped in config/config.yaml and used as
+// the viper default. A deployment that still runs with it signs tokens with a
+// secret anybody can read in the repository, so startup warns about it.
+const PlaceholderJWTSecret = "change-this-secret-in-production"
+
 // Config represents the application configuration
 type Config struct {
 	// Server settings
 	Host    string `mapstructure:"host"`
 	Port    int    `mapstructure:"port"`
 	Version string `mapstructure:"version"`
+
+	// HTTP hardening, plus the browser origins allowed to call the API and the
+	// WebSocket handshake. See ServerConfig and CORSConfig.
+	Server ServerConfig `mapstructure:"server"`
 
 	// Database settings
 	Database DatabaseConfig `mapstructure:"database"`
@@ -28,6 +37,40 @@ type Config struct {
 
 	// Adapter settings
 	Adapter AdapterConfig `mapstructure:"adapter"`
+}
+
+// ServerConfig holds the HTTP server hardening knobs and the browser origin
+// allow-list.
+//
+// The timeouts are seconds, matching the rest of the config file, and are
+// converted to time.Duration in server.New. A zero value disables the
+// corresponding net/http timeout, which is what the standard library does too.
+type ServerConfig struct {
+	// AllowedOrigins is the allow-list shared by CORS and the WebSocket
+	// handshake, so the two never drift apart. An entry of "*" allows any
+	// origin; otherwise the Origin header is echoed only when it matches an
+	// entry exactly (scheme + host + port, no trailing slash).
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+
+	ReadHeaderTimeout int `mapstructure:"read_header_timeout"` // seconds
+	ReadTimeout       int `mapstructure:"read_timeout"`        // seconds
+	WriteTimeout      int `mapstructure:"write_timeout"`       // seconds
+	IdleTimeout       int `mapstructure:"idle_timeout"`        // seconds
+
+	// MaxBodyBytes caps an HTTP request body. Uploads are JSON blobs (adapter
+	// configs, cookies), so this stays far below a file-transfer size.
+	MaxBodyBytes int64 `mapstructure:"max_body_bytes"`
+}
+
+// OriginAllowed reports whether origin is in the allow-list. A "*" entry
+// allows everything.
+func (c *ServerConfig) OriginAllowed(origin string) bool {
+	for _, allowed := range c.AllowedOrigins {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // DatabaseConfig represents database configuration
@@ -120,12 +163,51 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
+// JWTSecretWarning returns the warning a caller should log when secret is
+// still the shipped placeholder (or empty), and "" when it was changed.
+//
+// The check is a pure function, not a log call inside Load, because Load runs
+// before logger.Init and a nil zap logger would silently drop it.
+func JWTSecretWarning(secret string) string {
+	switch secret {
+	case PlaceholderJWTSecret:
+		return "jwt.secret is still the shipped placeholder " + PlaceholderJWTSecret +
+			"; anyone with the repository can forge a token for this deployment. " +
+			"Set jwt.secret in config/config.yaml, or export JWT.SECRET to override it."
+	case "":
+		// An empty key still signs, with nothing. Reached by exporting
+		// JWT.SECRET= or blanking the key, not by the shipped config.
+		return "jwt.secret is empty; tokens are signed with an empty HS256 key. " +
+			"Set jwt.secret in config/config.yaml."
+	default:
+		return ""
+	}
+}
+
 // setDefaults sets default configuration values
 func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("host", "0.0.0.0")
 	v.SetDefault("port", 8080)
 	v.SetDefault("version", "1.0.0")
+
+	// HTTP hardening. 5s is enough for every header block a browser sends and
+	// still ends a Slowloris connection quickly; the read/write budgets cover a
+	// large JSON body; idle covers keep-alive reuse.
+	v.SetDefault("server.read_header_timeout", 5)
+	v.SetDefault("server.read_timeout", 60)
+	v.SetDefault("server.write_timeout", 60)
+	v.SetDefault("server.idle_timeout", 120)
+	v.SetDefault("server.max_body_bytes", 8<<20) // 8 MiB
+
+	// Origins allowed to call the API and open a WebSocket. The Vite dev server
+	// is the only cross-origin caller out of the box; a deployment behind a
+	// reverse proxy is same-origin and needs no entry. Replace/add entries
+	// rather than widening to "*", see docs/developer-guide/api-reference.md.
+	v.SetDefault("server.allowed_origins", []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+	})
 
 	// Database defaults
 	v.SetDefault("database.driver", "sqlite")
@@ -147,7 +229,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log_level", "info")
 
 	// JWT defaults
-	v.SetDefault("jwt.secret", "change-this-secret-in-production")
+	v.SetDefault("jwt.secret", PlaceholderJWTSecret)
 	v.SetDefault("jwt.expiration", 24)
 
 	// Adapter defaults
