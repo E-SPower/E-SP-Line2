@@ -47,8 +47,15 @@ func (r *InboundEventRepository) Update(event *models.InboundEvent) error {
 
 // UpdateStatus updates event status
 func (r *InboundEventRepository) UpdateStatus(id, status string) error {
-	return r.db.Model(&models.InboundEvent{}).Where("id = ?", id).
-		Update("status", status).Error
+	result := r.db.Model(&models.InboundEvent{}).Where("id = ?", id).
+		Update("status", status)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all events
@@ -109,8 +116,15 @@ func (r *OutboundCommandRepository) Update(cmd *models.OutboundCommand) error {
 
 // UpdateStatus updates command status
 func (r *OutboundCommandRepository) UpdateStatus(id, status string) error {
-	return r.db.Model(&models.OutboundCommand{}).Where("id = ?", id).
-		Update("status", status).Error
+	result := r.db.Model(&models.OutboundCommand{}).Where("id = ?", id).
+		Update("status", status)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all commands
@@ -163,7 +177,14 @@ func (r *RouteRuleRepository) Update(rule *models.RouteRule) error {
 
 // Delete deletes a route rule
 func (r *RouteRuleRepository) Delete(id string) error {
-	return r.db.Delete(&models.RouteRule{}, "id = ?", id).Error
+	result := r.db.Delete(&models.RouteRule{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all route rules

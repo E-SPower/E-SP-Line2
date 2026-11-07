@@ -33,7 +33,7 @@ func GetPlatform(platformService *service.PlatformService) gin.HandlerFunc {
 		id := c.Param("id")
 		platform, err := platformService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "platform not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -52,7 +52,7 @@ func CreatePlatform(platformService *service.PlatformService) gin.HandlerFunc {
 
 		platform, err := platformService.Create(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -72,7 +72,7 @@ func UpdatePlatform(platformService *service.PlatformService) gin.HandlerFunc {
 
 		platform, err := platformService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -85,7 +85,7 @@ func DeletePlatform(platformService *service.PlatformService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := platformService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 

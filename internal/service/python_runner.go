@@ -1048,5 +1048,11 @@ func (r *PythonRunner) updateInstanceStatus(instanceID, status string) error {
 		return err
 	}
 	instance.Status = status
+	// "running" means the process is (re)starting: stamp the first heartbeat so
+	// the Monitoring page does not show an em dash for a live adapter.
+	if status == "running" {
+		now := time.Now()
+		instance.LastHeartbeat = &now
+	}
 	return r.instances.Update(instance)
 }

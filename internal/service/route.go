@@ -64,14 +64,18 @@ func (s *RouteService) Create(req *CreateRouteRequest) (*models.RouteRule, error
 
 // GetByID gets a route rule by ID
 func (s *RouteService) GetByID(id string) (*models.RouteRule, error) {
-	return s.repo.FindByID(id)
+	rule, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "route %s", id)
+	}
+	return rule, nil
 }
 
 // Update updates a route rule
 func (s *RouteService) Update(id string, req *UpdateRouteRequest) (*models.RouteRule, error) {
 	rule, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, wrapNotFound(err, "route %s", id)
 	}
 
 	if req.Name != "" {
@@ -101,9 +105,13 @@ func (s *RouteService) Update(id string, req *UpdateRouteRequest) (*models.Route
 	return rule, nil
 }
 
-// Delete deletes a route rule
+// Delete deletes a route rule. A missing id yields ErrNotFound instead of a
+// silent success.
 func (s *RouteService) Delete(id string) error {
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return wrapNotFound(err, "route %s", id)
+	}
+	return nil
 }
 
 // List lists all route rules

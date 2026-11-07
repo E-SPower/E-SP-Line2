@@ -33,7 +33,7 @@ func GetMessage(messageService *service.MessageService) gin.HandlerFunc {
 		id := c.Param("id")
 		message, err := messageService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -46,7 +46,7 @@ func AckMessage(messageService *service.MessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := messageService.Ack(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
