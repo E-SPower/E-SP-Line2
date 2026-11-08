@@ -206,7 +206,7 @@ export default function Dashboard() {
         </StatGrid>
       </section>
 
-      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-3">
         {/* Activity — the widest, densest block. */}
         <Card padding="none" className="min-w-0 md:col-span-2">
           {/* One column while the card is phone-narrow, then two shrinkable
