@@ -186,7 +186,7 @@ export default function Dashboard() {
         </h2>
         {/* `lg:` is repeated on purpose: `StatGrid` hard-codes `lg:grid-cols-4`
             and a fourth metric no longer exists. */}
-        <StatGrid className="grid-cols-1 md:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
+        <StatGrid className="gap-6 grid-cols-1 md:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
           {stats.map((stat) => (
             <Link
               key={stat.to}
@@ -206,7 +206,7 @@ export default function Dashboard() {
         </StatGrid>
       </section>
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-3">
         {/* Activity — the widest, densest block. */}
         <Card padding="none" className="min-w-0 md:col-span-2">
           {/* One column while the card is phone-narrow, then two shrinkable
