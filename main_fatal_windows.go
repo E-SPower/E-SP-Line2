@@ -17,9 +17,9 @@ var (
 )
 
 const (
-	mbOK              = 0x00000000
-	mbIconError       = 0x00000010
-	mbSetForeground   = 0x00010000
+	mbOK            = 0x00000000
+	mbIconError     = 0x00000010
+	mbSetForeground = 0x00010000
 )
 
 func utf16Ptr(s string) *uint16 {

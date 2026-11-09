@@ -1,10 +1,18 @@
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { GitBranch, Pencil, Plus, Trash2 } from 'lucide-react'
 import apiClient from '../api/client'
-import EntityModal, { FieldConfig } from '../components/EntityModal'
-import RouteConditionBuilder, { conditionsToRows, rowsToConditions } from '../components/RouteConditionBuilder'
-import { useFormOptions } from '../hooks/useFormOptions'
+import { PageHeader } from '../components/ui/page-header'
+import { TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableShell } from '../components/ui/table-shell'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { EmptyState } from '../components/ui/empty-state'
+import { ErrorState } from '../components/ui/error-state'
+import { SkeletonRows } from '../components/ui/skeleton'
+import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
+import { FormField, controlClassName } from '../components/ui/form-field'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 
 interface Route {
   id: string
@@ -14,31 +22,37 @@ interface Route {
   target_type: string
   target_id: string
   enabled: boolean
-  conditions: string
   created_at: string
 }
 
-export default function RoutesPage() {
+interface Notice {
+  variant: 'success' | 'danger'
+  text: string
+}
+
+const TARGET_TYPES = ['app', 'webhook']
+
+const emptyForm = { name: '', target_type: 'app', target_id: '', priority: '10', platform_id: '' }
+
+export default function Routes() {
   const { t } = useTranslation()
   const [routes, setRoutes] = useState<Route[]>([])
-  const [platforms, setPlatforms] = useState<{ id: string; name: string }[]>([])
-  const [adapters, setAdapters] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [notice, setNotice] = useState<Notice | null>(null)
+
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Route | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState(emptyForm)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
-  const { getOptions } = useFormOptions()
-  const targetTypeOptions = getOptions('route_target_types')
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    loadRoutes()
-    loadPlatforms()
-    loadAdapters()
-  }, [])
+  const [deleting, setDeleting] = useState<Route | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletePending, setDeletePending] = useState(false)
 
-  const loadRoutes = async () => {
+  const loadRoutes = useCallback(async () => {
     setLoading(true)
     setError(null)
     const result = await apiClient.getRoutes()
@@ -49,251 +63,303 @@ export default function RoutesPage() {
       setRoutes(result.data || [])
     }
     setLoading(false)
-  }
+  }, [])
 
-  const loadPlatforms = async () => {
-    const result = await apiClient.getPlatforms()
-    if (!result.error) {
-      setPlatforms((result.data || []).map((p: any) => ({ id: p.id, name: p.name })))
-    }
-  }
-
-  const loadAdapters = async () => {
-    const result = await apiClient.getAdapters()
-    if (!result.error) {
-      setAdapters((result.data || []).map((a: any) => ({ id: a.id, name: a.name })))
-    }
-  }
+  useEffect(() => {
+    void loadRoutes()
+  }, [loadRoutes])
 
   const openCreate = () => {
     setEditing(null)
+    setForm(emptyForm)
+    setFieldErrors({})
     setFormError(null)
-    setModalOpen(true)
+    setDialogOpen(true)
   }
 
   const openEdit = (route: Route) => {
     setEditing(route)
+    setForm({
+      name: route.name,
+      target_type: route.target_type || 'app',
+      target_id: route.target_id || '',
+      priority: String(route.priority ?? 10),
+      platform_id: route.platform_id || '',
+    })
+    setFieldErrors({})
     setFormError(null)
-    setModalOpen(true)
+    setDialogOpen(true)
   }
 
-  const handleSubmit = async (values: Record<string, any>) => {
-    setSubmitting(true)
+  const submit = async () => {
+    const errors: Record<string, string> = {}
+    if (!form.name.trim()) errors.name = t('common.required', { field: t('common.name') })
+    if (!form.target_type) errors.target_type = t('routes.targetTypeRequired')
+    if (!form.target_id.trim()) errors.target_id = t('routes.targetIdRequired')
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    const priority = Number.parseInt(form.priority, 10)
+    setSaving(true)
     setFormError(null)
-    const payload = { ...values }
-    // conditions holds the visual rows; serialize to the backend JSON map.
-    // Empty rows mean "no conditions" -> drop the field entirely.
-    if (Array.isArray(payload.conditions)) {
-      const condStr = rowsToConditions(payload.conditions)
-      if (condStr && condStr !== '{}') {
-        payload.conditions = condStr
-      } else {
-        delete payload.conditions
-      }
-    }
     const result = editing
-      ? await apiClient.updateRoute(editing.id, payload)
-      : await apiClient.createRoute(payload)
-    setSubmitting(false)
+      ? await apiClient.updateRoute(editing.id, {
+          name: form.name.trim(),
+          target_type: form.target_type,
+          target_id: form.target_id.trim(),
+          priority: Number.isNaN(priority) ? 0 : priority,
+          platform_id: form.platform_id.trim(),
+          enabled: editing.enabled,
+        })
+      : await apiClient.createRoute({
+          name: form.name.trim(),
+          target_type: form.target_type,
+          target_id: form.target_id.trim(),
+          priority: Number.isNaN(priority) ? 0 : priority,
+          platform_id: form.platform_id.trim(),
+          enabled: true,
+        })
+    setSaving(false)
+
     if (result.error) {
       setFormError(result.error)
       return
     }
-    setModalOpen(false)
-    loadRoutes()
+    setDialogOpen(false)
+    setNotice({ variant: 'success', text: t(editing ? 'notice.updated' : 'notice.created', { name: form.name.trim() }) })
+    await loadRoutes()
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(t('common.confirmDelete') || 'Delete this item?')) return
-    const result = await apiClient.deleteRoute(id)
-    if (!result.error) {
-      loadRoutes()
+  const confirmDelete = async () => {
+    if (!deleting) return
+    setDeletePending(true)
+    setDeleteError(null)
+    const result = await apiClient.deleteRoute(deleting.id)
+    setDeletePending(false)
+    if (result.error) {
+      setDeleteError(result.error)
+      return
     }
-  }
-
-  const platformOptions = platforms.map((p) => ({ value: p.id, label: p.name }))
-  const adapterOptions = adapters.map((a) => ({ value: a.id, label: a.name }))
-
-  const fields: FieldConfig[] = [
-    { key: 'name', label: t('common.name'), required: true },
-    {
-      key: 'platform_id',
-      label: t('messages.platform'),
-      type: 'select',
-      options: platformOptions,
-      placeholder: t('routes.selectPlatform') || '--',
-      helpText: t('routes.platformHelp'),
-    },
-    {
-      key: 'priority',
-      label: t('routes.priority'),
-      type: 'number',
-      defaultValue: 0,
-      helpText: t('routes.priorityHelp'),
-    },
-    {
-      key: 'target_type',
-      label: t('routes.targetType') || 'Target Type',
-      type: 'select',
-      required: true,
-      options: targetTypeOptions,
-      placeholder: t('routes.selectTargetType'),
-      helpText: t('routes.targetTypeHelp'),
-    },
-    { key: 'target_id', label: t('routes.targetId') || 'Target ID', required: true, helpText: t('routes.targetIdHelp') },
-    {
-      key: 'conditions',
-      label: t('routes.conditions'),
-      defaultValue: [],
-      render: (value, setValue) => (
-        <RouteConditionBuilder
-          value={value || []}
-          onChange={setValue}
-          adapterOptions={adapterOptions}
-        />
-      ),
-    },
-    {
-      key: 'enabled',
-      label: t('routes.enabled'),
-      type: 'switch',
-      defaultValue: true,
-    },
-  ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">{t('common.loading')}</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="text-red-800">Error: {error}</div>
-        <button
-          onClick={loadRoutes}
-          className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-        >
-          Retry
-        </button>
-      </div>
-    )
+    setNotice({ variant: 'success', text: t('notice.deleted', { name: deleting.name }) })
+    setDeleting(null)
+    await loadRoutes()
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('routes.title')}</h1>
-        <button
-          onClick={openCreate}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          {t('routes.create')}
-        </button>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('common.name')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('messages.platform')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('routes.priority')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('routes.target')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('routes.enabled')}
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('common.actions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {routes.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {t('routes.noRoutes') || 'No routes found. Create your first route to get started.'}
-                </td>
-              </tr>
-            ) : (
-              routes.map((route) => (
-                <tr key={route.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {route.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {route.platform_id || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {route.priority}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300 max-w-xs truncate">
-                    {route.target_type}: {route.target_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      route.enabled
-                        ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                    }`}>
-                      {route.enabled ? t('routes.enabled') : t('routes.disabled') || 'Disabled'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => openEdit(route)}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(route.id)}
-                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <EntityModal
-        title={editing ? t('routes.edit') || 'Edit Route' : t('routes.create')}
-        open={modalOpen}
-        fields={fields}
-        initialValues={
-          editing
-            ? {
-                name: editing.name,
-                platform_id: editing.platform_id,
-                priority: editing.priority,
-                target_type: editing.target_type,
-                target_id: editing.target_id,
-                conditions: conditionsToRows(editing.conditions),
-                enabled: editing.enabled,
-              }
-            : undefined
+    <>
+      <PageHeader
+        title={t('routes.title')}
+        description={t('routes.subtitle')}
+        actions={
+          <Button variant="primary" size="sm" onClick={openCreate}>
+            <Plus />
+            {t('routes.create')}
+          </Button>
         }
-        submitting={submitting}
-        error={formError}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSubmit}
       />
-    </div>
+
+      {notice && (
+        <Badge variant={notice.variant} role="status" aria-live="polite">
+          {notice.text}
+        </Badge>
+      )}
+
+      {error ? (
+        <ErrorState
+          title={t('state.loadFailed')}
+          description={error || t('state.loadFailedHint')}
+          onRetry={loadRoutes}
+          retryLabel={t('common.retry')}
+        />
+      ) : (
+        <TableShell
+          busy={loading}
+          toolbar={
+            <span className="tabular text-xs text-text-tertiary">
+              {loading ? t('state.loadingData') : t('routes.count', { count: routes.length })}
+            </span>
+          }
+          empty={
+            loading ? (
+              <SkeletonRows rows={4} columns={5} />
+            ) : routes.length === 0 ? (
+              <EmptyState
+                icon={GitBranch}
+                title={t('routes.empty')}
+                description={t('routes.emptyHint')}
+                action={
+                  <Button variant="primary" size="sm" onClick={openCreate}>
+                    <Plus />
+                    {t('routes.create')}
+                  </Button>
+                }
+              />
+            ) : undefined
+          }
+        >
+          <TableHead>
+            <tr>
+              <TableHeaderCell className="min-w-[12rem]">{t('common.name')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[10rem]">{t('messages.platform')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[5rem]">{t('routes.priority')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[15rem]">{t('routes.target')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[6rem]">{t('routes.enabled')}</TableHeaderCell>
+              <TableHeaderCell className="min-w-[6rem] text-right">{t('common.actions')}</TableHeaderCell>
+            </tr>
+          </TableHead>
+          <TableBody>
+            {routes.map((route) => (
+              <TableRow key={route.id}>
+                <TableCell className="min-w-[12rem] font-medium text-text-primary">{route.name}</TableCell>
+                <TableCell className="min-w-[10rem] font-mono text-xs text-text-tertiary">
+                  {route.platform_id}
+                </TableCell>
+                <TableCell className="min-w-[5rem]">
+                  <span className="tabular inline-flex min-w-6 items-center justify-center rounded-xs bg-surface-inset px-1.5 py-0.5 text-xs font-semibold text-text-secondary">
+                    {route.priority}
+                  </span>
+                </TableCell>
+                <TableCell className="min-w-[15rem]">
+                  <span className="truncate-cell text-xs" title={`${route.target_type}: ${route.target_id}`}>
+                    <span className="text-text-tertiary">{route.target_type}:</span>{' '}
+                    <span className="font-mono text-text-secondary">{route.target_id}</span>
+                  </span>
+                </TableCell>
+                <TableCell className="min-w-[6rem]">
+                  <Badge variant={route.enabled ? 'success' : 'neutral'} dot>
+                    {route.enabled ? t('state.status.enabled') : t('state.status.disabled')}
+                  </Badge>
+                </TableCell>
+                <TableCell className="min-w-[6rem] text-right">
+                  <div className="inline-flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openEdit(route)}
+                      aria-label={t('common.edit')}
+                      title={t('common.edit')}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-danger-fg hover:bg-danger-bg"
+                      onClick={() => {
+                        setDeleteError(null)
+                        setDeleting(route)
+                      }}
+                      aria-label={t('common.delete')}
+                      title={t('common.delete')}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </TableShell>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => !saving && setDialogOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? t('routes.editTitle') : t('routes.createTitle')}</DialogTitle>
+            <DialogDescription>{t('routes.createHint')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <FormField label={t('common.name')} hint={t('routes.nameHint')} required error={fieldErrors.name}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={controlClassName}
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  autoFocus
+                />
+              )}
+            </FormField>
+
+            <FormField label={t('routes.targetType')} hint={t('routes.targetTypeHint')} required error={fieldErrors.target_type}>
+              {(props) => (
+                <div {...props}>
+                  <Select value={form.target_type} onValueChange={(value) => setForm({ ...form, target_type: value })}>
+                    <SelectTrigger aria-invalid={fieldErrors.target_type ? true : undefined}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TARGET_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </FormField>
+
+            <FormField label={t('routes.targetId')} hint={t('routes.targetIdHint')} required error={fieldErrors.target_id}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={controlClassName}
+                  value={form.target_id}
+                  onChange={(event) => setForm({ ...form, target_id: event.target.value })}
+                />
+              )}
+            </FormField>
+
+            <FormField label={t('routes.priority')} hint={t('routes.priorityHint')}>
+              {(props) => (
+                <input
+                  {...props}
+                  type="number"
+                  className={`${controlClassName} tabular`}
+                  value={form.priority}
+                  onChange={(event) => setForm({ ...form, priority: event.target.value })}
+                />
+              )}
+            </FormField>
+
+            {formError && (
+              <p role="alert" className="rounded-md border border-danger-border bg-danger-bg px-2.5 py-2 text-xs text-danger-fg">
+                {formError}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void submit()} disabled={saving}>
+              {saving ? t('common.saving') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={t('routes.deleteTitle')}
+        description={
+          <>
+            {deleting && <span className="font-medium text-text-secondary">{deleting.name}</span>}
+            {deleting && ' — '}
+            {t('routes.deleteHint')}
+          </>
+        }
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        pendingLabel={t('common.deleting')}
+        pending={deletePending}
+        error={deleteError}
+        onConfirm={() => void confirmDelete()}
+      />
+    </>
   )
 }

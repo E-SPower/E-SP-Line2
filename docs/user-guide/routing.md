@@ -1,15 +1,15 @@
-# 路由规则
+# Routing rules
 
-## 概述
+## Overview
 
-路由规则决定消息如何从适配器实例分发到下游应用。通过灵活的路由配置，可以实现复杂的消息分发逻辑。
+Routing rules determine how messages are dispatched from adapter instances to downstream applications. Flexible routing configuration makes complex message dispatch logic possible.
 
-## 路由规则结构
+## Routing rule structure
 
 ```json
 {
   "id": "rule-001",
-  "name": "淘宝消息路由",
+  "name": "Taobao message routing",
   "platform_id": "taobao",
   "instance_id": "",
   "priority": 10,
@@ -22,66 +22,66 @@
 }
 ```
 
-## 路由规则字段
+## Routing rule fields
 
-### 基础字段
+### Basic fields
 
-- **id**：规则唯一标识
-- **name**：规则名称
-- **enabled**：是否启用
+- **id**: unique rule identifier
+- **name**: rule name
+- **enabled**: whether the rule is enabled
 
-### 匹配字段
+### Matching fields
 
-- **platform_id**：平台 ID（可选，为空匹配所有平台）
-- **instance_id**：实例 ID（可选，为空匹配所有实例）
-- **priority**：优先级（数字越大优先级越高）
+- **platform_id**: platform ID (optional; empty matches all platforms)
+- **instance_id**: instance ID (optional; empty matches all instances)
+- **priority**: priority (the higher the number, the higher the priority)
 
-### 条件字段
+### Condition fields
 
-- **conditions**：匹配条件（JSON 对象）
-  - `event_type`：事件类型
-  - `adapter_id`：适配器 ID
-  - 其他自定义条件
+- **conditions**: match conditions (JSON object)
+  - `event_type`: event type
+  - `adapter_id`: adapter ID
+  - Other custom conditions
 
-### 目标字段
+### Target fields
 
-- **target_type**：目标类型
-  - `app`：应用程序
-  - `webhook`：Webhook
-  - `queue`：消息队列
-- **target_id**：目标 ID
+- **target_type**: target type
+  - `app`: application
+  - `webhook`: Webhook
+  - `queue`: message queue
+- **target_id**: target ID
 
-## 创建路由规则
+## Create a routing rule
 
-### 步骤 1：进入路由管理
+### Step 1: Go to route management
 
-在管理界面点击"路由规则"菜单。
+Open the Routes page.
 
-### 步骤 2：创建新规则
+### Step 2: Create a new rule
 
-点击"创建规则"按钮，填写规则信息。
+Click the "Create rule" button and fill in the rule information.
 
-### 步骤 3：配置匹配条件
+### Step 3: Configure match conditions
 
-设置平台、实例和条件匹配规则。
+Set the platform, instance, and condition matching rules.
 
-### 步骤 4：配置目标
+### Step 4: Configure the target
 
-设置消息分发目标。
+Set the message dispatch target.
 
-### 步骤 5：保存并启用
+### Step 5: Save and enable
 
-保存规则并启用。
+Save the rule and enable it.
 
-## 路由示例
+## Routing examples
 
-### 示例 1：按平台路由
+### Example 1: Route by platform
 
-将所有淘宝消息路由到应用 A：
+Route all Taobao messages to application A:
 
 ```json
 {
-  "name": "淘宝消息路由",
+  "name": "Taobao message routing",
   "platform_id": "taobao",
   "priority": 10,
   "target_type": "app",
@@ -89,13 +89,13 @@
 }
 ```
 
-### 示例 2：按实例路由
+### Example 2: Route by instance
 
-将特定实例的消息路由到应用 B：
+Route messages from a specific instance to application B:
 
 ```json
 {
-  "name": "店铺A消息路由",
+  "name": "Shop A message routing",
   "instance_id": "instance-001",
   "priority": 20,
   "target_type": "app",
@@ -103,13 +103,13 @@
 }
 ```
 
-### 示例 3：按事件类型路由
+### Example 3: Route by event type
 
-只路由接收到的消息：
+Route only received messages:
 
 ```json
 {
-  "name": "接收消息路由",
+  "name": "Received message routing",
   "conditions": {
     "event_type": "message.received"
   },
@@ -118,13 +118,13 @@
 }
 ```
 
-### 示例 4：多条件路由
+### Example 4: Route by multiple conditions
 
-组合多个条件：
+Combine several conditions:
 
 ```json
 {
-  "name": "淘宝文本消息路由",
+  "name": "Taobao text message routing",
   "platform_id": "taobao",
   "conditions": {
     "event_type": "message.received",
@@ -135,41 +135,41 @@
 }
 ```
 
-## 优先级
+## Priority
 
-当多个规则匹配同一条消息时，按优先级排序：
+When several rules match the same message, they are ordered by priority:
 
-1. 优先级高的规则先匹配
-2. 如果优先级相同，按创建时间排序
-3. 默认优先级为 0
+1. Rules with a higher priority match first
+2. If the priorities are equal, they are ordered by creation time
+3. The default priority is 0
 
-### 优先级建议
+### Priority guidelines
 
-- **高优先级（100+）**：特殊处理规则
-- **中优先级（50-99）**：业务规则
-- **低优先级（0-49）**：默认规则
+- **High priority (100+)**: special-case rules
+- **Medium priority (50-99)**: business rules
+- **Low priority (0-49)**: default rules
 
-## 路由目标类型
+## Routing target types
 
-### App（应用程序）
+### App (application)
 
-消息发送到注册的应用程序，通过 WebSocket 或 HTTP 接收。
+Messages are sent to a registered application, which receives them over WebSocket or HTTP.
 
-**适用场景**：
-- 实时消息处理
-- 需要双向通信
-- 复杂业务逻辑
+**Use cases**:
+- Real-time message processing
+- Two-way communication required
+- Complex business logic
 
 ### Webhook
 
-消息通过 HTTP POST 发送到指定的 URL。
+Messages are sent to the specified URL over HTTP POST.
 
-**适用场景**：
-- 简单消息转发
-- 与现有系统集成
-- 不需要实时响应
+**Use cases**:
+- Simple message forwarding
+- Integration with existing systems
+- No real-time response required
 
-**配置示例**：
+**Configuration example**:
 ```json
 {
   "target_type": "webhook",
@@ -177,77 +177,77 @@
 }
 ```
 
-### Queue（消息队列）
+### Queue (message queue)
 
-消息发送到消息队列，供消费者处理。
+Messages are sent to a message queue for consumers to process.
 
-**适用场景**：
-- 异步处理
-- 消息持久化
-- 削峰填谷
+**Use cases**:
+- Asynchronous processing
+- Message persistence
+- Peak shaving
 
-## 路由测试
+## Route testing
 
-### 测试工具
+### Testing tool
 
-系统提供路由测试工具，可以模拟消息并查看路由结果。
+The system provides a route testing tool that simulates messages and shows the routing result.
 
-### 测试步骤
+### Test steps
 
-1. 进入"路由测试"页面
-2. 选择平台和实例
-3. 构造测试消息
-4. 点击"测试"按钮
-5. 查看匹配的规则和目标
+1. Go to the route testing page
+2. Select a platform and instance
+3. Build a test message
+4. Click the "Test" button
+5. View the matched rules and targets
 
-## 路由监控
+## Routing monitoring
 
-### 统计信息
+### Statistics
 
-在"路由监控"页面可以查看：
-- 规则匹配次数
-- 消息分发成功率
-- 平均处理时间
-- 错误统计
+On the Monitoring page you can view:
+- Rule match count
+- Message dispatch success rate
+- Average processing time
+- Error statistics
 
-### 实时日志
+### Real-time logs
 
-查看实时的路由日志，包括：
-- 消息接收
-- 规则匹配
-- 消息分发
-- 处理结果
+View the real-time routing logs, including:
+- Message receipt
+- Rule matching
+- Message dispatch
+- Processing result
 
-## 最佳实践
+## Best practices
 
-### 规则设计
+### Rule design
 
-1. **单一职责**：每个规则只负责一种场景
-2. **明确命名**：规则名称要清晰表达用途
-3. **合理优先级**：避免优先级冲突
-4. **定期审查**：定期检查和优化规则
+1. **Single responsibility**: each rule covers one scenario only
+2. **Clear naming**: rule names should state their purpose clearly
+3. **Sensible priorities**: avoid priority conflicts
+4. **Regular review**: review and tune the rules regularly
 
-### 性能优化
+### Performance tuning
 
-1. **减少规则数量**：合并相似的规则
-2. **优化条件**：使用简单的条件匹配
-3. **缓存结果**：对频繁匹配的规则启用缓存
+1. **Fewer rules**: merge similar rules
+2. **Simpler conditions**: use simple condition matching
+3. **Cached results**: enable caching for frequently matched rules
 
-### 故障处理
+### Failure handling
 
-1. **监控告警**：配置路由失败告警
-2. **降级策略**：配置默认路由规则
-3. **日志分析**：定期分析路由日志
+1. **Monitoring and alerts**: configure routing failure alerts
+2. **Fallback strategy**: configure default routing rules
+3. **Log analysis**: analyze the routing logs regularly
 
-## 高级功能
+## Advanced features
 
-### 动态路由
+### Dynamic routing
 
-根据消息内容动态选择目标：
+Select the target dynamically based on message content:
 
 ```json
 {
-  "name": "动态路由",
+  "name": "Dynamic routing",
   "conditions": {
     "dynamic_target": true
   },
@@ -255,13 +255,13 @@
 }
 ```
 
-### 路由链
+### Routing chain
 
-多个规则串联处理：
+Process messages through several rules in sequence:
 
 ```json
 {
-  "name": "路由链",
+  "name": "Routing chain",
   "chain": [
     {"rule_id": "rule-001"},
     {"rule_id": "rule-002"}
@@ -269,9 +269,9 @@
 }
 ```
 
-### 条件表达式
+### Condition expressions
 
-使用复杂的条件表达式：
+Use complex condition expressions:
 
 ```json
 {
@@ -288,25 +288,25 @@
 }
 ```
 
-## 故障排除
+## Troubleshooting
 
-### 规则不生效
+### A rule does not take effect
 
-**检查**：
-1. 规则是否启用
-2. 匹配条件是否正确
-3. 优先级是否被其他规则覆盖
+**Check**:
+1. Whether the rule is enabled
+2. Whether the match conditions are correct
+3. Whether another rule overrides its priority
 
-### 消息未分发
+### Messages are not dispatched
 
-**检查**：
-1. 目标是否在线
-2. 目标配置是否正确
-3. 网络连接是否正常
+**Check**:
+1. Whether the target is online
+2. Whether the target configuration is correct
+3. Whether the network connection works
 
-### 重复分发
+### Duplicate dispatch
 
-**检查**：
-1. 是否有多个规则匹配
-2. 规则优先级设置
-3. 是否需要去重逻辑
+**Check**:
+1. Whether several rules match
+2. The rule priority settings
+3. Whether deduplication logic is needed

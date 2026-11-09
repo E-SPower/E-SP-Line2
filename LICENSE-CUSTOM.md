@@ -1,41 +1,44 @@
-# E-SP-Line2 自定义开源协议
+# E-SP-Line2 custom open-source license
 
-## 基于 Apache License 2.0 的附加条款
+## Additional terms on top of the Apache License 2.0
 
-本项目基于 Apache License 2.0 授权，但附加以下限制条款：
+This project is licensed under the Apache License 2.0 with the additional restrictions below.
 
-### 附加条款
+### Additional terms
 
-#### 1. 禁止二次分发限制
+#### 1. Redistribution restriction
 
-** Redistribution Restriction **
+**Redistribution Restriction**
 
-您不得将本软件作为独立产品或服务进行二次分发，除非获得明确的书面许可。
+You may not redistribute this software as a standalone product or service without explicit written permission.
 
-具体限制包括：
-- 不得将本软件打包为独立产品进行销售
-- 不得将本软件作为 SaaS 服务提供给第三方
-- 不得修改本软件后以独立产品形式分发
+Specifically:
 
-#### 2. 允许商业使用
+- you may not package this software as a standalone product for sale;
+- you may not offer this software to third parties as a SaaS service;
+- you may not redistribute a modified version of this software as a standalone product.
 
-** Commercial Use Permission **
+#### 2. Commercial use permitted
 
-允许在商业项目中使用本软件，包括：
-- 将本软件集成到内部商业系统
-- 使用本软件处理商业数据
-- 在商业环境中部署和运行本软件
+**Commercial Use Permission**
 
-#### 3. 保留署名
+Use in commercial projects is permitted, including:
 
-** Attribution Requirement **
+- integrating this software into an internal commercial system;
+- using this software to process commercial data;
+- deploying and running this software in a commercial environment.
 
-必须保留原作者署名和版权声明，包括：
-- 保留源代码中的版权声明
-- 在文档中注明使用本软件
-- 不得删除或修改作者信息
+#### 3. Attribution required
 
-### 完整协议文本
+**Attribution Requirement**
+
+You must preserve the original author attribution and copyright notice, including:
+
+- keeping the copyright notice in the source code;
+- stating in your documentation that this software is used;
+- not removing or altering the author information.
+
+### Full license text
 
 ```
 E-SP-Line2 License
@@ -69,29 +72,34 @@ ADDITIONAL TERMS:
    copies or substantial portions of the Software.
 ```
 
-### 常见问题
+### FAQ
 
-#### Q: 我可以在公司内部使用吗？
+#### Q: Can I use it inside my company?
 
-A: 可以。本协议允许在内部商业系统中使用。
+A: Yes. The license permits use in internal commercial systems.
 
-#### Q: 我可以修改代码吗？
+#### Q: Can I modify the code?
 
-A: 可以修改代码用于内部使用，但不得将修改后的版本作为独立产品分发。
+A: You may modify it for internal use, but you may not redistribute a modified version as a standalone product.
 
-#### Q: 我可以将本软件集成到我的产品中吗？
+#### Q: Can I integrate it into my product?
 
-A: 可以集成到内部产品，但不得将包含本软件的产品作为独立产品分发。
+A: You may integrate it into an internal product, but you may not distribute a product containing it as a standalone product.
 
-#### Q: 我需要获得许可才能使用吗？
+#### Q: Do I need a license to use it?
 
-A: 在遵守上述条款的前提下，无需额外许可即可使用。
+A: No extra license is needed as long as you comply with the terms above.
 
-### 联系方式
+### Contact
+
+For redistribution permission or other licensing, contact:
 
 如需获取二次分发许可或其他授权，请联系：
 
 
-### 版本历史
+- Email: [contact email]
+- GitHub: [project URL]
 
-- v1.0 (2024-01-01): 初始版本
+### Version history
+
+- v1.0 (2024-01-01): initial version

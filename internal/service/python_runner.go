@@ -176,6 +176,36 @@ func (r *PythonRunner) openLogFile(instanceID string) (*os.File, error) {
 	return os.OpenFile(r.logPath(instanceID), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 }
 
+// appendLog writes one line to the instance's log file with an explicit level
+// marker, so a runner-side warning shows up in the log viewer next to the
+// process's own output instead of only in the server log.
+//
+// Lines that already carry our marker format are written verbatim: standalone
+// adapters emit their own `time | LEVEL | ...` records and double-prefixing
+// them would corrupt the level filter.
+func (r *PythonRunner) appendLog(instanceID, level, msg string) {
+	f, err := r.openLogFile(instanceID)
+	if err != nil {
+		logger.Warn("Failed to append runner log",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+		return
+	}
+	defer f.Close()
+
+	for _, line := range strings.Split(strings.TrimRight(msg, "\n"), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if hasLevelColumn(line) {
+			_, _ = f.WriteString(line + "\n")
+			continue
+		}
+		ts := time.Now().Format("2006-01-02 15:04:05")
+		_, _ = fmt.Fprintf(f, "%s | %-7s | %s\n", ts, level, line)
+	}
+}
+
 // ReadLog returns the (possibly filtered) log of an instance.
 //
 //   - maxLines <= 0  : return the FULL log (no tail truncation)
@@ -876,7 +906,7 @@ func (r *PythonRunner) Start(instanceID string) error {
 	if instance.Config != "" {
 		_ = json.Unmarshal([]byte(instance.Config), &cfg)
 	}
-	if cookie, _ := cfg["cookie"].(string); runtimeType == RuntimePython && strings.TrimSpace(cookie) == "" {
+	if cookie, _ := cfg["cookie"].(string); isBridgeRuntime(runtimeType) && strings.TrimSpace(cookie) == "" {
 		return errors.New("instance has no cookie configured; please fill it in the WebUI")
 	}
 
@@ -1108,6 +1138,10 @@ func (r *PythonRunner) Stop(instanceID string) error {
 	delete(r.stopping, instanceID)
 	delete(r.restarts, instanceID)
 	r.mu.Unlock()
+
+	// Leave a trace in the instance log: without it the viewer ends on the
+	// adapter's last line and stopping looks like a crash.
+	r.appendLog(instanceID, "INFO", "[bridge] 适配器进程已停止 (adapter process stopped) by operator")
 
 	// Update instance status to stopped.
 	if err := r.updateInstanceStatus(instanceID, "stopped"); err != nil {
@@ -1394,5 +1428,11 @@ func (r *PythonRunner) updateInstanceStatus(instanceID, status string) error {
 		return err
 	}
 	instance.Status = status
+	// "running" means the process is (re)starting: stamp the first heartbeat so
+	// the Monitoring page does not show an em dash for a live adapter.
+	if status == "running" {
+		now := time.Now()
+		instance.LastHeartbeat = &now
+	}
 	return r.instances.Update(instance)
 }

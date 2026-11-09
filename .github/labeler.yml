@@ -1,0 +1,76 @@
+# Automatic path-based labels — https://github.com/actions/labeler
+#
+# Format is actions/labeler v5. The labels themselves come from labels.yml and
+# must exist in the repository first (GitHub creates an unknown label on demand
+# for some events but not reliably here). Applied by .github/workflows/labeler.yml.
+#
+# Rule of thumb: label the area, never the verdict. `protocol:breaking` and
+# `needs-regression-test` stay manual because they need a judgement, not a glob.
+
+area:backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/handler/**
+          - internal/service/**
+          - internal/repository/**
+          - internal/server/**
+          - internal/middleware/**
+          - internal/models/**
+          - internal/config/**
+          - main.go
+
+area:adapter:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/adapter/**
+          - docs/developer-guide/adapter-development.md
+          - docs/user-guide/adapters.md
+
+area:protocol-v3:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/protocol/**
+          - internal/message/**
+          - internal/messagefields/**
+          - docs/developer-guide/protocol-v3.md
+          - docs/developer-guide/message-fields.md
+
+area:web:
+  - changed-files:
+      - any-glob-to-any-file:
+          - web/src/**
+          - web/*.ts
+          - web/*.js
+          - web/*.cjs
+          - web/*.json
+          - web/index.html
+          - web/UI-SPEC.md
+          - web/UI-SPEC.en.md
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - README.md
+          - README.zh-CN.md
+          - NOTICE-catbus.md
+
+area:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+
+database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - migrations/**
+          - internal/repository/**
+          - internal/models/**
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - go.mod
+          - go.sum
+          - web/package.json
+          - web/package-lock.json

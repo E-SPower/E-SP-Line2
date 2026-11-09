@@ -1,10 +1,10 @@
-# 适配器开发指南
+# Adapter development guide
 
-## 概述
+## Overview
 
-本指南介绍如何为 E-SP-Line2 开发新的平台适配器。适配器负责与特定电商平台通信，实现消息的接收和发送。
+This guide explains how to develop a new platform adapter for E-SP-Line2. An adapter talks to a specific e-commerce platform and implements message receiving and sending.
 
-## 架构概览
+## Architecture overview
 
 ```
 ┌─────────────────┐     HTTP/gRPC     ┌─────────────────┐
@@ -14,11 +14,19 @@
 └─────────────────┘                   └─────────────────┘
 ```
 
-## 适配器结构
+## Adapter structure
 
-### 1. 适配器包 (Adapter Package)
+An adapter has two halves: static metadata that is generated from the platform registry, and a runtime that is written by hand.
 
-适配器包是适配器的元数据和配置定义。
+```
+internal/platformspec/     static metadata, generated from matrix.json
+internal/adapter/          AdapterInfo / manifest / registry, generated per platform
+adapters/<platform>/               runtime: client, api, normalize, resolve
+```
+
+### 1. Adapter package (Adapter Package)
+
+An adapter package is the metadata and configuration definition of an adapter.
 
 ```go
 type AdapterInfo struct {
@@ -37,9 +45,9 @@ type AdapterInfo struct {
 }
 ```
 
-### 2. 适配器实例 (Adapter Instance)
+### 2. Adapter instance (Adapter Instance)
 
-适配器实例是具体的账号或店铺配置。
+An adapter instance is a concrete account or store configuration.
 
 ```go
 type Instance struct {
@@ -58,102 +66,64 @@ type Instance struct {
 }
 ```
 
-## 开发步骤
+## Development steps
 
-### 步骤 1：定义适配器信息
+### Step 1: Add the platform to the registry
 
-创建适配器信息文件 `adapters/myplatform.go`：
+Platforms are data, not hand-written code. Everything static about a platform — its name, item noun, aliases, upstream source, login methods, config fields, capability list and per-command support — lives in `internal/platformspec`, generated from `matrix.json`:
 
-```go
-package adapter
+```bash
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
+python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
+```
 
-import (
-    "github.com/e-spl/e-sp-line2/internal/protocol/v3"
-)
+To add a platform, add a column to `matrix.json` and one entry to the `META`/`CONFIG` tables in `scripts/gen_platformspec.py`, then rerun both commands. Never edit the generated files under `platformspec/`.
 
-func GetMyPlatformAdapterInfo() *AdapterInfo {
-    return &AdapterInfo{
-        ID:              "myplatform-adapter-v1",
-        PlatformID:      "myplatform",
-        Name:            "MyPlatform Message Adapter",
-        Version:         "1.0.0",
-        RuntimeType:     "python",
-        ProtocolVersion: "v3",
-        Capabilities: []string{
-            "receive_message",
-            "send_text",
-            "send_image",
-            "upload_media",
-            "get_history",
-        },
-        ConfigSchema: map[string]interface{}{
-            "type": "object",
-            "properties": map[string]interface{}{
-                "api_key": map[string]interface{}{
-                    "type":        "string",
-                    "description": "API Key",
-                },
-                "api_secret": map[string]interface{}{
-                    "type":        "string",
-                    "description": "API Secret",
-                },
-            },
-            "required": []string{"api_key", "api_secret"},
-        },
-        I18n: map[string]v3.I18nResource{
-            "zh-CN": {
-                DisplayName:  "我的平台适配器",
-                Description:  "支持我的平台消息收发",
-                InstallGuide: "1. 获取 API Key\n2. 配置适配器",
-            },
-            "en-US": {
-                DisplayName:  "MyPlatform Adapter",
-                Description:  "Supports MyPlatform message sending and receiving",
-                InstallGuide: "1. Get API Key\n2. Configure adapter",
-            },
-        },
-        Operations: v3.OperationPolicy{
-            HeartbeatInterval: 30,
-            ReconnectDelay:    5,
-            MaxRetries:        3,
-            MaxQueueSize:      1000,
-        },
-        Security: v3.SecurityPolicy{
-            SensitiveFields:  []string{"api_key", "api_secret"},
-            EncryptedFields:  []string{"api_key", "api_secret"},
-            PermissionScopes: []string{"message:read", "message:write"},
-        },
-        Status: "active",
-    }
+The generator refuses nothing on its own, so follow these rules:
+
+- `platforms` fixes the column order and must stay in sync with `META`.
+- Command support uses exactly `implemented`, `partial`, `planned` or `unsupported`; omit a platform to mean `unsupported`.
+- Every platform needs at least one of `Name`, `NameEN`, `Item`, `ItemEN`; `TestEveryPlatformHasMeta` enforces it.
+- Only the known config field names are accepted (`TestConfigFieldsAreKnown`), so a genuinely new credential type also needs a `ConfigField` in `CONFIG` and a line in the capability matrix notes.
+
+### Step 2: Adapter info is generated for you
+
+`adapter.BuiltinAdapterInfo` turns a `platformspec.Platform` into the `AdapterInfo` the registry stores: it builds `ConfigSchema` from `ConfigFields`, both `I18n` locales from the platform name and login methods, `OperationPolicy` from the platform's reconnect defaults and `SecurityPolicy` from the credential fields. There is nothing to hand-write and nothing to register — `RegisterBuiltinAdapters` walks the active platforms.
+
+The pieces you would otherwise hand-write:
+
+| Field | Where it comes from |
+|---|---|
+| `ConfigSchema.required` | `ConfigField.Required` |
+| `ConfigSchema.properties.<name>.default` | `ConfigField.Default` |
+| `I18n.*.InstallGuide` | `LoginMethods` |
+| `Security.SensitiveFields` / `EncryptedFields` | every non-integer config field |
+| `Security.PermissionScopes` | derived from capabilities (`send_text` → `message:write`) |
+| `Operations.HeartbeatInterval` / `ReconnectDelay` | config field defaults |
+| `Status` | `active` for the active stage, `inactive` for upcoming |
+
+Upcoming platforms are registered as `inactive`, so a fresh install does not try to connect them.
+
+### Step 3: Implement the runtime
+
+Write the platform's `client`, `api`, `normalize` and `resolve` in its own directory. Follow the message field contract in [message-fields.md](./message-fields.md): every field exists, values are `null`/`[]` when missing, IDs are strings, times are ISO 8601 with an offset, and `id` and `url` are always populated on emitted objects.
+
+Implement only the commands the matrix marks `implemented` or `partial`. `planned` commands must return `NOT_IMPLEMENTED`, `unsupported` ones `UNSUPPORTED`; `platformspec.Supports` answers both.
+
+#### Example runtime
+
+The Node runtime replaces the old Python example below; it shows the message shape the backend expects.
+
+```ts
+export async function msgSend(ctx: Ctx): Promise<Message> {
+  const conversation = await resolveConversation(ctx)
+  const id = await sendText(conversation, ctx.args.text)
+  return messageOf({ id, conversation_id: conversation.id, text: ctx.args.text }, conversation)
 }
 ```
 
-### 步骤 2：注册适配器
+The Python sketch below still works as a description of the bridge protocol.
 
-在 `adapters.go` 中注册适配器：
-
-```go
-func RegisterBuiltinAdapters(registry *Registry) error {
-    // 注册现有适配器
-    if err := registry.Register(GetTaobaoAdapterInfo()); err != nil {
-        return err
-    }
-    if err := registry.Register(GetXianyuAdapterInfo()); err != nil {
-        return err
-    }
-    
-    // 注册新适配器
-    if err := registry.Register(GetMyPlatformAdapterInfo()); err != nil {
-        return err
-    }
-    
-    return nil
-}
-```
-
-### 步骤 3：实现 Python 适配器
-
-创建 Python 适配器文件 `adapters/myplatform/adapter.py`：
 
 ```python
 import asyncio
@@ -310,18 +280,18 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 步骤 4：创建 requirements.txt
+### Step 4: Create requirements.txt
 
-创建 `adapters/myplatform/requirements.txt`：
+Create `adapters/myplatform/requirements.txt`:
 
 ```
 aiohttp>=3.9.0
 websockets>=12.0
 ```
 
-### 步骤 5：创建 Dockerfile（可选）
+### Step 5: Create a Dockerfile (optional)
 
-创建 `adapters/myplatform/Dockerfile`：
+Create `adapters/myplatform/Dockerfile`:
 
 ```dockerfile
 FROM python:3.11-slim
@@ -336,33 +306,28 @@ COPY . .
 CMD ["python", "adapter.py"]
 ```
 
-## 能力声明
+## Capability declaration
 
-### 标准能力
+Capabilities are derived, not written. `capabilities()` in `scripts/gen_platformspec.py` walks the matrix and emits a name per supported command, plus the plain words below when the corresponding commands are supported. Do not add capabilities by hand.
 
-| 能力 | 说明 |
+Top-level words, kept for consumers that predate the command-level list:
+
+| Capability | Emitted when |
 |------|------|
-| `receive_message` | 接收消息 |
-| `send_text` | 发送文本消息 |
-| `send_image` | 发送图片消息 |
-| `send_audio` | 发送音频消息 |
-| `send_video` | 发送视频消息 |
-| `upload_media` | 上传媒体文件 |
-| `get_history` | 获取历史消息 |
-| `create_conversation` | 创建会话 |
-| `refresh_token` | 刷新登录态 |
+| `receive_message` | the platform supports `msg listen` |
+| `send_text`, `send_image`, `create_conversation` | the platform supports `msg send` |
+| `upload_media` | the platform supports `media upload` or `item publish` |
+| `send_video` | the platform supports `item publish` |
+| `get_history` | the platform supports `msg history` |
+| `get_product_info` | the platform is Taobao, Xianyu, JD or Douyin and supports `item get` |
+| `get_order_info` | the platform supports `order list` |
+| `refresh_token` | the platform supports `auth status` |
 
-### 电商特有能力
+Command-level names are `<resource>.<action>`; a `planned` command also gets `<resource>.<action>.planned`. Filter on those when a caller only needs commands the runtime can actually execute, and on `platformspec.Supports` when it needs the distinction between planned and unsupported.
 
-| 能力 | 说明 |
-|------|------|
-| `get_product_info` | 获取商品信息 |
-| `get_order_info` | 获取订单信息 |
-| `publish_product` | 发布商品 |
+## Configuration schema
 
-## 配置 Schema
-
-### 基础配置
+### Base configuration
 
 ```json
 {
@@ -386,7 +351,7 @@ CMD ["python", "adapter.py"]
 }
 ```
 
-### Cookie 配置（淘宝/闲鱼）
+### Cookie configuration (Taobao/Xianyu)
 
 ```json
 {
@@ -405,19 +370,19 @@ CMD ["python", "adapter.py"]
 }
 ```
 
-## 多语言支持
+## Multi-language support
 
-### 配置多语言资源
+### Configure i18n resources
 
 ```go
 I18n: map[string]v3.I18nResource{
     "zh-CN": {
-        DisplayName:  "我的平台适配器",
-        Description:  "支持我的平台消息收发",
-        InstallGuide: "1. 登录平台\n2. 获取 API Key\n3. 配置适配器",
+        DisplayName:  "MyPlatform adapter",
+        Description:  "Supports sending and receiving MyPlatform messages",
+        InstallGuide: "1. Log in to the platform\n2. Get an API Key\n3. Configure the adapter",
         ErrorMessages: map[string]string{
-            "auth_failed": "认证失败，请检查 API Key",
-            "connection_failed": "连接失败，请检查网络",
+            "auth_failed": "Authentication failed, please check the API Key",
+            "connection_failed": "Connection failed, please check the network",
         },
     },
     "en-US": {
@@ -432,21 +397,17 @@ I18n: map[string]v3.I18nResource{
 }
 ```
 
-## 测试
+## Testing
 
-### 单元测试
+### Registry tests
 
-```go
-func TestMyPlatformAdapter(t *testing.T) {
-    info := GetMyPlatformAdapterInfo()
-    
-    assert.Equal(t, "myplatform-adapter-v1", info.ID)
-    assert.Equal(t, "myplatform", info.PlatformID)
-    assert.Contains(t, info.Capabilities, "receive_message")
-}
+```bash
+go test ./internal/platformspec/ ./internal/adapter/ ./internal/messagefields/
 ```
 
-### 集成测试
+The registry tests check aliases, the stage partition, the derived capabilities, config field names and the adapter manifest. Write your own tests for the runtime against the field contract in [message-fields.md](./message-fields.md).
+
+### Integration tests
 
 ```python
 import pytest
@@ -467,35 +428,38 @@ async def test_adapter_start():
     await adapter.stop()
 ```
 
-## 最佳实践
+## Best practices
 
-### 1. 错误处理
+### 1. Error handling
 
-- 实现自动重连机制
-- 记录详细的错误日志
-- 向用户友好的错误信息
+- Implement an automatic reconnect mechanism
+- Log detailed errors
+- Provide user-friendly error messages
 
-### 2. 性能优化
+### 2. Performance optimization
 
-- 使用连接池
-- 实现消息队列
-- 批量处理消息
+- Use a connection pool
+- Implement a message queue
+- Process messages in batches
 
-### 3. 安全考虑
+### 3. Security considerations
 
-- 加密存储敏感信息
-- 验证所有输入
-- 使用 HTTPS/WSS
+- Store sensitive information encrypted
+- Validate all input
+- Use HTTPS/WSS
 
-### 4. 可观测性
+### 4. Observability
 
-- 添加健康检查端点
-- 实现指标收集
-- 支持分布式追踪
+- Add a health check endpoint
+- Implement metrics collection
+- Support distributed tracing
 
-## 参考资源
+## References
 
-- [淘宝适配器实现](../../TaoBaoApis/)
-- [闲鱼适配器实现](../../XianYuApis/)
-- [V3 协议文档](./protocol-v3.md)
-- [API 参考文档](./api-reference.md)
+- [Taobao adapter implementation](https://github.com/cv-cat/TaoBaoApis)
+- [Xianyu adapter implementation](https://github.com/cv-cat/XianYuApis)
+- [Message fields](./message-fields.md)
+- [Platform capability matrix](./platform-capabilities.md)
+- [catbus migration notes](./catbus-migration.md)
+- [V3 protocol documentation](./protocol-v3.md)
+- [API reference](./api-reference.md)

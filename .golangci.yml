@@ -1,0 +1,34 @@
+# golangci-lint config — https://golangci-lint.run/usage/configuration/
+#
+# Used by `make lint` and by the `format-lint` CI job. Keep the two
+# identical in shape: a rule only CI knows, or only local knows, turns a green
+# local run into a red PR.
+version: "2"
+
+linters:
+  # The defaults, minus one. `errcheck` is a good linter and stays off for a
+  # concrete reason: the tree already has 22 unchecked returns in non-test code,
+  # mostly `conn.Conn.Close()`, `resp.Body.Close()`, `rand.Read` and
+  # `logger.Sync()` where a failure has no recovery path. Turning it on today
+  # would ship a CI job that is red before anyone's first PR and nobody owns it.
+  # Turn it back on in its own PR, together with the fixes — the same ratchet
+  # idea as the eslint warning budget in web/.eslintrc.cjs.
+  disable:
+    - errcheck
+
+  exclusions:
+    # `_test.go` files may ignore errors in setup helpers.
+    rules:
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - noctx
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    gofmt:
+      simplify: true

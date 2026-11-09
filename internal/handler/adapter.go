@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
+	"github.com/gin-gonic/gin"
 )
 
 // ListAdapterCatalog returns the available adapters discovered by scanning
@@ -45,7 +46,7 @@ func GetAdapter(adapterService *service.AdapterService) gin.HandlerFunc {
 		id := c.Param("id")
 		adapter, err := adapterService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "adapter not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -58,7 +59,9 @@ func CreateAdapter(adapterService *service.AdapterService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req service.CreateAdapterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
@@ -78,13 +81,15 @@ func UpdateAdapter(adapterService *service.AdapterService) gin.HandlerFunc {
 		id := c.Param("id")
 		var req service.UpdateAdapterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
 		adapter, err := adapterService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -97,7 +102,7 @@ func DeleteAdapter(adapterService *service.AdapterService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := adapterService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -110,7 +115,7 @@ func StartAdapter(adapterService *service.AdapterService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := adapterService.StartAdapter(id); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -123,7 +128,7 @@ func StopAdapter(adapterService *service.AdapterService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := adapterService.StopAdapter(id); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 

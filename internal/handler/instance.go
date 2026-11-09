@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -34,7 +35,7 @@ func GetInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 		id := c.Param("id")
 		instance, err := instanceService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "instance not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -47,7 +48,9 @@ func CreateInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req service.CreateInstanceRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
@@ -71,13 +74,15 @@ func UpdateInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 		id := c.Param("id")
 		var req service.UpdateInstanceRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
 		instance, err := instanceService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -90,7 +95,7 @@ func DeleteInstance(instanceService *service.InstanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := instanceService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -194,7 +199,9 @@ func RunInstanceCommand(instanceService *service.InstanceService) gin.HandlerFun
 			TimeoutMS   int                    `json:"timeout_ms"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 

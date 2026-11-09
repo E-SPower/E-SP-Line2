@@ -42,9 +42,9 @@ type LoginRequest struct {
 
 // AuthResponse represents an authentication response
 type AuthResponse struct {
-	Token     string         `json:"token"`
-	User      *models.User   `json:"user"`
-	ExpiresAt int64          `json:"expires_at"`
+	Token     string       `json:"token"`
+	User      *models.User `json:"user"`
+	ExpiresAt int64        `json:"expires_at"`
 }
 
 // Claims represents JWT claims
@@ -60,14 +60,14 @@ func (s *AuthService) Register(req *RegisterRequest) (*AuthResponse, error) {
 	// Respect the registration toggle (default: enabled).
 	if s.settings != nil {
 		if v, err := s.settings.Get(RegistrationEnabledKey); err == nil && v == "false" {
-			return nil, errors.New("registration is disabled")
+			return nil, validationf("registration is disabled")
 		}
 	}
 
 	// Check if username already exists
 	existing, _ := s.repo.FindByUsername(req.Username)
 	if existing != nil {
-		return nil, errors.New("username already exists")
+		return nil, conflictf("username already exists")
 	}
 
 	// Hash password

@@ -109,10 +109,15 @@ type CreateInstanceRequest struct {
 }
 
 // UpdateInstanceRequest represents an update instance request
+// UpdateInstanceRequest represents an update to an instance.
+//
+// Config is a pointer so "field absent" (a status-only toggle) and "field
+// empty" (the reader cleared every config field) stay distinguishable: absent
+// keeps the stored value, an empty string really clears it.
 type UpdateInstanceRequest struct {
-	Name   string `json:"name"`
-	Config string `json:"config"`
-	Status string `json:"status"`
+	Name   string  `json:"name"`
+	Config *string `json:"config"`
+	Status string  `json:"status"`
 }
 
 // Create creates a new instance. The instance is placed into "initializing"
@@ -301,9 +306,50 @@ func messageForStatus(status string) string {
 	}
 }
 
+// RecordInbound counts an inbound message and refreshes the instance's
+// heartbeat. Best-effort: a racing delete must not fail message ingest.
+func (s *InstanceService) RecordInbound(id string) {
+	if id == "" {
+		return
+	}
+	if err := s.repo.RecordInbound(id); err != nil {
+		logger.Warn("Failed to record inbound instance metric",
+			logger.String("instance_id", id),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordHeartbeat refreshes the instance's last heartbeat.
+func (s *InstanceService) RecordHeartbeat(id string) {
+	if id == "" {
+		return
+	}
+	if err := s.repo.MarkHeartbeat(id); err != nil {
+		logger.Warn("Failed to record instance heartbeat",
+			logger.String("instance_id", id),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordError bumps the instance's error counter.
+func (s *InstanceService) RecordError(id string) {
+	if id == "" {
+		return
+	}
+	if err := s.repo.IncrementErrorCount(id); err != nil {
+		logger.Warn("Failed to record instance error metric",
+			logger.String("instance_id", id),
+			logger.String("error", err.Error()))
+	}
+}
+
 // GetByID gets an instance by ID
 func (s *InstanceService) GetByID(id string) (*models.AdapterInstance, error) {
-	return s.repo.FindByID(id)
+	instance, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "instance %s", id)
+	}
+	return instance, nil
 }
 
 // GetByUserID gets instances by user ID
@@ -315,14 +361,14 @@ func (s *InstanceService) GetByUserID(userID string) ([]models.AdapterInstance, 
 func (s *InstanceService) Update(id string, req *UpdateInstanceRequest) (*models.AdapterInstance, error) {
 	instance, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, wrapNotFound(err, "instance %s", id)
 	}
 
 	if req.Name != "" {
 		instance.Name = req.Name
 	}
-	if req.Config != "" {
-		instance.Config = req.Config
+	if req.Config != nil {
+		instance.Config = *req.Config
 	}
 	if req.Status != "" {
 		instance.Status = req.Status
@@ -340,6 +386,9 @@ func (s *InstanceService) Update(id string, req *UpdateInstanceRequest) (*models
 // running, it is stopped first to avoid orphan processes. The instance's
 // sandboxed adapter copy under data/instances/<id> is removed as well.
 func (s *InstanceService) Delete(id string) error {
+	if _, err := s.repo.FindByID(id); err != nil {
+		return wrapNotFound(err, "instance %s", id)
+	}
 	if s.runner != nil && s.runner.IsRunning(id) {
 		if err := s.runner.Stop(id); err != nil {
 			return err

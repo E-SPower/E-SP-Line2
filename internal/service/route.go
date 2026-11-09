@@ -10,11 +10,25 @@ import (
 // RouteService handles route rule operations
 type RouteService struct {
 	repo *repository.RouteRuleRepository
+
+	// onChange runs after every successful write so the server can re-sync the
+	// in-memory routing table. Without it a rule edit is invisible until restart.
+	onChange func()
 }
 
 // NewRouteService creates a new route service
 func NewRouteService(repo *repository.RouteRuleRepository) *RouteService {
 	return &RouteService{repo: repo}
+}
+
+// SetOnChangeCallback installs the after-write hook (rule table re-sync).
+func (s *RouteService) SetOnChangeCallback(fn func()) { s.onChange = fn }
+
+// notifyChange runs the hook if one is installed.
+func (s *RouteService) notifyChange() {
+	if s.onChange != nil {
+		s.onChange()
+	}
 }
 
 // CreateRouteRequest represents a create route request
@@ -58,20 +72,25 @@ func (s *RouteService) Create(req *CreateRouteRequest) (*models.RouteRule, error
 	if err := s.repo.Create(rule); err != nil {
 		return nil, err
 	}
+	s.notifyChange()
 
 	return rule, nil
 }
 
 // GetByID gets a route rule by ID
 func (s *RouteService) GetByID(id string) (*models.RouteRule, error) {
-	return s.repo.FindByID(id)
+	rule, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "route %s", id)
+	}
+	return rule, nil
 }
 
 // Update updates a route rule
 func (s *RouteService) Update(id string, req *UpdateRouteRequest) (*models.RouteRule, error) {
 	rule, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, wrapNotFound(err, "route %s", id)
 	}
 
 	if req.Name != "" {
@@ -97,13 +116,19 @@ func (s *RouteService) Update(id string, req *UpdateRouteRequest) (*models.Route
 	if err := s.repo.Update(rule); err != nil {
 		return nil, err
 	}
+	s.notifyChange()
 
 	return rule, nil
 }
 
-// Delete deletes a route rule
+// Delete deletes a route rule. A missing id yields ErrNotFound instead of a
+// silent success.
 func (s *RouteService) Delete(id string) error {
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return wrapNotFound(err, "route %s", id)
+	}
+	s.notifyChange()
+	return nil
 }
 
 // List lists all route rules

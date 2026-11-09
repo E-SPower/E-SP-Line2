@@ -151,7 +151,7 @@
 
 | 链路 | 入口 | 处理代码 |
 | --- | --- | --- |
-| 桥（Bridge） | `/ws/adapter?instance_id=xxx` | [`handler/websocket.go`](../../internal/handler/websocket.go) `registerToolsFromFrame` |
+| 桥（Bridge） | `/ws/adapter?instance_id=xxx&token=<JWT>` | [`handler/websocket.go`](../../internal/handler/websocket.go) `registerToolsFromFrame` |
 | 接入框架（server 模式） | `/ws/adapter-gateway?key=xxx` | [`adaptergateway/client.go`](../../internal/adaptergateway/client.go) `handleMessage` |
 | 接入框架（client 模式） | E-SP-Line2 主动外拨到框架 | [`adaptergateway/client_connector.go`](../../internal/adaptergateway/client_connector.go) `handleInbound` |
 
@@ -241,7 +241,7 @@ tool  = adapter.get_gateway_tool('publish_item')    # 单个定义
 ```
 
 网关将其转换为**桥协议**帧（`type: tool_call`，`command_type: tool_call`）下发到
-`/ws/adapter?instance_id=xianyu-1` 的连接：
+`/ws/adapter?instance_id=xianyu-1&token=<JWT>` 的连接：
 
 ```json
 {
@@ -443,7 +443,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/jso
 
 ## 5. 桥（Bridge）实现工具
 
-桥在 `/ws/adapter?instance_id=<ID>` 连接上接收 `tool_call` 帧，执行后回 `tool_result`。
+桥在 `/ws/adapter?instance_id=<ID>&token=<JWT>` 连接上接收 `tool_call` 帧，执行后回 `tool_result`。
 
 Python 伪代码：
 

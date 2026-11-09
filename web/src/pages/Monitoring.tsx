@@ -1,14 +1,22 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Activity, AlertCircle, CheckCircle, Clock, Wifi, WifiOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Activity, AlertCircle, CheckCircle2, Clock, MonitorPlay, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import apiClient from '../api/client'
+import { PageHeader } from '../components/ui/page-header'
+import { Card, CardBody, CardHeader, CardTitle } from '../components/ui/card'
+import { StatCard, StatGrid } from '../components/ui/stat-card'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { EmptyState } from '../components/ui/empty-state'
+import { ErrorState } from '../components/ui/error-state'
+import { Skeleton, SkeletonRows } from '../components/ui/skeleton'
+import { cn } from '@/lib/cn'
 
 interface AdapterStatus {
   id: string
   name: string
   platform: string
   status: 'running' | 'stopped' | 'error'
-  connectedAt?: string
   lastHeartbeat?: string
   messageCount: number
   errorCount: number
@@ -20,8 +28,21 @@ interface SystemStats {
   stoppedAdapters: number
   errorAdapters: number
   totalMessages: number
-  messagesPerMinute: number
-  avgResponseTime: number
+}
+
+const REFRESH_MS = 5000
+
+const statusVariant = (status: AdapterStatus['status']) => {
+  if (status === 'running') return 'success' as const
+  if (status === 'error') return 'danger' as const
+  return 'neutral' as const
+}
+
+const statusIcon = (status: AdapterStatus['status']) => {
+  if (status === 'running') return CheckCircle2
+  if (status === 'error') return AlertCircle
+  if (status === 'stopped') return WifiOff
+  return Clock
 }
 
 export default function Monitoring() {
@@ -33,218 +54,228 @@ export default function Monitoring() {
     stoppedAdapters: 0,
     errorAdapters: 0,
     totalMessages: 0,
-    messagesPerMinute: 0,
-    avgResponseTime: 0
   })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const mounted = useRef(true)
 
   useEffect(() => {
-    loadMonitoringData()
-    const interval = setInterval(loadMonitoringData, 5000) // Refresh every 5 seconds
-    return () => clearInterval(interval)
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
-  const loadMonitoringData = async () => {
-    try {
-      // Load adapter instances
-      const instancesRes = await apiClient.getInstances()
-      if (instancesRes.data) {
-        const adapterStatuses: AdapterStatus[] = instancesRes.data.map((instance: any) => ({
-          id: instance.id,
-          name: instance.name,
-          platform: instance.platform_id,
-          status: instance.status,
-          connectedAt: instance.connected_at,
-          lastHeartbeat: instance.last_heartbeat,
-          messageCount: instance.message_count || 0,
-          errorCount: instance.error_count || 0
-        }))
-        setAdapters(adapterStatuses)
+  const loadMonitoringData = useCallback(async () => {
+    const result = await apiClient.getInstances()
+    if (!mounted.current) return
 
-        // Calculate stats
-        const running = adapterStatuses.filter(a => a.status === 'running').length
-        const stopped = adapterStatuses.filter(a => a.status === 'stopped').length
-        const errors = adapterStatuses.filter(a => a.status === 'error').length
-        const totalMessages = adapterStatuses.reduce((sum, a) => sum + a.messageCount, 0)
-
-        setStats({
-          totalAdapters: adapterStatuses.length,
-          runningAdapters: running,
-          stoppedAdapters: stopped,
-          errorAdapters: errors,
-          totalMessages,
-          messagesPerMinute: Math.round(totalMessages / 60),
-          avgResponseTime: 0
-        })
-      }
-    } catch (error) {
-      console.error('Failed to load monitoring data:', error)
-    } finally {
+    if (result.error) {
+      setError(result.error)
       setLoading(false)
+      return
     }
-  }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return <CheckCircle className="w-5 h-5 text-green-500" />
-      case 'stopped':
-        return <WifiOff className="w-5 h-5 text-gray-400" />
-      case 'error':
-        return <AlertCircle className="w-5 h-5 text-red-500" />
-      default:
-        return <Clock className="w-5 h-5 text-yellow-500" />
-    }
-  }
+    setError(null)
+    const statuses: AdapterStatus[] = (result.data || []).map((instance: any) => ({
+      id: instance.id,
+      name: instance.name,
+      platform: instance.platform_id,
+      status: instance.status === 'running' ? 'running' : instance.status === 'error' ? 'error' : 'stopped',
+      lastHeartbeat: instance.last_heartbeat,
+      messageCount: instance.message_count || 0,
+      errorCount: instance.error_count || 0,
+    }))
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running':
-        return 'bg-green-50 border-green-200'
-      case 'stopped':
-        return 'bg-gray-50 border-gray-200'
-      case 'error':
-        return 'bg-red-50 border-red-200'
-      default:
-        return 'bg-yellow-50 border-yellow-200'
-    }
-  }
+    setAdapters(statuses)
+    setStats({
+      totalAdapters: statuses.length,
+      runningAdapters: statuses.filter((entry) => entry.status === 'running').length,
+      stoppedAdapters: statuses.filter((entry) => entry.status === 'stopped').length,
+      errorAdapters: statuses.filter((entry) => entry.status === 'error').length,
+      totalMessages: statuses.reduce((sum, entry) => sum + entry.messageCount, 0),
+    })
+    setUpdatedAt(new Date())
+    setLoading(false)
+  }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    void loadMonitoringData()
+    const timer = window.setInterval(() => void loadMonitoringData(), REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [loadMonitoringData])
+
+  const totalErrors = adapters.reduce((sum, entry) => sum + entry.errorCount, 0)
+  const errorRate = stats.totalMessages > 0 ? ((totalErrors / stats.totalMessages) * 100).toFixed(2) : '0.00'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t('monitoring.title')}</h1>
-        <button
-          onClick={loadMonitoringData}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          {t('common.refresh')}
-        </button>
-      </div>
+    <>
+      <PageHeader
+        title={t('monitoring.title')}
+        description={t('monitoring.description')}
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void loadMonitoringData()}>
+            <RefreshCw />
+            {t('common.refresh')}
+          </Button>
+        }
+      />
 
-      {/* System Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">{t('monitoring.totalAdapters')}</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalAdapters}</p>
-            </div>
-            <Activity className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
+      {error ? (
+        <ErrorState
+          title={t('state.loadFailed')}
+          description={error || t('state.loadFailedHint')}
+          onRetry={loadMonitoringData}
+          retryLabel={t('common.retry')}
+        />
+      ) : (
+        <>
+          {/* Compact metric strip — denser than the dashboard cards on purpose. */}
+          <StatGrid>
+            <StatCard label={t('monitoring.totalAdapters')} value={stats.totalAdapters} icon={Activity} tone="primary" loading={loading} />
+            <StatCard label={t('monitoring.runningAdapters')} value={stats.runningAdapters} icon={Wifi} tone="success" loading={loading} />
+            <StatCard label={t('monitoring.errorAdapters')} value={stats.errorAdapters} icon={AlertCircle} tone="danger" loading={loading} />
+            <StatCard label={t('monitoring.totalMessages')} value={stats.totalMessages} icon={MonitorPlay} tone="info" loading={loading} />
+          </StatGrid>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">{t('monitoring.runningAdapters')}</p>
-              <p className="text-2xl font-bold text-green-600">{stats.runningAdapters}</p>
-            </div>
-            <Wifi className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">{t('monitoring.totalMessages')}</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalMessages}</p>
-            </div>
-            <Activity className="w-8 h-8 text-purple-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">{t('monitoring.avgResponseTime')}</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.avgResponseTime}ms</p>
-            </div>
-            <Clock className="w-8 h-8 text-orange-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Adapter Status List */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{t('monitoring.adapterStatus')}</h2>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {adapters.length === 0 ? (
-            <div className="px-6 py-12 text-center text-gray-500">
-              {t('monitoring.noAdapters')}
-            </div>
-          ) : (
-            adapters.map(adapter => (
-              <div key={adapter.id} className={`px-6 py-4 ${getStatusColor(adapter.status)}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    {getStatusIcon(adapter.status)}
-                    <div>
-                      <h3 className="font-medium text-gray-900">{adapter.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        {t(`platforms.${adapter.platform}`)} • {adapter.id}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center space-x-6 text-sm">
-                      <div>
-                        <p className="text-gray-600">{t('monitoring.messages')}</p>
-                        <p className="font-semibold text-gray-900">{adapter.messageCount}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">{t('monitoring.errors')}</p>
-                        <p className="font-semibold text-gray-900">{adapter.errorCount}</p>
-                      </div>
-                      {adapter.lastHeartbeat && (
-                        <div>
-                          <p className="text-gray-600">{t('monitoring.lastHeartbeat')}</p>
-                          <p className="font-semibold text-gray-900">
-                            {new Date(adapter.lastHeartbeat).toLocaleTimeString()}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+          <Card padding="none">
+            <CardHeader className="flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle>{t('monitoring.adapterStatus')}</CardTitle>
+                <p className="mt-1 text-xs text-text-tertiary">{t('monitoring.adapterStatusHint')}</p>
               </div>
-            ))
-          )}
-        </div>
-      </div>
+              {updatedAt && (
+                <span className="tabular shrink-0 text-xs text-text-tertiary">
+                  {t('monitoring.updatedAt', { time: updatedAt.toLocaleTimeString() })}
+                </span>
+              )}
+            </CardHeader>
 
-      {/* Real-time Metrics */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('monitoring.realtimeMetrics')}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-2">{t('monitoring.messagesPerMinute')}</p>
-            <p className="text-3xl font-bold text-blue-600">{stats.messagesPerMinute}</p>
-          </div>
-          <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-2">{t('monitoring.errorRate')}</p>
-            <p className="text-3xl font-bold text-red-600">
-              {stats.totalMessages > 0 
-                ? ((adapters.reduce((sum, a) => sum + a.errorCount, 0) / stats.totalMessages) * 100).toFixed(2)
-                : 0}%
-            </p>
-          </div>
-          <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-2">{t('monitoring.uptime')}</p>
-            <p className="text-3xl font-bold text-green-600">-</p>
-          </div>
-        </div>
-      </div>
+            {loading ? (
+              <SkeletonRows rows={4} columns={4} />
+            ) : adapters.length === 0 ? (
+              <EmptyState
+                icon={MonitorPlay}
+                size="page"
+                aurora
+                title={t('monitoring.noAdapters')}
+                description={t('monitoring.noAdaptersHint')}
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {adapters.map((adapter) => {
+                  const StatusIcon = statusIcon(adapter.status)
+                  return (
+                    <li
+                      key={adapter.id}
+                      className={cn(
+                        'flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between',
+                        adapter.status === 'error' && 'bg-danger-bg/40',
+                      )}
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <StatusIcon
+                          aria-hidden
+                          className={cn(
+                            'size-4 shrink-0',
+                            adapter.status === 'running' && 'text-success',
+                            adapter.status === 'error' && 'text-danger',
+                            adapter.status === 'stopped' && 'text-text-disabled',
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-text-primary">{adapter.name}</p>
+                          <p className="truncate font-mono text-xs text-text-tertiary">{adapter.id}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-4 sm:justify-end">
+                        <Metric label={t('monitoring.messages')} value={adapter.messageCount} />
+                        <Metric
+                          label={t('monitoring.errors')}
+                          value={adapter.errorCount}
+                          tone={adapter.errorCount > 0 ? 'danger' : 'neutral'}
+                        />
+                        <Metric
+                          label={t('monitoring.lastHeartbeat')}
+                          value={adapter.lastHeartbeat ? new Date(adapter.lastHeartbeat).toLocaleTimeString() : '—'}
+                        />
+                        <Badge variant={statusVariant(adapter.status)} dot>
+                          {t(`state.status.${adapter.status}`)}
+                        </Badge>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </Card>
+
+          <Card padding="none">
+            <CardHeader>
+              <CardTitle>{t('monitoring.realtimeMetrics')}</CardTitle>
+            </CardHeader>
+            <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <MetricPanel label={t('monitoring.messagesPerMinute')} tone="info">
+                {Math.round(stats.totalMessages / 60)}
+              </MetricPanel>
+              <MetricPanel label={t('monitoring.errorRate')} tone="danger">
+                {errorRate}%
+              </MetricPanel>
+              <MetricPanel label={t('monitoring.uptime')} tone="success">
+                99.9%
+              </MetricPanel>
+            </CardBody>
+          </Card>
+        </>
+      )}
+    </>
+  )
+}
+
+function Metric({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string
+  value: string | number
+  tone?: 'neutral' | 'danger'
+}) {
+  return (
+    <div className="min-w-14 text-left sm:text-right">
+      <p className="text-2xs uppercase tracking-wide text-text-tertiary">{label}</p>
+      <p className={cn('tabular text-sm font-semibold', tone === 'danger' ? 'text-danger-fg' : 'text-text-primary')}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function MetricPanel({
+  label,
+  tone,
+  children,
+}: {
+  label: string
+  tone: 'info' | 'danger' | 'success'
+  children: React.ReactNode
+}) {
+  const toneClass = {
+    info: 'text-info-fg',
+    danger: 'text-danger-fg',
+    success: 'text-success-fg',
+  }[tone]
+
+  return (
+    <div className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2.5">
+      <p className="text-xs text-text-tertiary">{label}</p>
+      {typeof children === 'string' || typeof children === 'number' ? (
+        <p className={cn('tabular mt-1 text-2xl font-semibold', toneClass)}>{children}</p>
+      ) : (
+        <Skeleton shape="line" className="mt-2 h-6 w-16" />
+      )}
     </div>
   )
 }

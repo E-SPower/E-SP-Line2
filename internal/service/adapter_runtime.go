@@ -24,6 +24,11 @@ const (
 	// RuntimeStandalone launches `runtime.entry` with `runtime.interpreter` and
 	// talks to it over stdin/stdout instead of the bridge WebSocket.
 	RuntimeStandalone = "standalone"
+
+	// RuntimeNode and RuntimeGo are language labels, not a third launcher:
+	// those adapters still dial back over the bridge socket.
+	RuntimeNode = "node"
+	RuntimeGo   = "go"
 )
 
 // RuntimeSpec is the `runtime:` block of an adapter.yaml for the standalone
@@ -45,7 +50,17 @@ type RuntimeSpec struct {
 // python and standalone have a dispatch path.
 func ValidRuntimeType(rt string) bool {
 	switch strings.ToLower(strings.TrimSpace(rt)) {
-	case RuntimePython, RuntimeStandalone, "node", "go":
+	case RuntimePython, RuntimeStandalone, RuntimeNode, RuntimeGo:
+		return true
+	}
+	return false
+}
+
+// isBridgeRuntime reports whether rt connects back over the bridge socket —
+// python itself, plus the node/go labels that only name the adapter's language.
+func isBridgeRuntime(rt string) bool {
+	switch strings.ToLower(strings.TrimSpace(rt)) {
+	case RuntimePython, RuntimeNode, RuntimeGo:
 		return true
 	}
 	return false
@@ -118,7 +133,9 @@ func (r *PythonRunner) buildLaunch(
 	baseArgs []string,
 ) (launchPlan, error) {
 	switch runtimeType {
-	case RuntimePython:
+	// A node/go adapter still runs main.py over the bridge, so it launches
+	// exactly like python; only `standalone` gets its own entry point.
+	case RuntimePython, RuntimeNode, RuntimeGo:
 		return launchPlan{bin: r.python, args: baseArgs}, nil
 
 	case RuntimeStandalone:
@@ -164,6 +181,14 @@ func (r *PythonRunner) buildLaunch(
 		return launchPlan{bin: interpreter, args: args, env: env}, nil
 
 	default:
+		// "node"/"go" are labels some adapters carry without a dispatch path.
+		// When the adapter still ships a python bridge (main.py), running it
+		// that way is right and an unimplemented label must not block a start.
+		if _, err := os.Stat(filepath.Join(workDir, "main.py")); err == nil {
+			r.appendLog(instance.ID, "WARNING", fmt.Sprintf(
+				"[bridge] runtime_type %q 无启动器实现，按 main.py 以 python 启动", runtimeType))
+			return launchPlan{bin: r.python, args: baseArgs}, nil
+		}
 		return launchPlan{}, fmt.Errorf("runtime_type %q is declared but not implemented by the runner", runtimeType)
 	}
 }

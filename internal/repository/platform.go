@@ -47,7 +47,14 @@ func (r *PlatformRepository) Update(platform *models.Platform) error {
 
 // Delete deletes a platform
 func (r *PlatformRepository) Delete(id string) error {
-	return r.db.Delete(&models.Platform{}, "id = ?", id).Error
+	result := r.db.Delete(&models.Platform{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all platforms

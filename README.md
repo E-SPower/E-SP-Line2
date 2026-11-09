@@ -1,68 +1,198 @@
 # E-SP-Line2
 
-平台化接入器管理系统 - Platform Adapter Management System
+Platform adapter management system for e-commerce customer service.
 
-## 快速开始
+**English** · [简体中文](README.zh-CN.md)
 
-### 环境要求
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8)](go.mod)
+[![React](https://img.shields.io/badge/react-18-61DAFB)](web/package.json)
+[![Protocol](https://img.shields.io/badge/protocol-v3-8A2BE2)](docs/developer-guide/protocol-v3.md)
+
+[Quick start](docs/user-guide/getting-started.md) · [Adapters](docs/user-guide/adapters.md) · [Routing](docs/user-guide/routing.md) · [API reference](docs/developer-guide/api-reference.md) · [Protocol v3](docs/developer-guide/protocol-v3.md)
+
+## Overview
+
+E-SP-Line2 is an adapter management system built on a platform-oriented architecture. It ingests messages from multiple e-commerce platforms (Xianyu, Taobao and others), routes them and delivers them downstream. The system uses a four-layer architecture, asynchronous message handling, multiple availability safeguards and multi-language internationalization.
+
+## Features
+
+- **Platform management**: add multiple e-commerce platforms dynamically
+- **Adapter architecture**: one adapter contract and one lifecycle for every platform
+- **Asynchronous message handling**: an event-bus-backed message flow
+- **Multiple availability safeguards**: primary/standby leases, fault isolation and automatic recovery
+- **Multiple languages**: localized front end and localized adapter manifests
+- **WebSocket communication**: real-time message push and receive
+
+## Tech stack
+
+### Backend
+
+- **Language**: Go 1.22+
+- **Framework**: Gin
+- **Database**: GORM + SQLite/PostgreSQL
+- **Cache**: Redis
+- **WebSocket**: Gorilla WebSocket
+
+### Front end
+
+- **Framework**: React 18 + TypeScript
+- **Build tool**: Vite
+- **UI**: Tailwind CSS + shadcn/ui
+- **Internationalization**: i18next
+- **Routing**: React Router DOM
+
+## Project structure
+
+```
+E-SP-Line2/
+├── cmd/                # Command-line tools
+├── internal/           # Go backend service
+│   ├── config/         # Configuration
+│   ├── handler/        # HTTP handlers
+│   ├── middleware/     # Middleware
+│   ├── models/         # Data models
+│   ├── repository/     # Data access layer
+│   ├── server/         # Server
+│   └── service/        # Business logic
+├── pkg/                # Shared packages
+├── config/             # Configuration files
+├── web/                # React front end
+│   ├── src/
+│   │   ├── components/ # Components
+│   │   ├── pages/      # Pages
+│   │   ├── locales/    # Locale resources
+│   │   └── i18n.ts     # i18n setup
+│   └── package.json
+└── docs/               # Documentation
+```
+
+## Quick start
+
+### Requirements
 
 - Go 1.22+
-- Node.js 18+
-- pnpm 或 npm
-- Redis (可选)
+- Node.js 20.11+
+- pnpm or npm
+- Redis (optional)
 
-### 两种运行形态
-
-| 形态 | 说明 | 命令 |
-| --- | --- | --- |
-| **网页版**（默认） | 后端只提供 API，前端由独立静态服务 + 反代 `/api`、`/ws` | `make run` |
-| **桌面窗口版**（编译后） | 前端内嵌进二进制，启动即弹出原生窗口 | `make build-desktop` |
-
-> 桌面窗口版使用原生 WebView（Windows: WebView2 / Linux: WebKitGTK），
-> 编译依赖与跨平台打包详见 [编译指南](docs/BUILD.md)。
-
-### 后端启动
+### Run the backend
 
 ```bash
-# 安装依赖
+# Install dependencies
 make deps
 
-# 运行服务
+# Run the service
 make run
 ```
 
-后端服务将在 `http://localhost:8080` 启动。
+The backend starts on `http://localhost:8080`.
 
-### 前端启动
+### Run the front end
 
 ```bash
 cd web
 
-# 安装依赖
+# Install dependencies
 pnpm install
 
-# 启动开发服务器
+# Start the dev server
 pnpm dev
 ```
 
-前端开发服务器将在 `http://localhost:3000` 启动。
+The dev server starts on `http://localhost:3000`.
 
-# License
+## API
 
-本项目采用 混合协议 开源，因此使用本项目时，你需要注意以下几点：
+### Auth
 
-- 第三方库代码或修改部分遵循其原始开源许可.
-- 本项目获取部分项目授权而不受部分约束
-- 项目其余逻辑代码采用本仓库开源许可.
+- `POST /api/v1/auth/register` - Register a user
+- `POST /api/v1/auth/login` - Log in
+- `GET /api/v1/auth/me` - Get the current user
 
-本仓库仅用于提高易用性，实现消息推送类功能，此外，严禁任何项目未经仓库主作者授权基于 ESPL-2 代码开发。使用请遵守当地法律法规，由此造成的问题由使用者和提供违规使用教程者负责，``估计你也联系不上``。
+### Platforms
 
-## 联系方式
+- `GET /api/v1/platforms` - List platforms
+- `GET /api/v1/platforms/:id` - Get a platform
 
-暂不与项目任何问题以及有关事务进行联系
+### Adapters
 
-不保留任何联系方式
+- `GET /api/v1/adapters` - List adapters
+- `POST /api/v1/adapters` - Create an adapter
+- `GET /api/v1/adapters/:id` - Get an adapter
+- `PUT /api/v1/adapters/:id` - Update an adapter
+- `DELETE /api/v1/adapters/:id` - Delete an adapter
+- `POST /api/v1/adapters/:id/start` - Start an adapter
+- `POST /api/v1/adapters/:id/stop` - Stop an adapter
 
-## 特别感谢
+### WebSocket
 
-大大[CV牢猫](https://github.com/cv-cat)的部分项目提供的思路
+- `ws://localhost:8080/ws/adapter?instance_id=xxx&token=<JWT>` - Adapter WebSocket
+- `ws://localhost:8080/ws/app?app_id=xxx&token=<JWT>` - Application WebSocket
+
+Both sockets need a token at the handshake; the same JWT `/auth/login` returns,
+passed as `?token=` (or an `Authorization: Bearer` header from a non-browser
+client). An unlisted `Origin` is refused too — see `server.allowed_origins`.
+
+The full contract lives in the [API reference](docs/developer-guide/api-reference.md).
+
+## Architecture
+
+### Four layers
+
+1. **Platform layer**: defines a business platform type (Xianyu, Taobao and others)
+2. **Adapter package layer**: the integration for one platform, with a version and capability declarations
+3. **Adapter instance layer**: the runtime configuration for a real account or shop
+4. **Adapter session layer**: the current online connection state of an instance
+
+### Message flow
+
+```
+Platform WebSocket → Adapter instance → Event bus → Core routing → Downstream application
+                                                        ↓
+                                                  Outbound command queue
+                                                        ↓
+                                                  Adapter instance → Platform send
+```
+
+The wire format is documented in [Protocol v3](docs/developer-guide/protocol-v3.md).
+
+## Development
+
+### Add a platform
+
+Platforms are data. Add a column to `matrix.json` and an entry to the `META`/`CONFIG` tables in `scripts/gen_platformspec.py`, then regenerate:
+
+```bash
+python3 scripts/gen_platformspec.py matrix.json internal/platformspec
+python3 scripts/gen_capabilities.py matrix.json docs/developer-guide/platform-capabilities.md
+```
+
+The registry feeds the adapter manifests, the capability matrix and the public `GET /api/v1/platforms/spec` endpoint, and built-in adapters are synced into the database on startup. Details: [adapter development guide](docs/developer-guide/adapter-development.md).
+
+### Write an adapter
+
+Follow the message field contract in [message fields](docs/developer-guide/message-fields.md) and the [adapter development guide](docs/developer-guide/adapter-development.md). Capability support levels gate what a runtime must implement. The upstream projects — `Spider_XHS`, `DouYin_Spider`, `TiktokApis`, `BilibiliApis`, `KuaiShou-Spider`, `WeiboApis`, `XianYuApis`, `TaoBaoApis`, `JdApis`, `XApis` — are the reference implementations; their platform metadata was migrated from [catbus](https://github.com/cv-cat/catbus) ([migration notes](docs/developer-guide/catbus-migration.md), [notice](NOTICE-catbus.md)).
+
+### Docs
+
+- [Platform capability matrix](docs/developer-guide/platform-capabilities.md) — per-platform support and limitations
+- [Message fields](docs/developer-guide/message-fields.md) — every field, type and nullability
+- [API reference](docs/developer-guide/api-reference.md)
+- [Pull request QA](docs/developer-guide/pr-qa.md) — reviewer checklist and merge gate
+
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) before opening a pull request.
+
+## Community
+
+- [Contributing](.github/CONTRIBUTING.md)
+- [Code of conduct](.github/CODE_OF_CONDUCT.md)
+- [Security policy](.github/SECURITY.md)
+
+## Contact
+
+Questions and suggestions go to [GitHub Issues](https://github.com/E-SPower/E-SP-Line2/issues).
+
+## License
+
+Released under the [Apache License 2.0](LICENSE) plus the additional terms in [LICENSE-CUSTOM.md](LICENSE-CUSTOM.md), which must be read together. The project is also offered under the [MIT license](LICENSE-MIT) for consumers who prefer it; where the two differ for your use, say which one you are relying on.

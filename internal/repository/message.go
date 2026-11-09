@@ -47,8 +47,15 @@ func (r *InboundEventRepository) Update(event *models.InboundEvent) error {
 
 // UpdateStatus updates event status
 func (r *InboundEventRepository) UpdateStatus(id, status string) error {
-	return r.db.Model(&models.InboundEvent{}).Where("id = ?", id).
-		Update("status", status).Error
+	result := r.db.Model(&models.InboundEvent{}).Where("id = ?", id).
+		Update("status", status)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all events
@@ -109,8 +116,15 @@ func (r *OutboundCommandRepository) Update(cmd *models.OutboundCommand) error {
 
 // UpdateStatus updates command status
 func (r *OutboundCommandRepository) UpdateStatus(id, status string) error {
-	return r.db.Model(&models.OutboundCommand{}).Where("id = ?", id).
-		Update("status", status).Error
+	result := r.db.Model(&models.OutboundCommand{}).Where("id = ?", id).
+		Update("status", status)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all commands
@@ -121,6 +135,23 @@ func (r *OutboundCommandRepository) List(limit, offset int) ([]models.OutboundCo
 	r.db.Model(&models.OutboundCommand{}).Count(&total)
 	err := r.db.Limit(limit).Offset(offset).Order("created_at DESC").Find(&commands).Error
 	return commands, total, err
+}
+
+// ClaimForDispatch moves a command to `sending` if nobody else has claimed it.
+//
+// Both the create path and the retry sweep dispatch commands, so the same row can
+// be picked up twice: the sweep scans `created`, which is exactly how a command
+// starts life. Without a claim both actors send the frame and the slower one
+// overwrites the other's final status. The conditional UPDATE is the arbiter —
+// RowsAffected == 0 means another actor got it and this one must stand down.
+func (r *OutboundCommandRepository) ClaimForDispatch(id string) (bool, error) {
+	result := r.db.Model(&models.OutboundCommand{}).
+		Where("id = ? AND status IN ?", id, []string{"created", "queued", "retrying"}).
+		Update("status", "sending")
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 // ListPending lists pending commands for sending
@@ -163,7 +194,14 @@ func (r *RouteRuleRepository) Update(rule *models.RouteRule) error {
 
 // Delete deletes a route rule
 func (r *RouteRuleRepository) Delete(id string) error {
-	return r.db.Delete(&models.RouteRule{}, "id = ?", id).Error
+	result := r.db.Delete(&models.RouteRule{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all route rules

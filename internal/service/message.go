@@ -4,14 +4,21 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/e-spl/e-sp-line2/internal/message"
 	"github.com/e-spl/e-sp-line2/internal/models"
+	v3 "github.com/e-spl/e-sp-line2/internal/protocol/v3"
 	"github.com/e-spl/e-sp-line2/internal/repository"
+	"github.com/e-spl/e-sp-line2/pkg/logger"
 )
 
 // MessageService handles inbound message operations
 type MessageService struct {
 	repo         *repository.InboundEventRepository
 	instanceRepo *repository.InstanceRepository
+
+	// hub routes a stored event to its targets. Nil means "store only", which
+	// keeps the service usable in tests and keeps Create from routing twice.
+	hub *message.Hub
 }
 
 // NewMessageService creates a new message service
@@ -21,6 +28,9 @@ func NewMessageService(repo *repository.InboundEventRepository, instanceRepo *re
 		instanceRepo: instanceRepo,
 	}
 }
+
+// SetHub attaches the routing hub. Called once by NewServices.
+func (s *MessageService) SetHub(h *message.Hub) { s.hub = h }
 
 // CreateMessageRequest represents a create message request
 type CreateMessageRequest struct {
@@ -35,16 +45,21 @@ type CreateMessageRequest struct {
 	IdempotencyKey string      `json:"idempotency_key"`
 }
 
-// Create creates a new inbound message
+// Create creates a new inbound message.
+//
+// Idempotency: when the caller supplies a key, an existing event with that key
+// is returned instead of inserting a second row. When the caller supplies none,
+// a key is generated here rather than storing "" — the column is under a UNIQUE
+// index, and empty strings collide while NULLs do not. Every row therefore has a
+// real key, so the deduplication query can always be trusted.
 func (s *MessageService) Create(req *CreateMessageRequest) (*models.InboundEvent, error) {
-	// Check for duplicate message
-	if req.IdempotencyKey != "" {
-		existing, _ := s.repo.FindByIdempotencyKey(req.IdempotencyKey)
-		if existing != nil {
-			return existing, nil // Return existing message for idempotency
-		}
-	}
+	event, _, err := s.create(req)
+	return event, err
+}
 
+// create is Create plus a "this key already existed" bit, so the ingest handler
+// can answer 200 for a replay and 201 for a new row.
+func (s *MessageService) create(req *CreateMessageRequest) (*models.InboundEvent, bool, error) {
 	// Resolve platform ID if not provided: prefer explicit value,
 	// otherwise derive it from the adapter instance.
 	platformID := req.PlatformID
@@ -52,6 +67,13 @@ func (s *MessageService) Create(req *CreateMessageRequest) (*models.InboundEvent
 		if instance, err := s.instanceRepo.FindByID(req.InstanceID); err == nil {
 			platformID = instance.PlatformID
 		}
+	}
+
+	key := req.IdempotencyKey
+	if key == "" {
+		key = models.GenerateIdempotencyKey(platformID, req.InstanceID, models.GenerateID())
+	} else if existing, err := s.repo.FindByIdempotencyKey(key); err == nil && existing != nil {
+		return existing, true, nil // Return existing message for idempotency
 	}
 
 	event := &models.InboundEvent{
@@ -64,7 +86,7 @@ func (s *MessageService) Create(req *CreateMessageRequest) (*models.InboundEvent
 		MessageType:    req.MessageType,
 		MessageContent: req.MessageContent,
 		RawMessage:     serializeRawMessage(req.RawMessage),
-		IdempotencyKey: req.IdempotencyKey,
+		IdempotencyKey: &key,
 		TraceID:        models.GenerateTraceID(),
 		Status:         "received",
 		CreatedAt:      time.Now(),
@@ -72,20 +94,34 @@ func (s *MessageService) Create(req *CreateMessageRequest) (*models.InboundEvent
 	}
 
 	if err := s.repo.Create(event); err != nil {
-		return nil, err
+		// Two concurrent deliveries of the same key: the pre-insert lookup can
+		// both miss. Re-read so the loser of the race still answers 200 with the
+		// winner's row instead of surfacing a UNIQUE constraint error.
+		if existing, lookupErr := s.repo.FindByIdempotencyKey(key); lookupErr == nil && existing != nil {
+			return existing, true, nil
+		}
+		return nil, false, err
 	}
 
-	return event, nil
+	return event, false, nil
 }
 
 // GetByID gets a message by ID
 func (s *MessageService) GetByID(id string) (*models.InboundEvent, error) {
-	return s.repo.FindByID(id)
+	event, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "message %s", id)
+	}
+	return event, nil
 }
 
-// Ack acknowledges a message
+// Ack acknowledges a message. Acknowledging a message that does not exist is
+// an ErrNotFound, not a success.
 func (s *MessageService) Ack(id string) error {
-	return s.repo.UpdateStatus(id, "acked")
+	if err := s.repo.UpdateStatus(id, "acked"); err != nil {
+		return wrapNotFound(err, "message %s", id)
+	}
+	return nil
 }
 
 // List lists all messages
@@ -128,9 +164,130 @@ func serializeRawMessage(raw interface{}) string {
 	if raw == nil {
 		return ""
 	}
+	// If already a string, return as-is
+	if str, ok := raw.(string); ok {
+		return str
+	}
+	// Otherwise, marshal to JSON
 	data, err := json.Marshal(raw)
 	if err != nil {
 		return ""
 	}
 	return string(data)
+}
+
+// RecordInbound counts one inbound message on the instance row and refreshes
+// its heartbeat. Called from the WS ingest paths; best-effort by design.
+func (s *MessageService) RecordInbound(instanceID string) {
+	if instanceID == "" || s.instanceRepo == nil {
+		return
+	}
+	if err := s.instanceRepo.RecordInbound(instanceID); err != nil {
+		logger.Warn("Failed to record inbound message metric",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordHeartbeat refreshes the instance heartbeat without counting a message.
+func (s *MessageService) RecordHeartbeat(instanceID string) {
+	if instanceID == "" || s.instanceRepo == nil {
+		return
+	}
+	if err := s.instanceRepo.MarkHeartbeat(instanceID); err != nil {
+		logger.Warn("Failed to record heartbeat",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+	}
+}
+
+// RecordError bumps the instance error counter.
+func (s *MessageService) RecordError(instanceID string) {
+	if instanceID == "" || s.instanceRepo == nil {
+		return
+	}
+	if err := s.instanceRepo.IncrementErrorCount(instanceID); err != nil {
+		logger.Warn("Failed to record instance error metric",
+			logger.String("instance_id", instanceID),
+			logger.String("error", err.Error()))
+	}
+}
+
+// CreateAndRoute creates an inbound message and then routes it through the hub.
+//
+// Routing is best-effort and never fails the write: the row is already the
+// durable record, and the status says how far it got. `delivered` means at least
+// one live connection received it, `routed` means a rule matched but nobody was
+// listening, `received` means no rule matched. An unroutable event stays
+// `received` on purpose — ListPending picks it up again if a rule appears.
+func (s *MessageService) CreateAndRoute(req *CreateMessageRequest) (*models.InboundEvent, error) {
+	event, _, err := s.CreateAndRouteIdempotent(req)
+	return event, err
+}
+
+// CreateAndRouteIdempotent is CreateAndRoute plus the "key already existed" bit
+// for the HTTP layer.
+func (s *MessageService) CreateAndRouteIdempotent(req *CreateMessageRequest) (*models.InboundEvent, bool, error) {
+	event, existed, err := s.create(req)
+	if err != nil {
+		return nil, false, err
+	}
+	// A replay returns the earlier row untouched: it was routed once already.
+	if existed {
+		return event, true, nil
+	}
+	s.Route(event)
+	return event, false, nil
+}
+
+// Route hands a stored event to the hub and records the outcome on the row.
+func (s *MessageService) Route(event *models.InboundEvent) {
+	if s.hub == nil || event == nil {
+		return
+	}
+
+	envelope := v3.NewMessageEnvelope(
+		event.PlatformID,
+		event.InstanceID,
+		v3.EventMessageReceived,
+		map[string]interface{}{
+			"id":              event.ID,
+			"platform_id":     event.PlatformID,
+			"instance_id":     event.InstanceID,
+			"conversation_id": event.ConversationID,
+			"sender_id":       event.SenderID,
+			"sender_name":     event.SenderName,
+			"message_type":    event.MessageType,
+			"message_content": event.MessageContent,
+			"idempotency_key": event.IdempotencyKey,
+			"trace_id":        event.TraceID,
+			"raw_message":     event.RawMessage,
+		},
+	)
+
+	delivered, matched, err := s.hub.ProcessMessage(envelope)
+	if err != nil {
+		logger.Warn("Failed to route inbound message",
+			logger.String("event_id", event.ID),
+			logger.String("error", err.Error()))
+		return
+	}
+
+	status := "received"
+	switch {
+	case delivered > 0:
+		status = "delivered"
+	case matched:
+		status = "routed"
+	}
+	if status == event.Status {
+		return
+	}
+	if err := s.repo.UpdateStatus(event.ID, status); err != nil {
+		logger.Warn("Failed to record message routing status",
+			logger.String("event_id", event.ID),
+			logger.String("error", err.Error()))
+		return
+	}
+	event.Status = status
 }

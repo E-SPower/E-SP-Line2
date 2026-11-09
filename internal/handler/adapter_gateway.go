@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +33,9 @@ func CreateGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 	return func(c *gin.Context) {
 		var req service.CreateGatewayAdapterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
@@ -55,7 +58,7 @@ func GetGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFunc {
 		id := c.Param("id")
 		adapter, err := gateway.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "adapter not found"})
+			respondError(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, adapter)
@@ -68,13 +71,15 @@ func UpdateGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 		id := c.Param("id")
 		var req service.UpdateGatewayAdapterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
 		adapter, err := gateway.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -87,7 +92,7 @@ func DeleteGatewayAdapter(gateway *service.AdapterGatewayService) gin.HandlerFun
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := gateway.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "adapter deleted"})

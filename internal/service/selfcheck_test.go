@@ -11,15 +11,6 @@ import (
 )
 
 // digestAdapterState snapshots an install state so a test can assert on it.
-func readState(t *testing.T, dirs *InstanceDirManager, id string) string {
-	t.Helper()
-	data, err := os.ReadFile(dirs.StatePath(id))
-	if err != nil {
-		t.Fatalf("state not written: %v", err)
-	}
-	return string(data)
-}
-
 // TestStandaloneSelfCheckRunsAdapterEntry: for a standalone adapter the
 // dependency path is the adapter's own --self-check, not pip.
 func TestStandaloneSelfCheckRunsAdapterEntry(t *testing.T) {

@@ -598,7 +598,7 @@ func (d *DependencyInstaller) appendLog(instanceID, text string) {
 			marker = "WARNING"
 		}
 		ts := time.Now().Format("2006-01-02 15:04:05")
-		_, _ = f.WriteString(fmt.Sprintf("%s | %-7s | %s\n", ts, marker, line))
+		_, _ = fmt.Fprintf(f, "%s | %-7s | %s\n", ts, marker, line)
 	}
 }
 

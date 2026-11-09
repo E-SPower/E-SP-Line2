@@ -47,7 +47,14 @@ func (r *UserRepository) Update(user *models.User) error {
 
 // Delete deletes a user
 func (r *UserRepository) Delete(id string) error {
-	return r.db.Delete(&models.User{}, "id = ?", id).Error
+	result := r.db.Delete(&models.User{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // List lists all users

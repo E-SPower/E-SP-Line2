@@ -1,753 +1,635 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Save, Database, Globe, Shield, Bell, HardDrive, RefreshCw, Users, Trash2, Plus, X } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Bell, Database, Globe, Save, Shield, Trash2, UserPlus, Users } from 'lucide-react'
 import apiClient from '../api/client'
-import Select from '../components/Select'
-
-// Format a byte count into a human-readable string.
-function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  let v = bytes
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024
-    i++
-  }
-  return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
-}
+import { PageHeader } from '../components/ui/page-header'
+import { Card, CardBody, CardHeader, CardTitle } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import { FormField, controlClassName } from '../components/ui/form-field'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Badge } from '../components/ui/badge'
+import { ErrorState } from '../components/ui/error-state'
+import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableShell } from '../components/ui/table-shell'
+import { cn } from '@/lib/cn'
 
 interface Settings {
-  general: {
-    siteName: string
-    language: string
-    timezone: string
-  }
-  database: {
-    driver: string
-    host: string
-    port: number
-    name: string
-  }
-  security: {
-    tokenExpiry: number
-    maxLoginAttempts: number
-    requireEmailVerification: boolean
-  }
-  notifications: {
-    emailNotifications: boolean
-    webhookUrl: string
-    alertOnError: boolean
-  }
+  general: { siteName: string; language: string; timezone: string }
+  database: { driver: string; host: string; port: number; name: string }
+  security: { tokenExpiry: number; maxLoginAttempts: number; requireEmailVerification: boolean }
+  notifications: { emailNotifications: boolean; webhookUrl: string; alertOnError: boolean }
 }
 
-// Tab keys rendered as the settings column tabs.
-const TABS = ['general', 'database', 'security', 'notifications', 'storage', 'users'] as const
-type TabKey = (typeof TABS)[number]
+const DEFAULTS: Settings = {
+  general: { siteName: 'E-SP-Line2', language: 'zh-CN', timezone: 'Asia/Shanghai' },
+  database: { driver: 'sqlite', host: 'localhost', port: 5432, name: 'e-sp-line2' },
+  security: { tokenExpiry: 3600, maxLoginAttempts: 5, requireEmailVerification: false },
+  notifications: { emailNotifications: true, webhookUrl: '', alertOnError: true },
+}
 
-const TAB_ICONS: Record<TabKey, any> = {
-  general: Globe,
-  database: Database,
-  security: Shield,
-  notifications: Bell,
-  storage: HardDrive,
-  users: Users,
+type SectionId = 'general' | 'database' | 'security' | 'notifications' | 'users'
+
+interface Account {
+  id: string
+  username: string
+  email: string
+  role: string
+  status: string
+}
+
+const SECTIONS: { id: SectionId; icon: typeof Globe; labelKey: string; hintKey: string }[] = [
+  { id: 'general', icon: Globe, labelKey: 'settings.general', hintKey: 'settings.generalHint' },
+  { id: 'database', icon: Database, labelKey: 'settings.database', hintKey: 'settings.databaseHint' },
+  { id: 'security', icon: Shield, labelKey: 'settings.security', hintKey: 'settings.securityHint' },
+  { id: 'notifications', icon: Bell, labelKey: 'settings.notifications', hintKey: 'settings.notificationsHint' },
+  { id: 'users', icon: Users, labelKey: 'settings.userManagement', hintKey: 'settings.userManagementHint' },
+]
+
+/** A labelled checkbox row, since these are switches rather than text fields. */
+function SwitchField({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string
+  hint?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-text-primary">{label}</p>
+        {hint && <p className="mt-0.5 text-sm text-text-tertiary">{hint}</p>}
+      </div>
+      {/* shadcn Switch geometry: 36x20 track, 16px thumb, ring on focus. */}
+      <label className="relative mt-0.5 inline-flex shrink-0 cursor-pointer items-center rounded-full">
+        <input
+          type="checkbox"
+          role="switch"
+          className="peer sr-only"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span className="h-5 w-9 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring/50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50" />
+        <span className="pointer-events-none absolute left-0.5 top-0.5 size-4 rounded-full bg-surface-raised shadow-xs transition-transform peer-checked:translate-x-4" />
+      </label>
+    </div>
+  )
 }
 
 export default function Settings() {
   const { t, i18n } = useTranslation()
-  const [searchParams] = useSearchParams()
-  const urlTab = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState<TabKey>(
-    urlTab && (TABS as readonly string[]).includes(urlTab) ? (urlTab as TabKey) : 'general'
-  )
-  const [settings, setSettings] = useState<Settings>({
-    general: {
-      siteName: 'E-SP-Line2',
-      language: 'zh-CN',
-      timezone: 'Asia/Shanghai'
-    },
-    database: {
-      driver: 'sqlite',
-      host: 'localhost',
-      port: 5432,
-      name: 'e-sp-line2'
-    },
-    security: {
-      tokenExpiry: 3600,
-      maxLoginAttempts: 5,
-      requireEmailVerification: false
-    },
-    notifications: {
-      emailNotifications: true,
-      webhookUrl: '',
-      alertOnError: true
-    }
-  })
-  const [loading, setLoading] = useState(false)
+  const [settings, setSettings] = useState<Settings>(DEFAULTS)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [active, setActive] = useState<SectionId>('general')
 
-  // Storage stats
-  const [storage, setStorage] = useState<any>(null)
-  const [storageLoading, setStorageLoading] = useState(false)
+  // ---- user management: server state, unlike the local settings above ----
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [accountsLoading, setAccountsLoading] = useState(false)
+  const [accountsError, setAccountsError] = useState<string | null>(null)
+  const [accountsNotice, setAccountsNotice] = useState<string | null>(null)
+  const [allowRegistration, setAllowRegistration] = useState(true)
+  const [registrationSaving, setRegistrationSaving] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({ username: '', password: '' })
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({})
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [deletingUser, setDeletingUser] = useState<Account | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletePending, setDeletePending] = useState(false)
+  const [statusPendingId, setStatusPendingId] = useState<string | null>(null)
 
-  // User management
-  const [users, setUsers] = useState<any[]>([])
-  const [registrationEnabled, setRegistrationEnabled] = useState(true)
-  const [usersLoading, setUsersLoading] = useState(false)
-  const [addUserOpen, setAddUserOpen] = useState(false)
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user' })
-  const [addUserError, setAddUserError] = useState<string | null>(null)
-  const [addUserSubmitting, setAddUserSubmitting] = useState(false)
+  const loadAccounts = useCallback(async () => {
+    setAccountsLoading(true)
+    setAccountsError(null)
+    const result = await apiClient.listUsers()
+    setAccountsLoading(false)
+    if (result.error) {
+      setAccountsError(result.error === 'admin access required' ? t('settings.adminOnly') : result.error)
+      setAccounts([])
+      return
+    }
+    setAccounts(result.data || [])
+  }, [t])
 
-  const loadStorage = async () => {
-    setStorageLoading(true)
-    const res = await apiClient.getStorageStats()
-    setStorageLoading(false)
-    if (!res.error) setStorage(res.data)
+  useEffect(() => {
+    if (active !== 'users') return
+    void loadAccounts()
+    void apiClient.getRegistrationStatus().then((result) => {
+      if (!result.error && typeof result.data === 'boolean') setAllowRegistration(result.data)
+    })
+  }, [active, loadAccounts])
+
+  const toggleRegistration = async (enabled: boolean) => {
+    setRegistrationSaving(true)
+    setAccountsError(null)
+    setAllowRegistration(enabled)
+    const result = await apiClient.setRegistrationStatus(enabled)
+    setRegistrationSaving(false)
+    if (result.error) {
+      setAllowRegistration(!enabled)
+      setAccountsError(result.error)
+      return
+    }
+    setAccountsNotice(t(enabled ? 'settings.registrationOpened' : 'settings.registrationClosed'))
   }
 
-  const loadUsers = async () => {
-    setUsersLoading(true)
-    const [u, reg] = await Promise.all([
-      apiClient.listUsers(),
-      apiClient.getRegistrationStatus(),
-    ])
-    setUsersLoading(false)
-    if (!u.error) setUsers(u.data || [])
-    if (!reg.error) setRegistrationEnabled(reg.data !== false)
+  const submitCreateUser = async () => {
+    const errors: Record<string, string> = {}
+    if (!createForm.username.trim()) errors.username = t('common.required', { field: t('settings.username') })
+    if (createForm.password.length < 6) errors.password = t('settings.passwordTooShort')
+    setCreateErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    setCreating(true)
+    setCreateError(null)
+    const result = await apiClient.createUser(createForm.username.trim(), createForm.password, 'user')
+    setCreating(false)
+    if (result.error) {
+      setCreateError(result.error)
+      return
+    }
+    setCreateOpen(false)
+    setAccountsNotice(t('settings.userCreated', { name: createForm.username.trim() }))
+    await loadAccounts()
+  }
+
+  const toggleAccountStatus = async (account: Account) => {
+    const next = account.status === 'active' ? 'disabled' : 'active'
+    setStatusPendingId(account.id)
+    setAccountsError(null)
+    const result = await apiClient.updateUserStatus(account.id, next)
+    setStatusPendingId(null)
+    if (result.error) {
+      setAccountsError(result.error)
+      return
+    }
+    setAccountsNotice(t(next === 'active' ? 'settings.userEnabled' : 'settings.userDisabledNotice', { name: account.username }))
+    await loadAccounts()
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return
+    setDeletePending(true)
+    setDeleteError(null)
+    const result = await apiClient.deleteUser(deletingUser.id)
+    setDeletePending(false)
+    if (result.error) {
+      setDeleteError(result.error)
+      return
+    }
+    setAccountsNotice(t('settings.userDeleted', { name: deletingUser.username }))
+    setDeletingUser(null)
+    await loadAccounts()
   }
 
   useEffect(() => {
-    loadSettings()
-    loadStorage()
-    loadUsers()
-  }, [])
-
-  const loadSettings = async () => {
     try {
-      // Load settings from local storage
-      const savedSettings = localStorage.getItem('app_settings')
-      if (savedSettings) {
-        setSettings(JSON.parse(savedSettings))
-      }
-    } catch (error) {
-      console.error('Failed to load settings:', error)
+      const stored = localStorage.getItem('app_settings')
+      if (stored) setSettings({ ...DEFAULTS, ...JSON.parse(stored) })
+    } catch {
+      setError(t('state.loadFailed'))
     }
+  }, [t])
+
+  const update = <K extends keyof Settings>(category: K, key: keyof Settings[K], value: Settings[K][keyof Settings[K]]) => {
+    setSettings((prev) => ({ ...prev, [category]: { ...prev[category], [key]: value } }))
+    setSaved(false)
   }
 
   const handleSave = async () => {
-    setLoading(true)
-    setSaved(false)
-    
+    setSaving(true)
+    setError(null)
     try {
-      // Save settings to local storage
       localStorage.setItem('app_settings', JSON.stringify(settings))
-      
-      // Update i18n language
       if (settings.general.language !== i18n.language) {
         await i18n.changeLanguage(settings.general.language)
       }
-      
       setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (error) {
-      console.error('Failed to save settings:', error)
+      window.setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setError(t('state.saveFailed'))
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  const updateSetting = (category: keyof Settings, key: string, value: any) => {
-    setSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [key]: value
-      }
-    }))
-  }
-
-  // ---- User management actions ----
-  const handleToggleRegistration = async (enabled: boolean) => {
-    const res = await apiClient.setRegistrationStatus(enabled)
-    if (res.error) {
-      alert(`操作失败: ${res.error}`)
-      return
-    }
-    setRegistrationEnabled(enabled)
-  }
-
-  const handleUserRole = async (id: string, role: string) => {
-    const res = await apiClient.updateUserRole(id, role)
-    if (res.error) {
-      alert(`操作失败: ${res.error}`)
-      return
-    }
-    loadUsers()
-  }
-
-  const handleUserStatus = async (id: string, status: string) => {
-    const res = await apiClient.updateUserStatus(id, status)
-    if (res.error) {
-      alert(`操作失败: ${res.error}`)
-      return
-    }
-    loadUsers()
-  }
-
-  const handleDeleteUser = async (id: string, username: string) => {
-    if (!window.confirm(`确定删除用户 "${username}"？`)) return
-    const res = await apiClient.deleteUser(id)
-    if (res.error) {
-      alert(`删除失败: ${res.error}`)
-      return
-    }
-    loadUsers()
-  }
-
-  const handleCreateUser = async () => {
-    setAddUserError(null)
-    if (!newUser.username.trim() || !newUser.password) {
-      setAddUserError('用户名和密码不能为空')
-      return
-    }
-    setAddUserSubmitting(true)
-    const res = await apiClient.createUser(newUser.username.trim(), newUser.password, newUser.role)
-    setAddUserSubmitting(false)
-    if (res.error) {
-      setAddUserError(res.error)
-      return
-    }
-    setAddUserOpen(false)
-    setNewUser({ username: '', password: '', role: 'user' })
-    loadUsers()
-  }
-
-  const tabLabel = (key: TabKey): string => {
-    switch (key) {
-      case 'general': return t('settings.general')
-      case 'database': return t('settings.database')
-      case 'security': return t('settings.security')
-      case 'notifications': return t('settings.notifications')
-      case 'storage': return t('settings.storageUsage')
-      case 'users': return t('settings.userManagement')
-    }
-  }
+  const sectionMeta = useMemo(() => SECTIONS.find((section) => section.id === active)!, [active])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
-        >
-          <Save className="w-4 h-4" />
-          <span>{loading ? t('common.saving') : t('common.save')}</span>
-        </button>
-      </div>
+    <>
+      <PageHeader
+        title={t('settings.title')}
+        description={t('settings.subtitle')}
+        actions={
+          <>
+            {saved && (
+              <Badge variant="success" dot>
+                {t('settings.saved')}
+              </Badge>
+            )}
+            <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>
+              <Save />
+              {saving ? t('common.saving') : t('common.save')}
+            </Button>
+          </>
+        }
+      />
 
-      {saved && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-green-800">{t('settings.saved')}</p>
-        </div>
-      )}
+      {error && <ErrorState title={t('state.saveFailed')} description={error} onRetry={handleSave} retryLabel={t('common.retry')} />}
 
-      {/* Settings column tabs */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700">
-          {TABS.map((key) => {
-            const Icon = TAB_ICONS[key]
-            const isActive = activeTab === key
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`flex items-center px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  isActive
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Icon className="w-4 h-4 mr-2" />
-                {tabLabel(key)}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        {/* Section navigation — the "左分区导航" for this page. */}
+        <nav aria-label={t('settings.title')} className="lg:sticky lg:top-20 lg:self-start">
+          <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+            {SECTIONS.map((section) => {
+              const Icon = section.icon
+              const selected = active === section.id
+              return (
+                <li key={section.id} className="shrink-0 lg:shrink">
+                  <button
+                    type="button"
+                    onClick={() => setActive(section.id)}
+                    aria-current={selected ? 'true' : undefined}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors',
+                      selected
+                        ? 'bg-surface-hover font-medium text-text-primary'
+                        : 'text-text-secondary hover:bg-surface-hover/60 hover:text-text-primary',
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span className="truncate">{t(section.labelKey)}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="mt-3 hidden px-1 text-xs text-text-tertiary lg:block">{t('settings.saveHint')}</p>
+        </nav>
 
-      {/* General Settings */}
-      {activeTab === 'general' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-6 space-y-4">
+        <Card padding="none">
+          <CardHeader>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.siteName')}
-              </label>
-              <input
-                type="text"
-                value={settings.general.siteName}
-                onChange={(e) => updateSetting('general', 'siteName', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
+              <CardTitle>{t(sectionMeta.labelKey)}</CardTitle>
+              <p className="mt-1 text-xs text-text-tertiary">{t(sectionMeta.hintKey)}</p>
             </div>
+          </CardHeader>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.language')}
-              </label>
-              <Select
-                value={settings.general.language}
-                onChange={(v) => updateSetting('general', 'language', v)}
-                options={[
-                  { value: 'zh-CN', label: '简体中文' },
-                  { value: 'en-US', label: 'English' },
-                ]}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.timezone')}
-              </label>
-              <Select
-                value={settings.general.timezone}
-                onChange={(v) => updateSetting('general', 'timezone', v)}
-                options={[
-                  { value: 'Asia/Shanghai', label: 'Asia/Shanghai (UTC+8)' },
-                  { value: 'UTC', label: 'UTC' },
-                  { value: 'America/New_York', label: 'America/New_York (UTC-5)' },
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Database Settings */}
-      {activeTab === 'database' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.databaseDriver')}
-              </label>
-              <Select
-                value={settings.database.driver}
-                onChange={(v) => updateSetting('database', 'driver', v)}
-                options={[
-                  { value: 'sqlite', label: 'SQLite' },
-                  { value: 'postgres', label: 'PostgreSQL' },
-                ]}
-              />
-            </div>
-
-            {settings.database.driver === 'postgres' && (
+          <CardBody className="space-y-4">
+            {active === 'general' && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {t('settings.host')}
-                    </label>
+                <FormField label={t('settings.siteName')} hint={t('settings.siteNameHint')} required>
+                  {(props) => (
                     <input
+                      {...props}
                       type="text"
-                      value={settings.database.host}
-                      onChange={(e) => updateSetting('database', 'host', e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className={controlClassName}
+                      value={settings.general.siteName}
+                      onChange={(event) => update('general', 'siteName', event.target.value)}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {t('settings.port')}
-                    </label>
-                    <input
-                      type="number"
-                      value={settings.database.port}
-                      onChange={(e) => updateSetting('database', 'port', parseInt(e.target.value))}
-                      className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
+                  )}
+                </FormField>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('settings.databaseName')}
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.database.name}
-                    onChange={(e) => updateSetting('database', 'name', e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label={t('settings.language')}>
+                    {(props) => (
+                      <Select
+                        value={settings.general.language}
+                        onValueChange={(value) => update('general', 'language', value)}
+                      >
+                        <SelectTrigger {...props}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="zh-CN">简体中文</SelectItem>
+                          <SelectItem value="en-US">English</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </FormField>
+
+                  <FormField label={t('settings.timezone')}>
+                    {(props) => (
+                      <Select
+                        value={settings.general.timezone}
+                        onValueChange={(value) => update('general', 'timezone', value)}
+                      >
+                        <SelectTrigger {...props}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Asia/Shanghai">Asia/Shanghai (UTC+8)</SelectItem>
+                          <SelectItem value="UTC">UTC</SelectItem>
+                          <SelectItem value="America/New_York">America/New_York (UTC-5)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </FormField>
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* Security Settings */}
-      {activeTab === 'security' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.tokenExpiry')} ({t('common.seconds')})
-              </label>
-              <input
-                type="number"
-                value={settings.security.tokenExpiry}
-                onChange={(e) => updateSetting('security', 'tokenExpiry', parseInt(e.target.value))}
-                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.maxLoginAttempts')}
-              </label>
-              <input
-                type="number"
-                value={settings.security.maxLoginAttempts}
-                onChange={(e) => updateSetting('security', 'maxLoginAttempts', parseInt(e.target.value))}
-                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('settings.requireEmailVerification')}
-              </label>
-              <input
-                type="checkbox"
-                checked={settings.security.requireEmailVerification}
-                onChange={(e) => updateSetting('security', 'requireEmailVerification', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Notification Settings */}
-      {activeTab === 'notifications' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('settings.emailNotifications')}
-              </label>
-              <input
-                type="checkbox"
-                checked={settings.notifications.emailNotifications}
-                onChange={(e) => updateSetting('notifications', 'emailNotifications', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('settings.webhookUrl')}
-              </label>
-              <input
-                type="url"
-                value={settings.notifications.webhookUrl}
-                onChange={(e) => updateSetting('notifications', 'webhookUrl', e.target.value)}
-                placeholder="https://example.com/webhook"
-                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('settings.alertOnError')}
-              </label>
-              <input
-                type="checkbox"
-                checked={settings.notifications.alertOnError}
-                onChange={(e) => updateSetting('notifications', 'alertOnError', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Storage Usage */}
-      {activeTab === 'storage' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {t('settings.storageUsage')}
-            </h2>
-            <button
-              onClick={loadStorage}
-              className="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${storageLoading ? 'animate-spin' : ''}`} />
-              {t('settings.refreshStorage')}
-            </button>
-          </div>
-          <div className="p-6">
-            {storageLoading ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('settings.storageLoading')}</p>
-            ) : !storage ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
-            ) : (
+            {active === 'database' && (
               <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('settings.dbSize')}</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    {formatBytes(storage.db_size_bytes || 0)}
-                  </p>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('settings.dataDirSize')}</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    {formatBytes(storage.data_dir_bytes || 0)}
-                  </p>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('settings.totalRows')}</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    {Object.values(storage.tables || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0)}
-                  </p>
-                </div>
-              </div>
+                <FormField label={t('settings.databaseDriver')}>
+                  {(props) => (
+                    <Select
+                      value={settings.database.driver}
+                      onValueChange={(value) => update('database', 'driver', value)}
+                    >
+                      <SelectTrigger {...props}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sqlite">SQLite</SelectItem>
+                        <SelectItem value="postgres">PostgreSQL</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
 
-              <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('settings.tableRows')}
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  {Object.entries(storage.tables || {}).map(([name, count]: [string, any]) => (
-                    <div key={name} className="bg-gray-50 dark:bg-gray-700 rounded px-3 py-2">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{name}</p>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{Number(count) || 0}</p>
+                {settings.database.driver === 'postgres' && (
+                  <>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
+                      <FormField label={t('settings.host')}>
+                        {(props) => (
+                          <input
+                            {...props}
+                            type="text"
+                            className={controlClassName}
+                            value={settings.database.host}
+                            onChange={(event) => update('database', 'host', event.target.value)}
+                          />
+                        )}
+                      </FormField>
+                      <FormField label={t('settings.port')}>
+                        {(props) => (
+                          <input
+                            {...props}
+                            type="number"
+                            className={cn(controlClassName, 'tabular')}
+                            value={settings.database.port}
+                            onChange={(event) => update('database', 'port', Number(event.target.value))}
+                          />
+                        )}
+                      </FormField>
                     </div>
-                  ))}
-                </div>
-              </div>
+
+                    <FormField label={t('settings.databaseName')}>
+                      {(props) => (
+                        <input
+                          {...props}
+                          type="text"
+                          className={controlClassName}
+                          value={settings.database.name}
+                          onChange={(event) => update('database', 'name', event.target.value)}
+                        />
+                      )}
+                    </FormField>
+                  </>
+                )}
               </>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* User Management */}
-      {activeTab === 'users' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {t('settings.userManagement')}
-            </h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => { setAddUserOpen(true); setAddUserError(null) }}
-                className="inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                {t('settings.addUser')}
-              </button>
-              <button
-                onClick={loadUsers}
-                className="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <RefreshCw className={`w-4 h-4 mr-1 ${usersLoading ? 'animate-spin' : ''}`} />
-                {t('common.refresh')}
-              </button>
-            </div>
-          </div>
-          <div className="p-6 space-y-4">
-            {/* Registration toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t('settings.allowRegistration')}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {t('settings.allowRegistrationHint')}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleToggleRegistration(!registrationEnabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  registrationEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-                role="switch"
-                aria-checked={registrationEnabled}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                    registrationEnabled ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
+            {active === 'security' && (
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label={`${t('settings.tokenExpiry')} (${t('common.seconds')})`} hint={t('settings.tokenExpiryHint')}>
+                    {(props) => (
+                      <input
+                        {...props}
+                        type="number"
+                        className={cn(controlClassName, 'tabular')}
+                        value={settings.security.tokenExpiry}
+                        onChange={(event) => update('security', 'tokenExpiry', Number(event.target.value))}
+                      />
+                    )}
+                  </FormField>
+
+                  <FormField label={t('settings.maxLoginAttempts')} hint={t('settings.maxLoginAttemptsHint')}>
+                    {(props) => (
+                      <input
+                        {...props}
+                        type="number"
+                        className={cn(controlClassName, 'tabular')}
+                        value={settings.security.maxLoginAttempts}
+                        onChange={(event) => update('security', 'maxLoginAttempts', Number(event.target.value))}
+                      />
+                    )}
+                  </FormField>
+                </div>
+
+                <SwitchField
+                  label={t('settings.requireEmailVerification')}
+                  checked={settings.security.requireEmailVerification}
+                  onChange={(checked) => update('security', 'requireEmailVerification', checked)}
                 />
-              </button>
-            </div>
+              </>
+            )}
 
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-              {usersLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
-              ) : users.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('settings.noUsers')}</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          {t('common.name')}
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          {t('settings.role')}
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          {t('common.status')}
-                        </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          {t('common.actions')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {users.map((u) => (
-                        <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                            {u.username}
-                            {u.role === 'admin' && (
-                              <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
-                                admin
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                            <button
-                              onClick={() => handleUserRole(u.id, u.role === 'admin' ? 'user' : 'admin')}
-                              className="text-blue-600 dark:text-blue-400 hover:underline"
-                              title={u.role === 'admin' ? '降为普通用户' : '提升为管理员'}
-                            >
-                              {u.role === 'admin' ? '管理员' : '普通用户'}
-                            </button>
-                          </td>
-                          <td className="px-4 py-2 text-sm">
-                            <button
-                              onClick={() => handleUserStatus(u.id, u.status === 'active' ? 'disabled' : 'active')}
-                              className={`px-2 py-0.5 text-xs rounded-full ${
-                                u.status === 'active'
-                                  ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
-                                  : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
-                              }`}
-                            >
-                              {u.status === 'active' ? '启用' : '禁用'}
-                            </button>
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            <button
-                              onClick={() => handleDeleteUser(u.id, u.username)}
-                              className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                              title="删除用户"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+            {active === 'users' && (
+              <>
+                <SwitchField
+                  label={t('settings.allowRegistration')}
+                  hint={t('settings.allowRegistrationHint')}
+                  checked={allowRegistration}
+                  onChange={(checked) => {
+                    if (!registrationSaving) void toggleRegistration(checked)
+                  }}
+                />
 
-      {/* Add User Modal */}
-      {addUserOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setAddUserOpen(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {t('settings.addUser')}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setAddUserOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="px-6 py-4 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('auth.username')}
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.username}
-                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-medium text-text-primary">{t('settings.addUser')}</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCreateForm({ username: '', password: '' })
+                      setCreateErrors({})
+                      setCreateError(null)
+                      setCreateOpen(true)
+                    }}
+                  >
+                    <UserPlus />
+                    {t('settings.addUser')}
+                  </Button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('auth.password')}
-                  </label>
-                  <input
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('settings.role')}
-                  </label>
-                  <Select
-                    value={newUser.role}
-                    onChange={(v) => setNewUser({ ...newUser, role: v })}
-                    options={[
-                      { value: 'user', label: '普通用户' },
-                      { value: 'admin', label: '管理员' },
-                    ]}
-                  />
-                </div>
-                {addUserError && (
-                  <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-3">
-                    <p className="text-sm text-red-800 dark:text-red-300">{addUserError}</p>
-                  </div>
+
+                {accountsError && (
+                  <p role="alert" className="rounded-md border border-danger-border bg-danger-bg px-2.5 py-2 text-xs text-danger-fg">
+                    {accountsError}
+                  </p>
                 )}
-                <div className="flex justify-end space-x-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setAddUserOpen(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCreateUser}
-                    disabled={addUserSubmitting}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {addUserSubmitting ? t('common.saving') : t('common.save')}
-                  </button>
-                </div>
-              </div>
-            </div>
+                {accountsNotice && (
+                  <Badge variant="success" role="status" aria-live="polite">
+                    {accountsNotice}
+                  </Badge>
+                )}
+
+                <TableShell
+                  busy={accountsLoading}
+                  empty={
+                    accountsLoading || accounts.length > 0 ? undefined : (
+                      <p className="px-2 py-6 text-center text-sm text-text-tertiary">{t('settings.noUsers')}</p>
+                    )
+                  }
+                >
+                  <TableHead>
+                    <tr>
+                      <TableHeaderCell className="min-w-[10rem]">{t('settings.username')}</TableHeaderCell>
+                      <TableHeaderCell className="min-w-[7rem]">{t('common.status')}</TableHeaderCell>
+                      <TableHeaderCell className="min-w-[9rem] text-right">{t('common.actions')}</TableHeaderCell>
+                    </tr>
+                  </TableHead>
+                  <TableBody>
+                    {accounts.map((account) => (
+                      <TableRow key={account.id}>
+                        <TableCell className="min-w-[10rem] font-medium text-text-primary">{account.username}</TableCell>
+                        <TableCell className="min-w-[7rem]">
+                          <Badge variant={account.status === 'active' ? 'success' : 'neutral'} dot>
+                            {account.status === 'active' ? t('settings.userActive') : t('settings.userDisabled')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="min-w-[9rem] text-right">
+                          <div className="inline-flex items-center gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void toggleAccountStatus(account)}
+                              disabled={statusPendingId === account.id}
+                            >
+                              {account.status === 'active' ? t('settings.disableUser') : t('settings.enableUser')}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-danger-fg hover:bg-danger-bg"
+                              onClick={() => {
+                                setDeleteError(null)
+                                setDeletingUser(account)
+                              }}
+                              aria-label={t('common.delete')}
+                              title={t('common.delete')}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </TableShell>
+              </>
+            )}
+
+            {active === 'notifications' && (
+              <>
+                <SwitchField
+                  label={t('settings.emailNotifications')}
+                  checked={settings.notifications.emailNotifications}
+                  onChange={(checked) => update('notifications', 'emailNotifications', checked)}
+                />
+
+                <FormField label={t('settings.webhookUrl')} hint={t('settings.webhookUrlHint')}>
+                  {(props) => (
+                    <input
+                      {...props}
+                      type="url"
+                      placeholder="https://example.com/webhook"
+                      className={controlClassName}
+                      value={settings.notifications.webhookUrl}
+                      onChange={(event) => update('notifications', 'webhookUrl', event.target.value)}
+                    />
+                  )}
+                </FormField>
+
+                <SwitchField
+                  label={t('settings.alertOnError')}
+                  checked={settings.notifications.alertOnError}
+                  onChange={(checked) => update('notifications', 'alertOnError', checked)}
+                />
+              </>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      <Dialog open={createOpen} onOpenChange={(open) => !creating && setCreateOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('settings.addUser')}</DialogTitle>
+            <DialogDescription>{t('settings.addUserHint')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <FormField label={t('settings.username')} required error={createErrors.username}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={controlClassName}
+                  value={createForm.username}
+                  onChange={(event) => setCreateForm({ ...createForm, username: event.target.value })}
+                  autoFocus
+                />
+              )}
+            </FormField>
+
+            <FormField label={t('auth.password')} hint={t('settings.passwordHint')} required error={createErrors.password}>
+              {(props) => (
+                <input
+                  {...props}
+                  type="password"
+                  autoComplete="new-password"
+                  className={controlClassName}
+                  value={createForm.password}
+                  onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })}
+                />
+              )}
+            </FormField>
+
+            {createError && (
+              <p role="alert" className="rounded-md border border-danger-border bg-danger-bg px-2.5 py-2 text-xs text-danger-fg">
+                {createError}
+              </p>
+            )}
           </div>
-        </div>
-      )}
-    </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} disabled={creating}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void submitCreateUser()} disabled={creating}>
+              {creating ? t('common.saving') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deletingUser)}
+        onOpenChange={(open) => !open && setDeletingUser(null)}
+        title={t('settings.deleteUser')}
+        description={
+          <>
+            {deletingUser && <span className="font-medium text-text-secondary">{deletingUser.username}</span>}
+            {deletingUser && ' — '}
+            {t('settings.deleteUserHint')}
+          </>
+        }
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        pendingLabel={t('common.deleting')}
+        pending={deletePending}
+        error={deleteError}
+        onConfirm={() => void confirmDeleteUser()}
+      />
+    </>
   )
 }

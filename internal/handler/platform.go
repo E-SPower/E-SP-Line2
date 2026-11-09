@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
+	"github.com/gin-gonic/gin"
 )
 
 // ListPlatforms lists all platforms
@@ -33,7 +34,7 @@ func GetPlatform(platformService *service.PlatformService) gin.HandlerFunc {
 		id := c.Param("id")
 		platform, err := platformService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "platform not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -46,13 +47,15 @@ func CreatePlatform(platformService *service.PlatformService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req service.CreatePlatformRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
 		platform, err := platformService.Create(&req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -66,13 +69,15 @@ func UpdatePlatform(platformService *service.PlatformService) gin.HandlerFunc {
 		id := c.Param("id")
 		var req service.UpdatePlatformRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
 		platform, err := platformService.Update(id, &req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
@@ -85,7 +90,7 @@ func DeletePlatform(platformService *service.PlatformService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := platformService.Delete(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 

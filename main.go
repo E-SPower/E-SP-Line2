@@ -78,6 +78,13 @@ func main() {
 	logger.Info("Starting E-SP-Line2 server...")
 	logger.Infof("Server version: %s (build=%s, compiled=%s)", cfg.Version, version, buildTime)
 
+	// A deployment left on the shipped secret is signing tokens with a value
+	// that is in the repository. Shout about it, but still start: a WARN keeps
+	// `go run .` useful on a fresh clone, which is the common case.
+	if warning := config.JWTSecretWarning(cfg.JWT.Secret); warning != "" {
+		logger.Warn(warning)
+	}
+
 	// Create server
 	srv, err := server.New(cfg)
 	if err != nil {

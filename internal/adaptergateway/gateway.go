@@ -36,6 +36,10 @@ type GatewayConfig struct {
 	ReadTimeout int
 	// MaxMessageSize is the maximum inbound frame size in bytes.
 	MaxMessageSize int64
+	// CheckOrigin decides which browser origins may open a gateway socket,
+	// including the custom per-adapter listen paths. A nil value allows every
+	// origin, which is what the gateway did before the allow-list existed.
+	CheckOrigin func(*http.Request) bool
 }
 
 // DefaultGatewayConfig returns the default gateway configuration.
@@ -329,9 +333,7 @@ func NewGateway(cfg GatewayConfig, svc *service.AdapterGatewayService) *Gateway 
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
+			CheckOrigin:     cfg.CheckOrigin,
 		},
 	}
 

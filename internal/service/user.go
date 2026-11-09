@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
@@ -15,7 +14,7 @@ const RegistrationEnabledKey = "registration_enabled"
 
 // UserService manages system users and registration settings.
 type UserService struct {
-	repo    *repository.UserRepository
+	repo     *repository.UserRepository
 	settings *repository.SystemSettingRepository
 }
 
@@ -40,17 +39,17 @@ func (s *UserService) List() ([]models.User, error) {
 // Create adds a new user (admin action). role may be "admin" or "user".
 func (s *UserService) Create(username, password, role string) error {
 	if username == "" || password == "" {
-		return errors.New("username and password are required")
+		return validationf("username and password are required")
 	}
 	if len(password) < 6 {
-		return errors.New("password must be at least 6 characters")
+		return validationf("password must be at least 6 characters")
 	}
 	if role != "admin" && role != "user" {
 		role = "user"
 	}
 	existing, _ := s.repo.FindByUsername(username)
 	if existing != nil {
-		return errors.New("username already exists")
+		return conflictf("username already exists")
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -72,11 +71,11 @@ func (s *UserService) Create(username, password, role string) error {
 // another admin; the last admin cannot be demoted.
 func (s *UserService) UpdateRole(id, role string) error {
 	if role != "admin" && role != "user" {
-		return errors.New("invalid role")
+		return validationf("invalid role")
 	}
 	user, err := s.repo.FindByID(id)
 	if err != nil {
-		return errors.New("user not found")
+		return wrapNotFound(err, "user %s", id)
 	}
 	if user.Role == "admin" && role != "admin" {
 		// Prevent demoting the last admin.
@@ -85,7 +84,7 @@ func (s *UserService) UpdateRole(id, role string) error {
 			return err
 		}
 		if admins <= 1 {
-			return errors.New("cannot demote the last admin")
+			return conflictf("cannot demote the last admin")
 		}
 	}
 	user.Role = role
@@ -95,11 +94,11 @@ func (s *UserService) UpdateRole(id, role string) error {
 // SetStatus enables or disables a user account.
 func (s *UserService) SetStatus(id, status string) error {
 	if status != "active" && status != "disabled" {
-		return errors.New("invalid status")
+		return validationf("invalid status")
 	}
 	user, err := s.repo.FindByID(id)
 	if err != nil {
-		return errors.New("user not found")
+		return wrapNotFound(err, "user %s", id)
 	}
 	if user.Role == "admin" && status != "active" {
 		admins, err := s.adminCount()
@@ -107,7 +106,7 @@ func (s *UserService) SetStatus(id, status string) error {
 			return err
 		}
 		if admins <= 1 {
-			return errors.New("cannot disable the last admin")
+			return conflictf("cannot disable the last admin")
 		}
 	}
 	user.Status = status
@@ -118,7 +117,7 @@ func (s *UserService) SetStatus(id, status string) error {
 func (s *UserService) Delete(id string) error {
 	user, err := s.repo.FindByID(id)
 	if err != nil {
-		return errors.New("user not found")
+		return wrapNotFound(err, "user %s", id)
 	}
 	if user.Role == "admin" {
 		admins, err := s.adminCount()
@@ -126,10 +125,13 @@ func (s *UserService) Delete(id string) error {
 			return err
 		}
 		if admins <= 1 {
-			return errors.New("cannot delete the last admin")
+			return conflictf("cannot delete the last admin")
 		}
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return wrapNotFound(err, "user %s", id)
+	}
+	return nil
 }
 
 // RegistrationEnabled reports whether self-registration is allowed.

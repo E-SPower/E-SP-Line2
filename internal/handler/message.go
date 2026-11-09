@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/e-spl/e-sp-line2/internal/middleware"
 	"github.com/e-spl/e-sp-line2/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -33,7 +34,7 @@ func GetMessage(messageService *service.MessageService) gin.HandlerFunc {
 		id := c.Param("id")
 		message, err := messageService.GetByID(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+			respondError(c, err)
 			return
 		}
 
@@ -46,10 +47,46 @@ func AckMessage(messageService *service.MessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		if err := messageService.Ack(id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, err)
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "message acknowledged"})
+	}
+}
+
+// CreateMessage is the message ingest entry point (B3).
+//
+// It binds a CreateMessageRequest, persists the event and then routes it through
+// the hub. Idempotency is the service's job: a repeated idempotency_key returns
+// the stored event with 200 instead of inserting a second row, and a missing key
+// is replaced with a generated one (B4) so the UNIQUE index never sees "" twice.
+//
+// BodyTooLarge answers 413 for an over-cap body; without it the read error from
+// MaxBytesReader surfaces as a plain 400 "unexpected end of JSON input" and the
+// sender goes hunting for a syntax problem instead of shrinking the payload.
+func CreateMessage(messageService *service.MessageService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req service.CreateMessageRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			if !middleware.BodyTooLarge(c, err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			}
+			return
+		}
+
+		event, existed, err := messageService.CreateAndRouteIdempotent(&req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		status := http.StatusCreated
+		if existed {
+			// A replayed key is not a new resource; 200 tells the sender the
+			// earlier attempt already landed, and keeps it from retrying.
+			status = http.StatusOK
+		}
+		c.JSON(status, event)
 	}
 }

@@ -23,11 +23,12 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	cfg        *config.Config
-	httpServer *http.Server
-	router     *gin.Engine
-	services   *service.Services
-	gateway    *adaptergateway.Gateway
+	cfg          *config.Config
+	httpServer   *http.Server
+	router       *gin.Engine
+	services     *service.Services
+	gateway      *adaptergateway.Gateway
+	originPolicy *middleware.OriginPolicy
 }
 
 // New creates a new server instance
@@ -49,19 +50,25 @@ func New(cfg *config.Config) (*Server, error) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.Logger())
-	router.Use(middleware.CORS())
+
+	// One policy object drives both the CORS response headers and every
+	// WebSocket CheckOrigin, so the two cannot disagree about which origins
+	// are trusted.
+	originPolicy := middleware.NewOriginPolicy(cfg.Server.AllowedOrigins)
+	router.Use(middleware.CORS(originPolicy))
+	router.Use(middleware.MaxBodyBytes(cfg.Server.MaxBodyBytes))
 
 	s := &Server{
-		cfg:      cfg,
-		router:   router,
-		services: services,
+		cfg:          cfg,
+		router:       router,
+		services:     services,
+		originPolicy: originPolicy,
 	}
 
 	// Initialize the adapter gateway (接入器) WebSocket server.
-	s.gateway = adaptergateway.NewGateway(
-		adaptergateway.DefaultGatewayConfig(),
-		services.AdapterGateway,
-	)
+	gwCfg := adaptergateway.DefaultGatewayConfig()
+	gwCfg.CheckOrigin = originPolicy.CheckOrigin
+	s.gateway = adaptergateway.NewGateway(gwCfg, services.AdapterGateway)
 
 	// Standalone (runtime_type: standalone) adapter instances are driven over
 	// stdin instead of a bridge WebSocket. Wire the gateway's outbound path to
@@ -93,6 +100,10 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	})
 
+	// Command retry sweep: re-dispatches anything parked in retrying while a
+	// bridge was away, so a reconnect drains the backlog instead of losing it.
+	services.Command.StartRetryLoop(context.Background(), 30*time.Second)
+
 	// Start outbound connections for enabled client-mode adapters.
 	if adapters, _, err := services.AdapterGateway.List(1000, 0); err == nil {
 		ptrs := make([]*models.Adapter, len(adapters))
@@ -114,12 +125,32 @@ func New(cfg *config.Config) (*Server, error) {
 		logger.Info("Embedded WebUI enabled (desktop build)")
 	}
 
+	// Hardening: without these a client can hold a connection open with a
+	// partial header block (Slowloris) or a trickled body indefinitely.
+	//
+	// WebSocket routes are unaffected: gorilla hijacks the net.Conn during the
+	// upgrade and clears the deadlines, so a long-lived socket is not cut at
+	// WriteTimeout. That is the reason these are non-zero rather than "the
+	// socket would break".
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: router,
+		Addr:              fmt.Sprintf(":%d", cfg.Port),
+		Handler:           router,
+		ReadHeaderTimeout: seconds(cfg.Server.ReadHeaderTimeout),
+		ReadTimeout:       seconds(cfg.Server.ReadTimeout),
+		WriteTimeout:      seconds(cfg.Server.WriteTimeout),
+		IdleTimeout:       seconds(cfg.Server.IdleTimeout),
 	}
 
 	return s, nil
+}
+
+// seconds converts a config duration in seconds to a time.Duration. A
+// non-positive value becomes 0, which net/http reads as "no timeout".
+func seconds(n int) time.Duration {
+	if n <= 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Second
 }
 
 // setupRoutes configures all API routes
@@ -149,16 +180,25 @@ func (s *Server) setupRoutes() {
 			users.DELETE("/:id", handler.DeleteUser(s.services.User))
 		}
 
-		// Registration toggle (admin only)
+		// Registration toggle.
+		//
+		// The read is intentionally anonymous: the sign-up page itself has to
+		// know whether it is open before there is any token, and a 401 there
+		// would bounce the visitor to /login. Writing stays admin-only.
 		settings := v1.Group("/settings")
-		settings.Use(middleware.AuthRequired())
 		{
 			settings.GET("/registration", handler.GetRegistrationStatus(s.services.User))
-			settings.PUT("/registration", middleware.AdminRequired(), handler.SetRegistrationStatus(s.services.User))
+			settings.PUT("/registration", middleware.AuthRequired(), middleware.AdminRequired(), handler.SetRegistrationStatus(s.services.User))
 		}
 
 		// Platform routes
 		platforms := v1.Group("/platforms")
+		{
+			// 注册表来自 platformspec，和适配器 manifest、能力矩阵是同一份数据，
+			// 前端建实例前先看这里，不需要登录。
+			platforms.GET("/spec", handler.ListPlatformCaps)
+			platforms.GET("/spec/:id", handler.GetPlatformCap)
+		}
 		platforms.Use(middleware.AuthRequired())
 		{
 			platforms.GET("", handler.ListPlatforms(s.services.Platform))
@@ -167,6 +207,9 @@ func (s *Server) setupRoutes() {
 			platforms.PUT("/:id", handler.UpdatePlatform(s.services.Platform))
 			platforms.DELETE("/:id", handler.DeletePlatform(s.services.Platform))
 		}
+
+		// Message field contract
+		v1.GET("/message-fields", handler.ListMessageFields)
 
 		// Adapter routes
 		adapters := v1.Group("/adapters")
@@ -206,6 +249,10 @@ func (s *Server) setupRoutes() {
 		messages := v1.Group("/messages")
 		messages.Use(middleware.AuthRequired())
 		{
+			// POST is the ingest entry point (B3): it stores the event and routes
+			// it. It has to exist before anything can produce a message, because
+			// the bridge socket is not an ingestion API of its own.
+			messages.POST("", handler.CreateMessage(s.services.Message))
 			messages.GET("", handler.ListMessages(s.services.Message))
 			messages.GET("/:id", handler.GetMessage(s.services.Message))
 			messages.POST("/:id/ack", handler.AckMessage(s.services.Message))
@@ -285,21 +332,29 @@ func (s *Server) setupRoutes() {
 	}
 
 	// WebSocket routes
+	//
+	// /ws/adapter and /ws/app take a token at the handshake (?token=<JWT>): a
+	// socket that does not authenticate is now rejected with 401 instead of
+	// being accepted and then trusted for whatever instance_id / app_id the
+	// caller typed. The adapter-gateway routes below keep their own ?key=
+	// credential — that is a per-adapter key, not a user session.
 	ws := s.router.Group("/ws")
 	{
 		// Bridge (桥) reconnect endpoint. Inbound messages reported by bridges
 		// are persisted AND fanned out to the adapter gateway (接入器).
 		// The gateway is passed so outbound commands can be routed back to the
 		// correct bridge instance.
-		ws.GET("/adapter", handler.AdapterWebSocket(
+		ws.GET("/adapter", middleware.WSTokenRequired(), handler.AdapterWebSocket(
+			s.services.Hub,
 			s.services.Adapter,
 			s.services.Message,
 			s.gateway,
+			s.originPolicy,
 			func(payload map[string]interface{}) {
 				s.broadcastToAdapterGateway(payload)
 			},
 		))
-		ws.GET("/app", handler.AppWebSocket(s.services.Message))
+		ws.GET("/app", middleware.WSTokenRequired(), handler.AppWebSocket(s.services.Hub, s.services.Message, s.originPolicy))
 
 		// Adapter gateway (接入器) — external systems connect here with ?key=xxx
 		// Default listen path is simply /ws (简洁).

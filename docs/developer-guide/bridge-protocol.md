@@ -9,7 +9,7 @@
 ## 1. 概述
 
 - **传输**：WebSocket
-- **连接端点**：`ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>`
+- **连接端点**：`ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>&token=<JWT>`
 - **方向**：桥进程主动连接后端核心（桥是 Client，核心是 Server）
 - **消息格式**：JSON 文本帧
 
@@ -41,8 +41,16 @@ Authorization: Bearer <token>
 ### 2.2 建立 WebSocket 连接
 
 ```
-ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>
+ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>&token=<JWT>
 ```
+
+`token` 与 2.1 的 `Authorization` 是同一个 JWT。浏览器 `WebSocket` API 设不了
+请求头，所以握手令牌走 query；非浏览器客户端也可以改发
+`Authorization: Bearer <JWT>`。后端在升级前验签，失败回 `401`，`Origin`
+不在白名单回 `403`，客户端据状态码就能区分"没登录"与"网络不通"。
+
+> 令牌只证明调用方持有有效 JWT，不证明它拥有 query 里的 `instance_id`——
+> 归属校验仍由实例接口负责。
 
 ### 2.3 握手
 
@@ -140,6 +148,14 @@ ws://<esp-host>:<esp-port>/ws/adapter?instance_id=<INSTANCE_ID>
 | `send_image` | 发送图片消息 | `cid`、`toid`、`image_url` 等 |
 
 > 桥进程收到指令后调用电商平台 API 发送，发送结果通过日志记录。
+>
+> **字段形状是扁平的一级 `command_type`/`type` 加 `payload.cid`/`payload.toid`/`payload.text`**，
+> 不是 ESPL v3 信封。桥的解析见 `adapters/xianyu/main.py:197-220` 与
+> `adapters/taobao/main.py:228-250`：它在顶层取 `command_type`，再取 `payload`，
+> 缺 `cid`/`toid` 直接告警丢弃。后端由 `hub.SendCommand` 按本形状组帧。
+>
+> 下发失败（该实例没有连接）时命令进入 `retrying` 并由 30 秒的扫描重试，
+> 不会静默停在 `created`。
 
 ## 4. 心跳与重连
 

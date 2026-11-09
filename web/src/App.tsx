@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Platforms from './pages/Platforms'
 import Adapters from './pages/Adapters'
 import Instances from './pages/Instances'
+import Messages from './pages/Messages'
 import RoutesPage from './pages/Routes'
 import Monitoring from './pages/Monitoring'
 import Settings from './pages/Settings'
@@ -39,6 +40,7 @@ function App() {
           <Route path="platforms" element={<Platforms />} />
           <Route path="adapters" element={<Adapters />} />
           <Route path="instances" element={<Instances />} />
+          <Route path="messages" element={<Messages />} />
           <Route path="adapter-gateway" element={<AdapterGateway />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="monitoring" element={<Monitoring />} />

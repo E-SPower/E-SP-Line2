@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"time"
 
 	"github.com/e-spl/e-sp-line2/internal/models"
@@ -37,7 +36,7 @@ func (s *PlatformService) Create(req *CreatePlatformRequest) (*models.Platform, 
 	// Check if code already exists
 	existing, _ := s.repo.FindByCode(req.Code)
 	if existing != nil {
-		return nil, errors.New("platform code already exists")
+		return nil, conflictf("platform code %q already exists", req.Code)
 	}
 
 	platform := &models.Platform{
@@ -59,7 +58,11 @@ func (s *PlatformService) Create(req *CreatePlatformRequest) (*models.Platform, 
 
 // GetByID gets a platform by ID
 func (s *PlatformService) GetByID(id string) (*models.Platform, error) {
-	return s.repo.FindByID(id)
+	platform, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, wrapNotFound(err, "platform %s", id)
+	}
+	return platform, nil
 }
 
 // GetByCode gets a platform by code
@@ -71,7 +74,7 @@ func (s *PlatformService) GetByCode(code string) (*models.Platform, error) {
 func (s *PlatformService) Update(id string, req *UpdatePlatformRequest) (*models.Platform, error) {
 	platform, err := s.repo.FindByID(id)
 	if err != nil {
-		return nil, err
+		return nil, wrapNotFound(err, "platform %s", id)
 	}
 
 	if req.Name != "" {
@@ -92,9 +95,12 @@ func (s *PlatformService) Update(id string, req *UpdatePlatformRequest) (*models
 	return platform, nil
 }
 
-// Delete deletes a platform
+// Delete deletes a platform. A missing id yields ErrNotFound.
 func (s *PlatformService) Delete(id string) error {
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return wrapNotFound(err, "platform %s", id)
+	}
+	return nil
 }
 
 // List lists all platforms

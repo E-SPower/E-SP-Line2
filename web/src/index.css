@@ -2,50 +2,202 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * E-SP-Line2 design tokens — shadcn/ui "base" language.
+ *
+ * Values follow https://ui.shadcn.com (apps/v4 `globals.css`): a pure neutral
+ * ramp, `primary` as pure black / near-white, a MID-GRAY ring, one radius that
+ * every other step multiplies, and translucent borders in dark mode.
+ *
+ * Reference points, so nobody has to guess:
+ *   - foreground        hsl(0 0% 0%)     … pure black
+ *   - muted-foreground  hsl(0 0% 45%)    … #737373
+ *   - border            hsl(0 0% 90%)    … #e5e5e5
+ *   - ring              hsl(0 0% 63%)    … #a1a1a1, deliberately not the primary
+ *   - dark border       hsl(0 0% 100% / 10%), dark input hsl(0 0% 100% / 15%)
+ *
+ * Colour is never a hue here — hierarchy is type + whitespace + contrast.
+ * `.dark` fully overrides. See web/UI-SPEC.md before adding a token.
+ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    color-scheme: light;
+
+    /* ---- neutral surfaces ------------------------------------------- */
+    --surface: 0 0% 100%;
+    --surface-raised: 0 0% 100%;
+    --surface-sunken: 0 0% 98%;
+    --surface-inset: 0 0% 96.1%;
+    --surface-overlay: 0 0% 100%;
+    --surface-hover: 0 0% 96.1%;
+    --surface-active: 0 0% 92%;
+
+    /* ---- neutral text: pure black for maximum contrast ---------------- */
+    --text-primary: 0 0% 0%;
+    --text-secondary: 0 0% 20%;
+    --text-tertiary: 0 0% 45.1%;
+    --text-disabled: 0 0% 63.9%;
+    --text-inverse: 0 0% 98%;
+
+    /* ---- borders ----------------------------------------------------- */
+    --border: 0 0% 89.8%;
+    --border-strong: 0 0% 82%;
+    --border-subtle: 0 0% 94%;
+
+    /* ---- focus: MID grey, not the primary ---------------------------- */
+    --ring: 0 0% 63.1%;
+
+    /* ---- brand = contrast, never a hue -------------------------------- */
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 0 0% 15%;
+    --primary-active: 0 0% 22%;
+
+    /* accent = the neutral hover wash (shadcn `accent`) */
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 20%;
+    --accent-subtle: 0 0% 96.1%;
+    --accent-subtle-foreground: 0 0% 20%;
+
+    /* ---- status (Badge / Alert only — see spec) ---------------------- */
+    --success-bg: 138 76% 96%;
+    --success-fg: 142 72% 24%;
+    --success-border: 141 69% 85%;
+    --success-solid: 142 71% 35%;
+
+    --warning-bg: 48 96% 89%;
+    --warning-fg: 26 90% 29%;
+    --warning-border: 45 93% 78%;
+    --warning-solid: 32 95% 44%;
+
+    --danger-bg: 0 93% 94%;
+    --danger-fg: 0 72% 40%;
+    --danger-border: 0 90% 85%;
+    --danger-solid: 0 72% 51%;
+
+    --info-bg: 214 95% 93%;
+    --info-fg: 221 70% 32%;
+    --info-border: 213 94% 84%;
+    --info-solid: 217 76% 46%;
+
+    /* ---- legacy aliases ---------------------------------------------- */
+    --background: var(--surface);
+    --foreground: var(--text-primary);
+    --card: var(--surface-raised);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface-overlay);
+    --popover-foreground: var(--text-primary);
+    --secondary: var(--surface-inset);
+    --secondary-foreground: var(--text-secondary);
+    --muted: var(--surface-inset);
+    --muted-foreground: var(--text-tertiary);
+    --destructive: var(--danger-solid);
+    --destructive-foreground: 0 0% 100%;
+    --input: var(--border);
+    --selection: var(--primary);
+    --selection-foreground: var(--primary-foreground);
+
+    /* ---- radius: one real value, the rest MULTIPLY (shadcn v4) -------- */
+    --radius: 0.625rem;
+    --radius-xs: calc(var(--radius) * 0.4);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-full: 9999px;
+
+    /* ---- shadows: shadcn has exactly one, `xs` on inputs/outline ------ */
+    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -4px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 8px 10px -6px hsl(0 0% 0% / 0.1);
+    --shadow-overlay: 0 20px 25px -5px hsl(0 0% 0% / 0.15);
+
+    /* ---- rhythm (shadcn default density) ------------------------------ */
+    --space-unit: 0.25rem;
+    --gutter: 1.5rem;
+    --stack-gap: 1.5rem;
+    --density-row: 2.5rem;
+    --content-max: 80rem;
+    /*
+     * `min(15rem, 22vw)`: the sidebar is a fixed rem track, so a large root
+     * font inflates it (15rem = 420px at 28px) until the page column next to
+     * it is crushed to a sliver. Capping against the viewport keeps the
+     * sidebar at its familiar 240px on default type and lets it give way —
+     * never the content — when the reader's base size grows.
+     */
+    --sidebar-width: clamp(288px, 24vw, 17rem);
+    --sidebar-width-collapsed: 4.25rem;
+    --topbar-height: 3.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    color-scheme: dark;
+
+    --surface: 0 0% 8.6%;
+    --surface-raised: 0 0% 8.6%;
+    --surface-sunken: 0 0% 8.6%;
+    --surface-inset: 0 0% 14%;
+    --surface-overlay: 0 0% 10%;
+    --surface-hover: 0 0% 14%;
+    --surface-active: 0 0% 22%;
+
+    --text-primary: 0 0% 98%;
+    --text-secondary: 0 0% 78%;
+    --text-tertiary: 0 0% 63.1%;
+    --text-disabled: 0 0% 45%;
+    --text-inverse: 0 0% 9%;
+
+    /* dark borders are translucent white, as in shadcn */
+    --border: 0 0% 100% / 0.1;
+    --border-strong: 0 0% 100% / 0.15;
+    --border-subtle: 0 0% 100% / 0.07;
+
+    --ring: 0 0% 45%;
+
+    /* primary inverts to near-white and darkens on hover */
+    --primary: 0 0% 92.2%;
+    --primary-foreground: 0 0% 9%;
+    --primary-hover: 0 0% 82%;
+    --primary-active: 0 0% 72%;
+
+    --accent: 0 0% 22%;
+    --accent-foreground: 0 0% 98%;
+    --accent-subtle: 0 0% 22%;
+    --accent-subtle-foreground: 0 0% 98%;
+
+    --success-bg: 0 0% 14%;
+    --success-fg: 141 70% 68%;
+    --success-border: 0 0% 100% / 0.1;
+    --success-solid: 142 60% 45%;
+
+    --warning-bg: 0 0% 14%;
+    --warning-fg: 45 93% 68%;
+    --warning-border: 0 0% 100% / 0.1;
+    --warning-solid: 38 92% 52%;
+
+    --danger-bg: 0 0% 14%;
+    --danger-fg: 0 90% 74%;
+    --danger-border: 0 0% 100% / 0.1;
+    --danger-solid: 0 72% 56%;
+
+    --info-bg: 0 0% 14%;
+    --info-fg: 213 90% 76%;
+    --info-border: 0 0% 100% / 0.1;
+    --info-solid: 217 76% 58%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.4);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.45), 0 1px 2px -1px hsl(0 0% 0% / 0.45);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.5), 0 2px 4px -2px hsl(0 0% 0% / 0.5);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -4px hsl(0 0% 0% / 0.5);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.6), 0 8px 10px -6px hsl(0 0% 0% / 0.6);
+    --shadow-overlay: 0 20px 25px -5px hsl(0 0% 0% / 0.7);
   }
 }
 
@@ -53,7 +205,301 @@
   * {
     @apply border-border;
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * shadcn focus: a 2px ring in ring colour at 50% plus a matching border,
+   * with NO offset gap. (3px in the reference; 2px reads better at our sizes.)
+   */
+  :focus-visible {
+    @apply outline-none border-ring ring-2 ring-ring/50;
+  }
+
+  ::selection {
+    background-color: hsl(var(--selection));
+    color: hsl(var(--selection-foreground));
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border-strong)) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border-strong));
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--text-tertiary));
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer utilities {
+  /*
+   * The ONE horizontal rail of the shell. The top bar's breadcrumb side and the
+   * page body both sit on it, so their left edges (and their right edges) can
+   * never drift apart on a wide screen. Anything that wants the page's content
+   * column must reuse this class rather than invent its own margin/`max-width`.
+   *
+   * `min(100%, …)`: the cap must never outrun the slot the rail actually sits
+   * in. With a bare `var(--content-max)` the cap stayed at the full 80rem even
+   * when the slot was narrower, so the page overflowed the viewport by exactly
+   * that difference and clipped the right column and the top-bar actions.
+   * `min-width: 0` keeps the flex parent from being pushed open, and the gutter
+   * lives inside the cap (border-box) so the cap also bounds real content.
+   */
+  /* `content-container` is the older name for the same rail; both selectors
+     share one declaration block so the two can never drift apart. */
+  .shell-rail,
+  .content-container {
+    width: 100%;
+    min-width: 0;
+    max-width: min(100%, var(--content-max));
+    margin-inline: auto;
+    padding-inline: var(--gutter);
+  }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--stack-gap);
+  }
+
+  .truncate-cell {
+    display: block;
+    max-width: 22rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Zebra is opt-in and very faint; shadcn favours row hover instead. */
+  .zebra > tbody > tr:nth-child(even) {
+    background-color: hsl(var(--surface-inset) / 0.45);
+  }
+}
+
+/*
+ * ── Login hero: soft fluid geometry ─────────────────────────────────────
+ * The brand panel is one flat `primary` plane, so the only decoration it can
+ * carry without inventing a hue is a wash of `--primary-foreground` over it.
+ * (In dark mode `primary`/`primary-foreground` invert together, so the same
+ * layer reads as a darker wash on a near-white plane — no dark-only branch.)
+ *
+ * Three blurred blobs drift, breathe and re-shape their radii very slowly.
+ * They are deliberately kept apart so the plane reads as soft geometry with
+ * dark gaps, not as one flat lift; peak opacity stays near the old radial
+ * layer's level so the headline and the feature list keep their contrast.
+ * `.aurora-blob-*` is the static composition — the keyframes only add drift.
+ */
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The quiet floor the blobs sit on, and the hairline geometry under them. */
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 18% 12%, hsl(var(--primary-foreground) / 0.1) 0, transparent 44%),
+    radial-gradient(circle at 84% 86%, hsl(var(--primary-foreground) / 0.09) 0, transparent 46%);
+}
+
+.aurora::after {
+  content: "";
+  position: absolute;
+  right: -11rem;
+  bottom: -14rem;
+  width: 24rem;
+  aspect-ratio: 1;
+  border-radius: var(--radius-full);
+  border: 1px solid hsl(var(--primary-foreground) / 0.1);
+  box-shadow:
+    0 0 0 3.5rem hsl(var(--primary-foreground) / 0.022),
+    0 0 0 7rem hsl(var(--primary-foreground) / 0.012);
+  filter: blur(3px);
+}
+
+.aurora-blob {
+  position: absolute;
+  background-color: hsl(var(--primary-foreground) / var(--blob-alpha));
+  filter: blur(74px);
+  will-change: transform, border-radius;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.aurora-blob-a {
+  --blob-alpha: 0.2;
+  top: 2%;
+  left: -18%;
+  width: 27rem;
+  height: 22rem;
+  border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
+  animation-name: aurora-drift-a;
+  animation-duration: 34s;
+  animation-delay: -7s;
+}
+
+.aurora-blob-b {
+  --blob-alpha: 0.16;
+  top: 40%;
+  right: -22%;
+  width: 24rem;
+  height: 21rem;
+  border-radius: 61% 39% 34% 66% / 56% 63% 37% 44%;
+  animation-name: aurora-drift-b;
+  animation-duration: 44s;
+  animation-delay: -12s;
+}
+
+.aurora-blob-c {
+  --blob-alpha: 0.13;
+  bottom: -14%;
+  left: 6%;
+  width: 21rem;
+  height: 17rem;
+  border-radius: 36% 64% 51% 49% / 62% 38% 62% 38%;
+  animation-name: aurora-drift-c;
+  animation-duration: 52s;
+  animation-delay: -26s;
+}
+
+/*
+ * Dark mode inverts `primary` to near-white, so the very same wash is now
+ * dark-on-light and reads roughly twice as strong — halve it rather than
+ * branching in the component. (Still tokens only; no hue.)
+ */
+.dark .aurora::before {
+  background-image:
+    radial-gradient(circle at 18% 12%, hsl(var(--primary-foreground) / 0.06) 0, transparent 44%),
+    radial-gradient(circle at 84% 86%, hsl(var(--primary-foreground) / 0.055) 0, transparent 46%);
+}
+
+.dark .aurora::after {
+  border-color: hsl(var(--primary-foreground) / 0.1);
+  box-shadow:
+    0 0 0 3.5rem hsl(var(--primary-foreground) / 0.014),
+    0 0 0 7rem hsl(var(--primary-foreground) / 0.008);
+}
+
+.dark .aurora-blob-a {
+  --blob-alpha: 0.085;
+}
+
+.dark .aurora-blob-b {
+  --blob-alpha: 0.07;
+}
+
+.dark .aurora-blob-c {
+  --blob-alpha: 0.06;
+}
+
+@keyframes aurora-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(14%, 9%, 0) scale(1.18);
+    border-radius: 58% 42% 38% 62% / 39% 57% 43% 61%;
+  }
+}
+
+@keyframes aurora-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-13%, -10%, 0) scale(0.9);
+    border-radius: 33% 67% 68% 32% / 63% 36% 64% 37%;
+  }
+}
+
+@keyframes aurora-drift-c {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  to {
+    transform: translate3d(11%, -13%, 0) scale(1.14);
+    border-radius: 55% 45% 32% 68% / 41% 63% 37% 59%;
+  }
+}
+
+/*
+ * The form panel is the same flat plane problem from the other side: a wide
+ * blank field. One very faint wash of `--ring` (mid-grey in both modes) in the
+ * far corner keeps it from reading as an empty canvas without adding motion
+ * that would compete with the fields. Static by design, so nothing to do for
+ * reduced motion.
+ */
+.panel-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 60% 45% at 100% 0%, hsl(var(--ring) / 0.1) 0, transparent 70%),
+    radial-gradient(ellipse 55% 40% at 0% 100%, hsl(var(--ring) / 0.07) 0, transparent 70%);
+}
+
+/* Dark mode already sits low; `--ring` at the light alphas nearly vanishes. */
+.dark .panel-wash {
+  background-image:
+    radial-gradient(ellipse 60% 45% at 100% 0%, hsl(var(--ring) / 0.13) 0, transparent 70%),
+    radial-gradient(ellipse 55% 40% at 0% 100%, hsl(var(--ring) / 0.09) 0, transparent 70%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /*
+   * Reduced motion gets the composed still, not a frozen mid-flight frame:
+   * dropping the animation entirely leaves each blob on its base geometry.
+   */
+  .aurora-blob {
+    animation: none !important;
   }
 }
