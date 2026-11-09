@@ -6,11 +6,9 @@
 
 ## 0. 结论速览
 
-**这个系统目前是一套"能跑的 CRUD 后台"，还不是一个"消息接入器"。**
+**首次审查的结论是"能跑的 CRUD 后台，还不是消息接入器"。P0/P1/P2 三条修完后，核心链路已经接通**：`/ws/adapter` 的帧会落库并经 hub 路由到 `/ws/app`，`POST /messages` 有入口，幂等键不再整串撞唯一索引，建命令真会派发。B1（不验签）与多用户隔离仍由主干承担。
 
-登录、列表、建实例、启停适配器、审批消息都能对着数据库跑通，但**产品的核心承诺——平台消息进来、按规则路由、投给下游应用——整条链路没有接通**：WebSocket 是回显、`message.Hub` 从未被实例化、没有消息入库的 HTTP 入口、建命令不会派发、路由规则从不变动内存路由表。
-
-叠加一个更严重的鉴权问题：**`AuthRequired` 只检查 `Authorization` 头是否是 `Bearer xxx` 的形状，完全不验签**，任意字符串都能当令牌用；所有实体的 `user_id` 都是写死的 `user-123`，多用户之间没有隔离。
+**本文档的时效**：首次审查之后，主干与本分支都改了不少，**大部分条目已经修掉**。下面每条都标了状态；仍标"活"的是在当前 HEAD 上仍能复现的。最近一次复核是逐条在合并后的树上重跑命令，不是读代码推断。
 
 好消息是基础设施健康度不差：`go vet`、`go build`、`CGO_ENABLED=1 go test ./...`、`npx tsc --noEmit`、`python3 scripts/check_generated.py matrix.json`、`npm run lint`、`gofmt -l` 全部通过。问题集中在"接线"，不在"能不能编译"。另外前端构建在只读工作树上会因 Vite 要写临时配置文件而失败（m19）；`CONTRIBUTING.md` 那个与 `engines` 相反的 Node `18+` 也在审查中被顺手改成了 `20.11+`（m20）。
 
@@ -23,7 +21,7 @@
 | `go vet ./...` | 通过（仅 go-sqlite3 的 C 警告） |
 | `npx tsc --noEmit` | 通过（须先 `cd web && npm ci`） |
 | `python3 scripts/check_generated.py matrix.json` | 通过（生成物未过期） |
-| `npm run lint` | 通过（`--max-warnings 68`，68 条全是 `no-explicit-any`；P1 的三条已计入预算） |
+| `npm run lint` | 通过（`--max-warnings 67`，67 条全是 `no-explicit-any`） |
 | `gofmt -l .` | 无输出 |
 | `npx vite build`（仓库只读时） | **失败** `EROFS ... vite.config.ts.timestamp-*.mjs`；拷到可写目录后通过（m19） |
 | `npm run build` | 同上（内含 `vite build`） |
@@ -151,26 +149,32 @@ second insert with empty idempotency_key:
 
 ## 2. Major
 
-### M1. ~~所有实体归属写死 `user-123`~~（基线更新时已在主干修复）
+### M1. 多用户之间没有隔离（B1 的 `user-123` 修了，隔离没修）
 
-**现象**：`CreateInstance` 从 context 取 `userID`，但那是 B1 写死的值。实测 alice 建的实例 `user_id` 是 `"user-123"`；bob 登录后 `GET /instances` **看得到** alice 的实例，`DELETE` 也能删掉（200）。
+> **复核结论：仍是活的，而且现在是整份报告里最大的口子。** B1 让 `userID` 变成真值，于是下面的"写死 `user-123`"描述已经过期；但**按用户收窄从来没做**。在合并后的树上实测：alice 建实例 201，bob `GET /instances` 拿到 `total: 1` —— 看得到，也能删。
+>
+> 清单里 P0-6 仍挂着这条，别因为 B1 打勾就以为它跟着修了。
+
+**现象**：列表走无过滤的 `repo.List`，写操作不查归属。实测 alice 建实例后，bob `GET /instances` 看得到同一条、`DELETE` 也能删掉。
 
 `AdapterInstance` 有 `UserID` 字段和索引（`models.go:48`），`FindByUserID`（`repository/instance.go:34`）也写好了，但 `List` 走的是无过滤的 `repo.List`（`service/instance.go:102-110`）。
 
 **定位**：
-- `internal/handler/instance.go:54-55` — 取的是假 `userID`
-- `internal/service/instance.go:102-110` — `List` 不按用户过滤
-- `internal/repository/instance.go:34` — `FindByUserID` 无反调用方
+- `internal/service/instance.go` — `List` 不按用户过滤
+- `internal/repository/instance.go` — `FindByUserID` 仍无调用方
+- `internal/handler/instance.go` — `Update`/`Delete` 不校验归属
 
-**影响**：多租户不存在。任何登录用户可增删改别人的实例、适配器、路由。
+**影响**：多租户不存在。任何登录用户可增删改别人的实例、适配器、路由。这是当前最该先修的一条——P0 其余项都已闭合，只剩它。
 
-**建议**：修完 B1 后，列表与写操作按 `c.Get("userID")` 收窄；`Update`/`Delete` 先查归属再动手，非本人回 403。
+**建议**：列表与写操作按 `c.Get("userID")` 收窄；`Update`/`Delete` 先查归属再动手，非本人回 403。管理员（`role == "admin"`）是否跨用户可见需要产品先定，否则管理员连自己的平台都管不了。
 
-### M2. CORS `*` 与 `Allow-Credentials: true` 组合
+### M2. ~~CORS `*` 与 `Allow-Credentials: true` 组合~~（已修复）
+
+> **已修复**：改成回显白名单 `Origin` + `Vary: Origin`（`middleware.go:88-98`）。实测外来 Origin 的预检不再拿到 `Access-Control-Allow-Origin`，白名单内的回显具体来源。
 
 **现象**：无条件 `Access-Control-Allow-Origin: *` 同时 `Access-Control-Allow-Credentials: true`。实测来自 `https://evil.example` 的预检照样拿到这两个头。
 
-**定位**：`internal/middleware/middleware.go:70` 与 `:74`。
+**定位**：`internal/middleware/middleware.go:88-98`。
 
 **影响**：`*` 时浏览器带不了凭据；将来若改用 Cookie 承载会话，跨域请求会静默丢 Cookie。当前前端把 JWT 放 `Authorization` 头（不受此限），所以**现在是隐患而非活故障**——属于"配置错但暂时没踩到"。
 
@@ -184,15 +188,19 @@ second insert with empty idempotency_key:
 
 **建议**：`config.Load` 后若 secret 仍是占位串则打 WARN（或直接拒绝启动）；README/SECURITY 已有的提醒保留。
 
-### M4. WebSocket `CheckOrigin` 恒真，且握手不做鉴权
+### M4. ~~WebSocket `CheckOrigin` 恒真，且握手不做鉴权~~（已修复）
 
-**定位**：`internal/handler/websocket.go:17` — `return true // Allow all origins for development`。
+> **已修复**：两条 WS 路由挂 `WSTokenRequired`，upgrader 的 `CheckOrigin` 取自与 CORS 同一份 `OriginPolicy`（`handler/websocket.go:25`）。实测无 token → **401**，外来 Origin 带合法 token → **403**，白名单 Origin → **101**。
 
-**影响**：任意站点可开 WS 订阅/灌入消息。叠加 B1/B2，WS 侧连"令牌形状"都不要求（两条 WS 路由不挂任何中间件，见 `server.go:145-150`），只要知道 `instance_id` / `app_id` 就能冒充。
+**定位**：`internal/handler/websocket.go:20-33`（`wsUpgrader`）。
+
+**影响**（审查当时）：任意站点可开 WS 订阅/灌入消息，只要知道 `instance_id` / `app_id` 就能冒充。
 
 **建议**：接 B1 后校验 `Sec-WebSocket-Protocol` 或 `?token=`，`CheckOrigin` 收白名单。
 
-### M5. `POST /platforms` 等三个 handler 有实现、无路由
+### M5. ~~`POST /platforms` 等三个 handler 有实现、无路由~~（部分修复）
+
+> **部分修复**：三条路由已补，实测 `POST /platforms` → **201**。但只挂了 `AuthRequired`、没挂 `AdminRequired`，普通用户也能建平台——与本节建议不符，仍是活口子。
 
 **现象**：`CreatePlatform`、`UpdatePlatform`、`DeletePlatform` 三个 handler 完整存在，但 `server.go` 只注册了 `GET ""` 和 `GET "/:id"`。实测 `POST /api/v1/platforms` → **404**。
 
@@ -204,7 +212,9 @@ second insert with empty idempotency_key:
 
 **建议**：补齐三条路由（平台管理属管理动作，可挂 `AuthRequired` + `AdminRequired`）。
 
-### M6. 前端所有"新建/编辑/删除"按钮都没接线
+### M6. ~~前端所有"新建/编辑/删除"按钮都没接线~~（已修复）
+
+> **已修复**：`client.ts` 补齐增删改，页面接线（`Platforms.tsx:104,124`、`Routes.tsx:114,137` 等）。下表是首次审查时的快照。
 
 **现象**：`apiClient` 里有 `createAdapter` / `createInstance` / `createRoute` / `createCommand`，**四个函数零调用**（`grep -rn 'createAdapter\|createInstance\|createRoute\|createCommand' web/src/pages/` 无结果）。页面上的 `<Plus />` 按钮连 `onClick` 都没有：
 
@@ -247,7 +257,9 @@ second insert with empty idempotency_key:
 
 **建议**：`request()` 里 `if (response.status === 401) { this.clearToken(); location.assign('/login') }`；`handleLogout` 改调 `apiClient.clearToken()`。
 
-### M9. 前端无路由守卫，未登录可直接进主界面
+### M9. ~~前端无路由守卫，未登录可直接进主界面~~（已修复）
+
+> **已修复**：`App.tsx:33` 用 `RequireAuth` 包住主布局。
 
 **现象**：`App.tsx:17-31` 里 `/` 分组没有任何鉴权判断，`/login` 与主界面平级。未登录访问 `/dashboard` 会渲染完整外壳，只是各页各自报错。
 
@@ -307,15 +319,15 @@ DELETE /routes/nope                 → 200 {"message":"route deleted"}
 
 **现已修复**：`service/errors.go` 定义 `ErrNotFound` / `ErrConflict` / `ErrValidation` 哨兵与 `wrapNotFound`/`conflictf`/`validationf`；handler 侧只有一处 `respondError`（`handler/errors.go`）做映射：404 / 409 / 400 / 500，404 与 500 回通用文案，409/400 回具体原因（去掉哨兵前缀）。原来"一切错误当 400"的分支全部改走它，共 30 余处。实测：`PUT /instances/nope` 400→404，注册重名 400→409 且 body 为 `username already exists`，`DELETE /routes/nope` 的 service 错误不再变 500。
 
-### M13. ~~真实功能几乎零测试：`handler`、`service`、`server`、`protocol/v3`、`middleware` 全无测试文件~~（部分修复）
+### M13. ~~真实功能几乎零测试：`handler`、`service`、`server`、`protocol/v3`、`middleware` 全无测试文件~~（已修复）
 
-**现象**：这五个包都没有 `_test.go`（`ls` 计数均为 0）。有测试的只有 `adapter`、`messagefields`、`platformspec`，加上审查期间刚补的 `message`（仅覆盖 shutdown，见 M14）——前者是注册表/字段表类纯数据校验，后者只有连接关闭。
+**现象**（审查当时）：这五个包都没有 `_test.go`。现在 `handler`、`server`、`middleware`、`service`、`message`、`protocol/v3` 都有用例。
 
 **影响**：B1（鉴权）和 B2（WS 不路由）任何一条都能被一个 httptest 用例抓住，但没有。`CGO_ENABLED=0` 下 `adapter` 包直接失败，所以 CI 得整体置 `CGO_ENABLED=1` 并 `apt-get install gcc`（`.github/workflows/ci.yml:40`、`:50-51`）——测试对 cgo 有硬依赖，这层脆弱性本身也值得收。
 
 **建议**：先用 `httptest` + `gin.New()` 给鉴权补表驱动用例（空头/坏格式/过期/有效四态），再给 WS 补一个"发帧后库里多一行 + 目标端收到"的集成用例。`sqlite` 依赖 cgo，可在 `main_test.go` 里先探测再 `t.Skip`，让 `CGO_ENABLED=0` 也绿。
 
-**部分修复**：`internal/handler/handler_test.go` 用真 sqlite + `gin.New()` + `httptest` 覆盖本轮改到的状态码——404（删不存在的 route、ack 不存在的 message、改不存在的 instance）、409（注册/建用户重名，含 body 文案）、400（密码过短），以及 M10 的字段往返。摘掉 `respondError` 的映射会立刻四处失败，不是空跑。鉴权四态与 WS 端到端仍在 P0/P1 的范围里。
+**已补充**：`handler_test.go` 覆盖本轮改到的状态码——404、409（含 body 文案）、400，以及 M10 的字段往返，摘掉 `respondError` 的映射会立刻四处失败。鉴权与 WS 由后续工作补齐：`middleware_test.go` 覆盖鉴权四态，`security_test.go` 覆盖 WS 无 token/坏 token/**跨域握手**，`handler/websocket_test.go` 覆盖 hub 端到端（发帧 → 落库 → 对端收到）。仍欠前端，见 m17。
 
 ### M14. ~~`message.Dispatcher` 关闭路径会 `close of closed channel` panic~~（审查中已被修复）
 
@@ -330,9 +342,11 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 
 **残留建议**：`message` 包此前完全没有 `TestMain`，为让 `logger.Init` 生效才补了一个（`dispatcher_test.go:16-21`）——`logger` 未初始化时是 nil zap，这个坑值得在 `pkg/logger` 里直接兜掉，而不是每个包的测试各写一遍。
 
-### M15. `http.Server` 未设任何超时，无请求体大小限制
+### M15. ~~`http.Server` 未设任何超时，无请求体大小限制~~（已修复）
 
-**定位**：`internal/server/server.go:50-53` 只设了 `Addr` 和 `Handler`；全仓无 `MaxBytesReader`（`grep` 无命中）。
+> **已修复**：四类超时由 `config.Server` 驱动（`server.go:138`），`MaxBodyBytes` 全局挂载（`server.go:59`），超限回 **413**（实测 9MB 合法 JSON）。注意：非 JSON 的超大 body 会先撞解析错误回 400，属正常。
+
+**定位**（审查当时）：`internal/server/server.go:50-53` 只设了 `Addr` 和 `Handler`；全仓无 `MaxBytesReader`。
 
 **影响**：Slowloris 可一直挂着连接；超大 body 全量读进内存。实测 2MB 的 JSON 能过（回 400 是业务校验，不是大小拒绝）。
 
@@ -360,11 +374,12 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 > **已修复**：`Services.syncRouteRules` 在启动时装载已启用规则，`RouteService` 增删改后回调重同步（`Hub.SyncRules`）。
 `RouteService` 只写库，`message.Router.AddRule`（`router.go:42`）**零调用**，`ListEnabled`（`service/route.go:121`）也无调用方。B2 修好之后，规则仍然只在库里——除非再加一层"启动加载 + 变更同步"。优先级排序是手写冒泡（`router.go:89-95`），规则多时会慢。
 
-### m2. 路由 `priority: 0` 改不动
-`UpdateRouteRequest.Priority` 是 `int`，`Update` 用 `if req.Priority != 0` 判空（`service/route.go:80`）。实测建成 `priority:7` 后 PUT `{"priority":0}`，值仍是 7。改成 `*int` 即可。`CreateRouteRequest.Enabled` 同理：传 `false` 建出来的却是 `true`（`service/route.go:53` + 模型默认值），要显式 `enabled` 才能关。
+### m2. 路由 `priority: 0` 改不动（`Enabled` 那半已修）
+
+`CreateRouteRequest.Enabled` 已经是 `*bool`（`service/route.go:53`），传 `false` 现在能建出关掉的规则。**`Priority` 仍是 `int`**，`Update` 用 `if req.Priority != 0` 判空（`service/route.go:99`），所以建成 `priority:7` 后 PUT `{"priority":0}` 还是 7。同样改 `*int` 即可。
 
 ### m3. `Count(&total)` 的 error 被丢弃
-六个 `List` 都写 `r.db.Model(...).Count(&total)` 不接返回值（`repository/adapter.go:55`、`instance.go:55`、`message.go:59`、`message.go:121`、`message.go:174`、`platform.go:58`、`user.go:58`）。计数失败会静默返回 `total: 0`。
+十个 `List` 都写 `r.db.Model(...).Count(&total)` 不接返回值（`grep -rn 'Count(&total)' internal/repository/` 十处命中）。计数失败会静默返回 `total: 0`。
 
 ### m4. API 文档与实现四处不符
 - ~~`api-reference.md` 的"Error codes"列了 409，后端一处没有~~（M12 已让注册/建用户重名、末位 admin 守卫真正走 409）
@@ -375,8 +390,9 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 ### m5. `v3.MessageEnvelope.Sign` 不可重入
 `Sign`（`envelope.go:88`）把整个结构体（含 `Signature` 字段）一起 marshal，二次签名会把旧签名也签进去。实测同一 envelope 连签两次，第二次 `Verify` 返回 `false`。`Verify` 那边 copy 后清了 `Signature`（`envelope.go:106-107`），两边不对称。
 
-### m6. Layout 顶部"已连接"徽章是写死的
-`components/Layout.tsx:321-323` 无条件渲染 `app.connected`，不查后端；`Dashboard` 里那个真实的 `healthCheck` 状态只影响本页。
+### m6. ~~Layout 顶部"已连接"徽章是写死的~~（已修复）
+
+> **已修复**：抽成 `ConnectionBadge`（`web/src/components/connection-badge.tsx`），自己轮询健康检查。
 
 ### m7. Dashboard 用 `data.length` 当总数
 四个计数取 `platforms.data?.length`（`Dashboard.tsx:64-67`），而接口默认只回 20 条 —— 超过 20 就永远显示 20，尽管响应里带着正确的 `total`。
@@ -384,14 +400,17 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 ### m8. `Docs` 页依赖一步手工部署，没人做就会全 404
 `vite.config.ts` 的 docs 中间件只挂了 `configureServer`（`:23`），只有 dev server 生效；实测 `dist/` 里确实没有 `docs/`。`web/DOCS.md:6` 已把"拷 docs/ 或加反代"列为部署步骤，但没有任何构建脚本或 CI 检查去做，漏了就全断。
 
-### m9. `index.html:5` 引用的 `/vite.svg` 不存在
-无 `web/public/` 目录，`dist/vite.svg` 也没有 —— favicon 恒 404。
+### m9. ~~`index.html:5` 引用的 `/vite.svg` 不存在~~（已修复）
+
+> **已修复**：`web/public/` 下有 `favicon.svg` / `favicon.ico` / `apple-touch-icon.png`，`index.html:11-13` 都已指向存在的文件。
 
 ### m10. 前端 `Settings` 页不落后端
 四个分区全存 `localStorage['app_settings']`（`Settings.tsx:80,96`），后端也没有 `/settings` 接口。"保存成功"只代表写进了浏览器。
 
-### m11. 无用户管理接口
-注册后无法改角色、禁用账号、改密码；`UserRepository` 的 `Update`/`Delete`/`List` 全无路由。`AdminRequired` 因此永远空转。`AuditLog` 模型建了表（`repository.go:47`）但**从不写入**。
+### m11. ~~无用户管理接口~~（已修复）
+
+> **已修复**：`users` 组挂 `AuthRequired + AdminRequired`（`server.go:174`），五个路由（`ListUsers`/`CreateUser`/`UpdateUserRole`/`UpdateUserStatus`/`DeleteUser`）。实测非管理员 → **403**。仍欠：`AuditLog` 只建表不写入。
+注册后无法改角色、禁用账号、改密码；`AuditLog` 模型建了表（`repository.go:52`）但**从不写入**——`grep 'AuditLog{'` 只有建表一处。
 
 ### m12. 没有一处数据库事务
 `grep '\.Transaction(\|Begin()'` 无命中。多步写（如 B5 的"落库+派发+改状态"）目前靠运气，不是原子。
@@ -403,14 +422,18 @@ TestReviewDoubleClose  → PANIC: close of closed channel
 `limit` 直接透传 `Limit(limit)`，`?limit=999999` 回 200（实测）。`limit=abc` 被 `strconv.Atoi` 吞成 0 后落到默认值，行为能接受但没报错。
 
 ### m15. 端口/健康检查信息暴露
-`GET /health`（`server.go:169-174`）无鉴权回 `{"status":"ok","version":"1.0.0"}`，版本号可用于对号入座已知问题。属可接受的设计取舍，但建议生产环境收敛。
+`GET /health`（`server.go:159`、`:511`）无鉴权回状态与版本号，版本号可用于对号入座已知问题。属可接受的设计取舍，但建议生产环境收敛。
 
 ### m16. 前端任何一条 `no-explicit-any` 都靠 `--max-warnings` 顶着
-`package.json` 的 lint 脚本把闸门钉在一个固定数（`web/package.json:12`，审查时 23，现 68）。规则是只许降（`web/.eslintrc.cjs:18-20`）——**新增一条 any 就会红**，但删掉一条后要人工把预算调回去，否则数字永远虚高。`api/client.ts` 通篇 `request<any[]>`，是最该先补类型的地方。
+`package.json` 的 lint 脚本把闸门钉在一个固定数（`web/package.json:12`，审查时 23，现 67）。规则是只许降（`web/.eslintrc.cjs:18-20`）——**新增一条 any 就会红**，但删掉一条后要人工把预算调回去，否则数字永远虚高。`api/client.ts` 通篇 `request<any[]>`，是最该先补类型的地方。
 
-### m17. 前端没有任何测试，`DOCS.md` 却声称有
-`web/package.json` 的 `scripts` 只有 `dev`/`build`/`lint`/`preview`，**没有测试脚本、没有 vitest/jest 依赖**，`web/src` 下也没有一个 `*.test.*`/`*.spec.*`。
-而 `web/DOCS.md:11` 写着"`docs.link*` 键在两个语言包里必须同步（**web 构建里有一个测试会比对它们**）"——那个测试不存在。两包一旦漂移不会有人发现。
+### m17. ~~前端没有任何测试，`DOCS.md` 却声称有~~（已修一个最小面）
+
+**已补**：`web/scripts/check-locales.mjs` + `npm run test:locales`，进 CI 的 frontend job。零新依赖（`node` 直接跑），查两件事：两个语言包键集必须一致；源码里每个静态 `t('...')` 必须能解析。`t(变量)` 覆盖不到，但两包之间不会再有单边漂移。
+
+**这个测试一写出来就抓到真货**：全仓有 **15 个** `t()` 键根本不在任何语言包里（`auth.noAccount`、`docs.more`、`messages.commandTitle` 等），首屏登录页就在渲染裸键名——因为 `t()` 找不到 key 时会原样回显。已补齐 15 个键的中英文案，两包现各 503 键、一致。
+
+**仍欠**：组件级测试（渲染、交互）依旧为零，没有 vitest/jest 依赖；`DOCS.md` 说的那个测试现在有了，但只覆盖语言包。
 
 ### m18. ~~`node_modules` 被提交进仓库~~（本分支已移出）
 `git ls-files web/node_modules | wc -l` 原本是 **6021**（不是 11077，那是 `git ls-files` 的全仓行数），占全仓 `6244` 个受版本控制文件的 **96%**。
@@ -476,27 +499,28 @@ Error: EROFS: read-only file system, open '.../vite.config.ts.timestamp-17940267
 
 ### P1 — 安全与可部署性
 
-7. **M7 API 基址**：改 `import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`，健康检查走相对路径。
-8. **M8/M9 登录态**：401 统一 `clearToken` + 跳 `/login`；`handleLogout` 改用 client；加 `RequireAuth` 路由守卫。
-9. **M3 JWT secret**：仍是占位串就 WARN 或拒启。
+7. ~~**M7 API 基址**~~ 已完成（主干修好，改读 `import.meta.env`）。
+8. ~~**M8/M9 登录态**~~ 已完成（主干修 401 拦截；`RequireAuth` 已加到 `App.tsx:33`。仍欠：`clearToken` 仍零调用，登出不走 client）。
+9. **M3 JWT secret**：仍是占位串就 WARN 或拒启。**仍是活的**。
 10. **M4 WS 鉴权 + CheckOrigin 白名单**（依赖 P0-1）。
-11. **M2 CORS**：回显 Origin 配白名单，或删掉 `Allow-Credentials`。
+11. ~~**M2 CORS**~~ 已完成（回显白名单 Origin + `Vary`）。
 
 ### P2 — 正确性与可观测性
 
 12. **M10/M6**：M10 已完成（见该节）；M6 前端增删改仍归 P2 前端项。
 13. ~~**M11/M12 状态码**~~（已完成：`RowsAffected == 0` 回 not-found，哨兵错误 + `respondError` 统一 404/409/400/500）。
-14. **M5**：补齐 `POST/PUT/DELETE /platforms`，挂 `AuthRequired` + `AdminRequired`。
-15. **M13 测试**：handler 状态码用例已完成；仍欠鉴权四态与 WS 端到端，`CGO_ENABLED=0` 下用探测 + `t.Skip` 兜底。
+14. **M5**：三条路由已补，但**只挂 `AuthRequired`、没挂 `AdminRequired`**——补上后者即闭合。
+15. ~~**M13 测试**~~ 已完成（状态码、鉴权四态、WS 端到端都有；前端仍无测试，见 m17）。
 16. **M14**：已完成（`sync.Once` + 五个用例）。剩余只需把 `logger` 未初始化就 nil 的问题在 `pkg/logger` 兜掉，免得每个包写一遍 `TestMain`。
-17. **M15**：补四类超时 + `MaxBytesReader`。
+17. ~~**M15**~~ 已完成（四类超时 + 全局限流，超限 413）。
 18. ~~**m1**~~ 已完成（ESPL-19：启动装载 + 写后重同步）。剩 `m2`：`Priority`/`Enabled` 改指针类型。
 
 ### P3 — 文档与卫生
 
 19. **M16**：实现 `migrate`/`--dev` 或修正 Makefile 与 `migrations/README.md`。
 20. **m4**：统一文档与实现（WS 字段名 `event_type`、409 表、限流说明、平台写接口）。
-21. **m3/m5/m6/m7/m8/m9/m10/m11/m12/m13/m14/m15** 逐条处理；其中 **m5（签名不可重入）** 建议优先，因为它会在 B2 接通后被真实流量踩到。
+21. **仍在活的 m 项**：`m3`（Count 吞错）、`m4`（文档与实际不符）、`m5`（`Sign` 不可重入，B2 接通后真实流量会踩）、`m7`（Dashboard 用 `data.length` 当总数）、`m8`（Docs 页依赖手工部署）、`m10`（Settings 只存 localStorage）、`m12`（无事务）、`m13`（Redis 配而不用）、`m14`（列表无上限）、`m15`（/health 暴露版本）、`m16`（any 预算）。优先 `m5`。
+   已修：`m1`、`m2` 的 `Enabled` 半边、`m6`、`m9`、`m11`、`m17`（语言包一致性测试 + 15 个缺失键）、`m18`、`m19`、`m20`。
 22. **m16/m17/m18**：`client.ts` 补类型把 any 清掉、回收 `--max-warnings`；补一个语言包键对齐的测试（把 `DOCS.md` 的声称补实）；`node_modules` 移出版本控制（`.gitignore` 已有，缺的是 `git rm -r --cached` 及其提交）。
 23. **m20**：已完成（`CONTRIBUTING.md:16` 已是 `20.11+`，全文无 `18+` 残留）。建议再补一句“改 `engines` 要同步这两处文档”。
 24. **m19**：已完成（`pr-qa.md:97-99` 已注明产物目录须可写；原引用行号 `:97` 现为 `:100`）。

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Play, Pencil, Plus, ScrollText, Server, Square, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, Play, Pencil, Plus, ScrollText, Server, Square, Trash2 } from 'lucide-react'
 import apiClient from '../api/client'
 import { PageHeader } from '../components/ui/page-header'
 import { TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableShell } from '../components/ui/table-shell'
@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 import { FormField, controlClassName } from '../components/ui/form-field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { cn } from '@/lib/cn'
 import { InstanceLogDrawer, type LogInstance } from '../components/instance-log-drawer'
 
 interface Instance {
@@ -31,12 +32,42 @@ interface AdapterOption {
   platform_id: string
 }
 
+interface PlatformOption {
+  id: string
+  code: string
+}
+
+/**
+ * One `config_fields` entry of a platform spec (GET /platforms/spec/:code).
+ *
+ * The registry carries these for every platform, and the form is rendered from
+ * them: `string` becomes a text input, `integer` a number input, and secret-ish
+ * names get a masked input with a reveal toggle. That is what replaced the bare
+ * JSON textarea the rewrite left behind.
+ */
+interface ConfigField {
+  name: string
+  type: 'string' | 'integer' | string
+  required?: boolean
+  description?: string
+  description_en?: string
+  default?: unknown
+}
+
+/** True for names whose value should not be readable by default. */
+const SECRET_FIELD = /(cookie|token|secret|password|key)/i
+
 interface Notice {
   variant: 'success' | 'danger'
   text: string
 }
 
-const emptyForm = { name: '', adapter_id: '', platform_id: '', config: '' }
+const emptyForm = { name: '', adapter_id: '', platform_id: '' }
+
+/** Render a stored value for an input; null/undefined become "". */
+function fieldValue(value: unknown): string {
+  return value === null || value === undefined ? '' : String(value)
+}
 
 // The stored config is a JSON blob; a malformed or absent one must not break
 // the page, so it degrades to an empty object.
@@ -69,12 +100,24 @@ function proxyForForm(proxy: unknown): string {
   return `${scheme}://${auth}${host}${port}`
 }
 
-// Form values to prefill when editing: the stored config, with the proxy folded
-// into its single-input form.
-function configForForm(config: string | null | undefined): Record<string, any> {
-  const cfg = parseConfig(config)
-  if ('proxy' in cfg) cfg.proxy = proxyForForm(cfg.proxy)
-  return cfg
+/**
+ * Serialize the field map back to the stored JSON. Empty fields are dropped,
+ * `integer` fields become numbers, and an all-empty form serializes to "" so
+ * the reader can clear a stored config (the API treats a sent "" as a real
+ * clear).
+ */
+function serializeConfig(values: Record<string, string>, fields: ConfigField[]): string {
+  const out: Record<string, unknown> = {}
+  for (const [name, raw] of Object.entries(values)) {
+    if (raw === '') continue
+    if (fields.find((field) => field.name === name)?.type === 'integer') {
+      const parsed = Number(raw)
+      if (!Number.isNaN(parsed)) out[name] = parsed
+      continue
+    }
+    out[name] = raw
+  }
+  return Object.keys(out).length === 0 ? '' : JSON.stringify(out)
 }
 
 export default function Instances() {
@@ -85,10 +128,19 @@ export default function Instances() {
   const [notice, setNotice] = useState<Notice | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [adapters, setAdapters] = useState<AdapterOption[]>([])
+  // Platform rows, only used to translate an instance's platform_id into the
+  // platform_code the catalog files its schemas under.
+  const [platforms, setPlatforms] = useState<PlatformOption[]>([])
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Instance | null>(null)
   const [form, setForm] = useState(emptyForm)
+  // Config is schema-driven: the picked adapter supplies the field list.
+  const [configFields, setConfigFields] = useState<ConfigField[]>([])
+  const [configValues, setConfigValues] = useState<Record<string, string>>({})
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+  // Raw JSON escape hatch for adapters that declare no schema.
+  const [configText, setConfigText] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -115,6 +167,12 @@ export default function Instances() {
     void loadInstances()
   }, [loadInstances])
 
+  useEffect(() => {
+    apiClient.getPlatforms(100, 0).then((result) => {
+      if (!result.error) setPlatforms(result.data || [])
+    })
+  }, [])
+
   // Creating an instance starts from a real adapter, so its platform follows.
   useEffect(() => {
     apiClient.getAdapters(100, 0).then((result) => {
@@ -122,9 +180,52 @@ export default function Instances() {
     })
   }, [])
 
+  /**
+   * Load a platform's config fields from the spec registry.
+   *
+   * Keyed by platform code, because the spec id *is* the code while an instance
+   * stores the platform row id — hence the lookup through `platforms`.
+   */
+  const loadConfigFields = useCallback(
+    async (platformId: string) => {
+      const code = platforms.find((platform) => platform.id === platformId)?.code
+      if (!code) {
+        setConfigFields([])
+        return
+      }
+      // The spec registry is public (no token needed) but lives behind the
+      // same origin as the API, so read it directly rather than adding a client
+      // method for one caller.
+      try {
+        const response = await fetch(`/api/v1/platforms/spec/${encodeURIComponent(code)}`)
+        if (!response.ok) {
+          setConfigFields([])
+          return
+        }
+        const body = (await response.json()) as { config_fields?: ConfigField[] }
+        setConfigFields(body.config_fields || [])
+      } catch {
+        setConfigFields([])
+      }
+    },
+    [platforms],
+  )
+
   const pickAdapter = (adapterId: string) => {
     const adapter = adapters.find((item) => item.id === adapterId)
     setForm({ ...form, adapter_id: adapterId, platform_id: adapter?.platform_id || form.platform_id })
+    // Field names differ per adapter; drop values that no longer apply.
+    setConfigValues({})
+    setConfigText('')
+    setRevealed({})
+    if (adapter?.platform_id) void loadConfigFields(adapter.platform_id)
+  }
+
+  const resetConfig = () => {
+    setConfigFields([])
+    setConfigValues({})
+    setConfigText('')
+    setRevealed({})
   }
 
   const toggle = async (instance: Instance) => {
@@ -132,7 +233,9 @@ export default function Instances() {
     setNotice(null)
     try {
       const running = instance.status === 'running'
-      const result = await apiClient.updateInstance(instance.id, { status: running ? 'stopped' : 'running' })
+      // Real process control: these spawn / kill the adapter process, they do
+      // not merely flip the status column.
+      const result = running ? await apiClient.stopInstance(instance.id) : await apiClient.startInstance(instance.id)
       if (result.error) {
         setNotice({ variant: 'danger', text: t('notice.failed', { error: result.error }) })
       } else {
@@ -150,6 +253,7 @@ export default function Instances() {
   const openCreate = () => {
     setEditing(null)
     setForm(emptyForm)
+    resetConfig()
     setFieldErrors({})
     setFormError(null)
     setDialogOpen(true)
@@ -157,12 +261,15 @@ export default function Instances() {
 
   const openEdit = (instance: Instance) => {
     setEditing(instance)
-    setForm({
-      name: instance.name,
-      adapter_id: instance.adapter_id,
-      platform_id: instance.platform_id || '',
-      config: JSON.stringify(configForForm(instance.config), null, 2),
-    })
+    setForm({ name: instance.name, adapter_id: instance.adapter_id, platform_id: instance.platform_id || '' })
+    resetConfig()
+    // Existing config is re-hydrated into the schema's inputs, so editing never
+    // silently drops what is already stored.
+    const stored = parseConfig(instance.config)
+    if ('proxy' in stored) stored.proxy = proxyForForm(stored.proxy)
+    setConfigValues(Object.fromEntries(Object.entries(stored).map(([k, v]) => [k, fieldValue(v)])))
+    setConfigText(instance.config || '')
+    void loadConfigFields(instance.platform_id)
     setFieldErrors({})
     setFormError(null)
     setDialogOpen(true)
@@ -173,18 +280,33 @@ export default function Instances() {
     if (!form.name.trim()) errors.name = t('common.required', { field: t('common.name') })
     if (!editing && !form.adapter_id.trim()) errors.adapter_id = t('instances.adapterRequired')
     if (!editing && !form.platform_id.trim()) errors.platform_id = t('instances.platformRequired')
+    // Required fields gate creation; editing stays lenient so a stored config
+    // can still be emptied (and cleared) field by field.
+    if (!editing) {
+      for (const field of configFields) {
+        const name = field.name
+        if (field.required && !configValues[name]?.trim()) {
+          errors[`config.${name}`] = t('common.required', { field: name })
+        }
+      }
+    }
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
+
+    // `config` is always sent (even as "") so clearing every field really clears it.
+    const config = configFields.length > 0
+      ? serializeConfig(configValues, configFields)
+      : configText.trim()
 
     setSaving(true)
     setFormError(null)
     const result = editing
-      ? await apiClient.updateInstance(editing.id, { name: form.name.trim(), config: form.config.trim() })
+      ? await apiClient.updateInstance(editing.id, { name: form.name.trim(), config })
       : await apiClient.createInstance({
           name: form.name.trim(),
           adapter_id: form.adapter_id.trim(),
           platform_id: form.platform_id.trim(),
-          config: form.config.trim(),
+          config,
         })
     setSaving(false)
 
@@ -397,16 +519,63 @@ export default function Instances() {
               )}
             </FormField>
 
-            <FormField label={t('instances.config')} hint={t('instances.configHint')}>
-              {(props) => (
-                <textarea
-                  {...props}
-                  className={`${controlClassName} h-20 py-2 font-mono text-xs`}
-                  value={form.config}
-                  onChange={(event) => setForm({ ...form, config: event.target.value })}
-                />
-              )}
-            </FormField>
+            {/* Config comes from the platform's config_fields, not a JSON blob. */}
+            {configFields.length > 0 ? (
+              <fieldset className="space-y-4">
+                <legend className="text-sm font-medium text-text-primary">{t('instances.config')}</legend>
+                <p className="-mt-2 text-xs text-text-tertiary">{t('instances.configHint')}</p>
+                {configFields.map((field) => {
+                  const name = field.name
+                  // `cookie` / `token` style names are secrets regardless of the
+                  // declared type, which is always `string`.
+                  const secret = SECRET_FIELD.test(name)
+                  const value = configValues[name] ?? fieldValue(field.default)
+                  return (
+                    <FormField
+                      key={name}
+                      label={name}
+                      hint={field.description}
+                      required={field.required}
+                      error={fieldErrors[`config.${name}`]}
+                    >
+                      {(props) => (
+                        <div className="relative">
+                          <input
+                            {...props}
+                            type={secret && !revealed[name] ? 'password' : field.type === 'integer' ? 'number' : 'text'}
+                            className={cn(controlClassName, secret && 'pr-10')}
+                            value={value}
+                            onChange={(event) => setConfigValues({ ...configValues, [name]: event.target.value })}
+                          />
+                          {secret && (
+                            <button
+                              type="button"
+                              onClick={() => setRevealed({ ...revealed, [name]: !revealed[name] })}
+                              aria-label={revealed[name] ? t('auth.hidePassword') : t('auth.showPassword')}
+                              aria-pressed={Boolean(revealed[name])}
+                              className="absolute inset-y-0 right-0 grid w-9 place-items-center rounded-r-md text-text-tertiary outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                            >
+                              {revealed[name] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </FormField>
+                  )
+                })}
+              </fieldset>
+            ) : (
+              <FormField label={t('instances.config')} hint={t('instances.configHintRaw')}>
+                {(props) => (
+                  <textarea
+                    {...props}
+                    className={cn(controlClassName, 'h-20 resize-y py-2 font-mono text-xs')}
+                    value={configText}
+                    onChange={(event) => setConfigText(event.target.value)}
+                  />
+                )}
+              </FormField>
+            )}
 
             {formError && (
               <p role="alert" className="rounded-md border border-danger-border bg-danger-bg px-2.5 py-2 text-xs text-danger-fg">

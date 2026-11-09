@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import apiClient from '../api/client'
@@ -12,6 +12,14 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Self-registration can be switched off in settings; say so up front.
+  const [registrationClosed, setRegistrationClosed] = useState(false)
+
+  useEffect(() => {
+    apiClient.getRegistrationStatus().then((result) => {
+      if (!result.error && result.data === false) setRegistrationClosed(true)
+    })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,6 +68,14 @@ export default function Register() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          {registrationClosed && (
+            <p
+              role="status"
+              className="mb-4 rounded-md border border-warning-border bg-warning-bg px-2.5 py-2 text-sm text-warning-fg"
+            >
+              {t('auth.registrationClosed')}
+            </p>
+          )}
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
@@ -140,7 +156,7 @@ export default function Register() {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || registrationClosed}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
                 {loading ? t('common.loading') : t('auth.register')}

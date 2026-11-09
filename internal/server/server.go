@@ -180,12 +180,15 @@ func (s *Server) setupRoutes() {
 			users.DELETE("/:id", handler.DeleteUser(s.services.User))
 		}
 
-		// Registration toggle (admin only)
+		// Registration toggle.
+		//
+		// The read is intentionally anonymous: the sign-up page itself has to
+		// know whether it is open before there is any token, and a 401 there
+		// would bounce the visitor to /login. Writing stays admin-only.
 		settings := v1.Group("/settings")
-		settings.Use(middleware.AuthRequired())
 		{
 			settings.GET("/registration", handler.GetRegistrationStatus(s.services.User))
-			settings.PUT("/registration", middleware.AdminRequired(), handler.SetRegistrationStatus(s.services.User))
+			settings.PUT("/registration", middleware.AuthRequired(), middleware.AdminRequired(), handler.SetRegistrationStatus(s.services.User))
 		}
 
 		// Platform routes

@@ -109,10 +109,15 @@ type CreateInstanceRequest struct {
 }
 
 // UpdateInstanceRequest represents an update instance request
+// UpdateInstanceRequest represents an update to an instance.
+//
+// Config is a pointer so "field absent" (a status-only toggle) and "field
+// empty" (the reader cleared every config field) stay distinguishable: absent
+// keeps the stored value, an empty string really clears it.
 type UpdateInstanceRequest struct {
-	Name   string `json:"name"`
-	Config string `json:"config"`
-	Status string `json:"status"`
+	Name   string  `json:"name"`
+	Config *string `json:"config"`
+	Status string  `json:"status"`
 }
 
 // Create creates a new instance. The instance is placed into "initializing"
@@ -362,8 +367,8 @@ func (s *InstanceService) Update(id string, req *UpdateInstanceRequest) (*models
 	if req.Name != "" {
 		instance.Name = req.Name
 	}
-	if req.Config != "" {
-		instance.Config = req.Config
+	if req.Config != nil {
+		instance.Config = *req.Config
 	}
 	if req.Status != "" {
 		instance.Status = req.Status

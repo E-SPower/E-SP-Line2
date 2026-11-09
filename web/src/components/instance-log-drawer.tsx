@@ -93,6 +93,21 @@ export function InstanceLogDrawer({ instance, onClose }: { instance: LogInstance
     void fetchLogs(instance, { level, keyword, from, to, lines, ...patch })
   }
 
+  /**
+   * A process started a moment ago has not flushed its first lines yet, so a
+   * one-shot read shows an empty log over a live instance. Poll while the
+   * drawer is open on a running instance and nothing has arrived, then stop as
+   * soon as there is content (or the instance is no longer running).
+   */
+  useEffect(() => {
+    if (!instance || logs !== '' || loading || error) return
+    const timer = window.setInterval(() => reload(), 1500)
+    return () => window.clearInterval(timer)
+    // `reload` closes over the filters listed below; including it would retime
+    // the interval on every render, so the filter deps stand in for it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance, logs, loading, error, level, keyword, from, to, lines])
+
   // Debounce typing so the backend is not hit per keystroke.
   const keywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const changeKeyword = (value: string) => {

@@ -1139,6 +1139,10 @@ func (r *PythonRunner) Stop(instanceID string) error {
 	delete(r.restarts, instanceID)
 	r.mu.Unlock()
 
+	// Leave a trace in the instance log: without it the viewer ends on the
+	// adapter's last line and stopping looks like a crash.
+	r.appendLog(instanceID, "INFO", "[bridge] 适配器进程已停止 (adapter process stopped) by operator")
+
 	// Update instance status to stopped.
 	if err := r.updateInstanceStatus(instanceID, "stopped"); err != nil {
 		logger.Warn("Failed to update instance status", logger.String("error", err.Error()))

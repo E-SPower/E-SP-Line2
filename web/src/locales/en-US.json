@@ -190,12 +190,13 @@
     "nameHint": "Shown in the list.",
     "adapterHint": "Adapter ID, copy it from the adapters page.",
     "platformHint": "Platform ID; must match the adapter’s platform.",
-    "configHint": "Optional JSON text.",
+    "configHint": "Filled per the platform’s own fields from the capability matrix; a * marks a required one.",
     "deleteTitle": "Delete instance",
     "deleteHint": "Its session and config are removed too. This cannot be undone.",
     "name": "Name",
     "adapterRequired": "Adapter is required.",
-    "platformRequired": "Platform is required."
+    "platformRequired": "Platform is required.",
+    "configHintRaw": "This platform declares no config fields — optional raw JSON."
   },
   "messages": {
     "title": "Message Management",
@@ -214,7 +215,18 @@
     "empty": "No messages",
     "emptyHint": "Messages land in this queue as soon as an adapter receives one.",
     "count": "{{count}} messages",
-    "pendingOnly": "Pending only"
+    "pendingOnly": "Pending only",
+    "commandTitle": "Send a command",
+    "commandHint": "Delivered to the adapter over the bridge, then to the platform.",
+    "commandType": "Command type",
+    "commandTypeHint": "Text sends message_content, image sends a URL.",
+    "instancePlaceholder": "Pick an instance",
+    "instanceRequired": "Choose an instance first",
+    "noInstances": "No instances yet — create one first.",
+    "payloadHint": "Text, or an image URL for image commands",
+    "send": "Send",
+    "sending": "Sending…",
+    "payloadInvalid": "Invalid payload: {{error}}"
   },
   "adapterGateway": {
     "title": "WebSocket Adapter",
@@ -408,7 +420,25 @@
     "tokenExpiryHint": "Sign-in is required again after this",
     "maxLoginAttemptsHint": "The account is temporarily locked beyond this",
     "webhookUrlHint": "Alerts are POSTed to this address",
-    "saveHint": "Settings are stored locally and survive a refresh"
+    "saveHint": "Settings are stored locally and survive a refresh",
+    "userManagementHint": "Accounts, enabled state and the self-registration switch",
+    "username": "Username",
+    "userActive": "Active",
+    "userDisabled": "Disabled",
+    "disableUser": "Disable",
+    "enableUser": "Enable",
+    "deleteUser": "Delete account",
+    "deleteUserHint": "The account can no longer sign in. This cannot be undone.",
+    "userCreated": "Account created: {{name}}",
+    "userEnabled": "Enabled: {{name}}",
+    "userDisabledNotice": "Disabled: {{name}}",
+    "userDeleted": "Account deleted: {{name}}",
+    "adminOnly": "Only an admin can view or change accounts.",
+    "passwordHint": "At least 6 characters.",
+    "passwordTooShort": "Password must be at least 6 characters.",
+    "registrationOpened": "Self-registration is on.",
+    "registrationClosed": "Self-registration is off.",
+    "addUserHint": "Created by an admin; the account can sign in right away."
   },
   "auth": {
     "login": "Login",
@@ -434,7 +464,11 @@
     "brandDescription": "Register platforms, adapters, instances and routing rules together — every runtime state stays visible in a single console.",
     "featureRoutes": "Priority-based message routing",
     "featureMonitor": "Live heartbeats and error rates",
-    "featureI18n": "Chinese and English interface"
+    "featureI18n": "Chinese and English interface",
+    "registrationClosed": "Self-registration is closed by an admin. Ask an admin for an account.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "noAccount": "No account yet?"
   },
   "docs": {
     "title": "Documentation",
@@ -463,7 +497,9 @@
     "linkMessageFields": "Message fields",
     "linkAdapterDevelopment": "Adapter development",
     "linkCapabilities": "Platform capability matrix",
-    "linkMigration": "catbus migration"
+    "linkMigration": "catbus migration",
+    "more": "More",
+    "moreHint": "Further reading"
   },
   "state": {
     "loadingData": "Loading data",
@@ -505,6 +541,9 @@
     "heatmapHint": "Counts per hour in the selected window.",
     "clear": "Clear logs",
     "clearTitle": "Clear this instance log?",
-    "clearHint": "The file is emptied; the adapter keeps writing to it."
+    "clearHint": "The file is emptied; the adapter keeps writing to it.",
+    "cleared": "Log cleared, {{bytes}} bytes removed.",
+    "lineCount": "{{count}} lines",
+    "loadFailed": "Could not read the log: {{error}}"
   }
 }
