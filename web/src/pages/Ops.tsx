@@ -30,6 +30,8 @@ interface SystemStats {
   totalMessages: number
 }
 
+type BackendStatus = 'checking' | 'online' | 'offline'
+
 const REFRESH_MS = 5000
 
 const statusVariant = (status: AdapterStatus['status']) => {
@@ -45,7 +47,19 @@ const statusIcon = (status: AdapterStatus['status']) => {
   return Clock
 }
 
-export default function Monitoring() {
+/**
+ * The single ops page.
+ *
+ * It used to be two surfaces: `/monitoring` (metrics, instance heartbeats,
+ * live throughput) and the dashboard's right-rail "system status" card, which
+ * repeated the adapter and message totals next to a backend badge. The rail
+ * copy is gone and this page owns all of it, so the counts exist once.
+ *
+ * The backend badge stays in the metric strip's heading row on purpose: it is
+ * a status for the numbers next to it ("can these totals be trusted?"), not a
+ * metric of its own, and it must not reintroduce a second copy of a count.
+ */
+export default function Ops() {
   const { t } = useTranslation()
   const [adapters, setAdapters] = useState<AdapterStatus[]>([])
   const [stats, setStats] = useState<SystemStats>({
@@ -55,6 +69,7 @@ export default function Monitoring() {
     errorAdapters: 0,
     totalMessages: 0,
   })
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
@@ -67,9 +82,12 @@ export default function Monitoring() {
     }
   }, [])
 
-  const loadMonitoringData = useCallback(async () => {
-    const result = await apiClient.getInstances()
+  const loadOpsData = useCallback(async () => {
+    // Fire the health probe alongside the list call so both land on one tick.
+    const [health, result] = await Promise.all([apiClient.healthCheck(), apiClient.getInstances()])
     if (!mounted.current) return
+
+    setBackendStatus(health.status === 'ok' ? 'online' : 'offline')
 
     if (result.error) {
       setError(result.error)
@@ -101,21 +119,29 @@ export default function Monitoring() {
   }, [])
 
   useEffect(() => {
-    void loadMonitoringData()
-    const timer = window.setInterval(() => void loadMonitoringData(), REFRESH_MS)
+    void loadOpsData()
+    const timer = window.setInterval(() => void loadOpsData(), REFRESH_MS)
     return () => window.clearInterval(timer)
-  }, [loadMonitoringData])
+  }, [loadOpsData])
 
   const totalErrors = adapters.reduce((sum, entry) => sum + entry.errorCount, 0)
   const errorRate = stats.totalMessages > 0 ? ((totalErrors / stats.totalMessages) * 100).toFixed(2) : '0.00'
 
+  const backendBadge =
+    backendStatus === 'online'
+      ? { variant: 'success' as const, label: t('ops.backendOnline') }
+      : backendStatus === 'offline'
+        ? { variant: 'danger' as const, label: t('ops.backendOffline') }
+        : { variant: 'neutral' as const, label: t('ops.backendChecking') }
+
   return (
     <>
       <PageHeader
-        title={t('monitoring.title')}
-        description={t('monitoring.description')}
+        title={t('ops.title')}
+        description={t('ops.subtitle')}
+        eyebrow={t('ops.description')}
         actions={
-          <Button variant="secondary" size="sm" onClick={() => void loadMonitoringData()}>
+          <Button variant="secondary" size="sm" onClick={() => void loadOpsData()}>
             <RefreshCw />
             {t('common.refresh')}
           </Button>
@@ -126,28 +152,77 @@ export default function Monitoring() {
         <ErrorState
           title={t('state.loadFailed')}
           description={error || t('state.loadFailedHint')}
-          onRetry={loadMonitoringData}
+          onRetry={loadOpsData}
           retryLabel={t('common.retry')}
         />
       ) : (
         <>
-          {/* Compact metric strip — denser than the dashboard cards on purpose. */}
-          <StatGrid>
-            <StatCard label={t('monitoring.totalAdapters')} value={stats.totalAdapters} icon={Activity} tone="primary" loading={loading} />
-            <StatCard label={t('monitoring.runningAdapters')} value={stats.runningAdapters} icon={Wifi} tone="success" loading={loading} />
-            <StatCard label={t('monitoring.errorAdapters')} value={stats.errorAdapters} icon={AlertCircle} tone="danger" loading={loading} />
-            <StatCard label={t('monitoring.totalMessages')} value={stats.totalMessages} icon={MonitorPlay} tone="info" loading={loading} />
-          </StatGrid>
+          {/* One metrics block: the four counts live here and nowhere else, and
+              the backend badge rides the heading row beside them. */}
+          <section aria-labelledby="ops-metrics-heading" className="min-w-0 space-y-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+              <h2
+                id="ops-metrics-heading"
+                className="min-w-0 text-2xs font-semibold uppercase tracking-wider text-text-tertiary"
+              >
+                {t('ops.metricsHeading')}
+              </h2>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="min-w-0 text-xs text-text-tertiary">{t('ops.backendConnectivity')}</span>
+                <Badge variant={backendBadge.variant} dot role="status" aria-live="polite">
+                  {backendBadge.label}
+                </Badge>
+              </div>
+            </div>
+
+            {backendStatus === 'offline' && (
+              <div className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-bg px-2.5 py-2 text-xs text-warning-fg">
+                <WifiOff className="mt-px size-3.5 shrink-0" />
+                <span className="min-w-0 break-words">{t('state.loadFailedHint')}</span>
+              </div>
+            )}
+
+            <StatGrid>
+              <StatCard
+                label={t('ops.totalAdapters')}
+                value={stats.totalAdapters}
+                icon={Activity}
+                tone="primary"
+                loading={loading}
+              />
+              <StatCard
+                label={t('ops.runningAdapters')}
+                value={stats.runningAdapters}
+                icon={Wifi}
+                tone="success"
+                loading={loading}
+              />
+              <StatCard
+                label={t('ops.errorAdapters')}
+                value={stats.errorAdapters}
+                icon={AlertCircle}
+                tone="danger"
+                loading={loading}
+              />
+              <StatCard
+                label={t('ops.totalMessages')}
+                value={stats.totalMessages}
+                icon={MonitorPlay}
+                tone="info"
+                loading={loading}
+              />
+            </StatGrid>
+          </section>
 
           <Card padding="none">
             <CardHeader className="flex-row items-start justify-between gap-3">
               <div>
-                <CardTitle>{t('monitoring.adapterStatus')}</CardTitle>
-                <p className="mt-1 text-xs text-text-tertiary">{t('monitoring.adapterStatusHint')}</p>
+                <CardTitle>{t('ops.adapterStatus')}</CardTitle>
+                <p className="mt-1 text-xs text-text-tertiary">{t('ops.adapterStatusHint')}</p>
               </div>
               {updatedAt && (
                 <span className="tabular shrink-0 text-xs text-text-tertiary">
-                  {t('monitoring.updatedAt', { time: updatedAt.toLocaleTimeString() })}
+                  {t('ops.updatedAt', { time: updatedAt.toLocaleTimeString() })}
                 </span>
               )}
             </CardHeader>
@@ -159,8 +234,8 @@ export default function Monitoring() {
                 icon={MonitorPlay}
                 size="page"
                 aurora
-                title={t('monitoring.noAdapters')}
-                description={t('monitoring.noAdaptersHint')}
+                title={t('ops.noAdapters')}
+                description={t('ops.noAdaptersHint')}
               />
             ) : (
               <ul className="divide-y divide-border">
@@ -191,14 +266,14 @@ export default function Monitoring() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-4 sm:justify-end">
-                        <Metric label={t('monitoring.messages')} value={adapter.messageCount} />
+                        <Metric label={t('ops.messages')} value={adapter.messageCount} />
                         <Metric
-                          label={t('monitoring.errors')}
+                          label={t('ops.errors')}
                           value={adapter.errorCount}
                           tone={adapter.errorCount > 0 ? 'danger' : 'neutral'}
                         />
                         <Metric
-                          label={t('monitoring.lastHeartbeat')}
+                          label={t('ops.lastHeartbeat')}
                           value={adapter.lastHeartbeat ? new Date(adapter.lastHeartbeat).toLocaleTimeString() : '—'}
                         />
                         <Badge variant={statusVariant(adapter.status)} dot>
@@ -212,19 +287,25 @@ export default function Monitoring() {
             )}
           </Card>
 
-          <Card padding="none">
+          {/* Default padding, not `padding="none"`: with `none` the card's
+              `gap-0` butts the header straight against the body, and at phone
+              widths the title collides with the first panel. */}
+          <Card>
             <CardHeader>
-              <CardTitle>{t('monitoring.realtimeMetrics')}</CardTitle>
+              <CardTitle>{t('ops.realtimeMetrics')}</CardTitle>
             </CardHeader>
             <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <MetricPanel label={t('monitoring.messagesPerMinute')} tone="info">
+              <MetricPanel label={t('ops.messagesPerMinute')} tone="info">
                 {Math.round(stats.totalMessages / 60)}
               </MetricPanel>
-              <MetricPanel label={t('monitoring.errorRate')} tone="danger">
-                {errorRate}%
+              {/* One interpolated string, not `{errorRate}%`: two children make
+                  `children` an array, which `MetricPanel` mistook for the
+                  loading placeholder, so the number never rendered. */}
+              <MetricPanel label={t('ops.errorRate')} tone="danger">
+                {`${errorRate}%`}
               </MetricPanel>
-              <MetricPanel label={t('monitoring.uptime')} tone="success">
-                99.9%
+              <MetricPanel label={t('ops.uptime')} tone="success">
+                {'99.9%'}
               </MetricPanel>
             </CardBody>
           </Card>

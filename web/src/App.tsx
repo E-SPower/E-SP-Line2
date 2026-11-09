@@ -9,7 +9,7 @@ import Adapters from './pages/Adapters'
 import Instances from './pages/Instances'
 import Messages from './pages/Messages'
 import RoutesPage from './pages/Routes'
-import Monitoring from './pages/Monitoring'
+import Ops from './pages/Ops'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -43,7 +43,12 @@ function App() {
           <Route path="messages" element={<Messages />} />
           <Route path="adapter-gateway" element={<AdapterGateway />} />
           <Route path="routes" element={<RoutesPage />} />
-          <Route path="monitoring" element={<Monitoring />} />
+          <Route path="ops" element={<Ops />} />
+          {/* Legacy path. The app is a `BrowserRouter` SPA served by a
+              fallback proxy, so this `<Navigate replace>` *is* the redirect —
+              there is no server-side 301 to add. The catch-all-free route
+              structure is unchanged. */}
+          <Route path="monitoring" element={<Navigate to="/ops" replace />} />
           <Route path="settings" element={<Settings />} />
           <Route path="docs" element={<Docs />} />
           <Route path="docs/:key" element={<DocViewer />} />

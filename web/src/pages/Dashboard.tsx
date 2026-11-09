@@ -18,7 +18,7 @@ import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '../components
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/ui/empty-state'
-import { Skeleton, SkeletonText } from '../components/ui/skeleton'
+import { SkeletonText } from '../components/ui/skeleton'
 
 interface RecentActivity {
   id: string
@@ -27,10 +27,7 @@ interface RecentActivity {
   timestamp: string
 }
 
-type BackendStatus = 'checking' | 'online' | 'offline'
-
-const activityDot: Record<RecentActivity['type'], string> = {
-  adapter: 'bg-success',
+const activityDot: Record<RecentActivity['type'], string> = {  adapter: 'bg-success',
   message: 'bg-info',
   route: 'bg-text-tertiary',
 }
@@ -38,7 +35,6 @@ const activityDot: Record<RecentActivity['type'], string> = {
 export default function Dashboard() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
-  const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
   const [counts, setCounts] = useState({ platforms: 0, adapters: 0, instances: 0, messages: 0 })
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -53,11 +49,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false
-
-    apiClient.healthCheck().then((health) => {
-      if (cancelled) return
-      setBackendStatus(health.status === 'ok' ? 'online' : 'offline')
-    })
 
     Promise.all([
       apiClient.getPlatforms(),
@@ -116,13 +107,6 @@ export default function Dashboard() {
     { label: t('dashboard.totalInstances'), value: counts.instances, icon: Server, tone: 'neutral' as const, to: '/instances' },
     { label: t('dashboard.totalMessages'), value: counts.messages, icon: MessageSquare, tone: 'neutral' as const, to: '/messages' },
   ]
-
-  const backendBadge =
-    backendStatus === 'online'
-      ? { variant: 'success' as const, label: t('dashboard.backendOnline') }
-      : backendStatus === 'offline'
-        ? { variant: 'danger' as const, label: t('dashboard.backendOffline') }
-        : { variant: 'neutral' as const, label: t('dashboard.backendChecking') }
 
   return (
     <>
@@ -186,7 +170,7 @@ export default function Dashboard() {
         </h2>
         {/* `lg:` is repeated on purpose: `StatGrid` hard-codes `lg:grid-cols-4`
             and a fourth metric no longer exists. */}
-        <StatGrid className="grid-cols-1 md:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
+        <StatGrid className="gap-6 grid-cols-1 md:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
           {stats.map((stat) => (
             <Link
               key={stat.to}
@@ -206,7 +190,7 @@ export default function Dashboard() {
         </StatGrid>
       </section>
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-3">
         {/* Activity — the widest, densest block. */}
         <Card padding="none" className="min-w-0 md:col-span-2">
           {/* One column while the card is phone-narrow, then two shrinkable
@@ -218,10 +202,10 @@ export default function Dashboard() {
               <p className="mt-1 min-w-0 break-words text-xs text-text-tertiary">{t('dashboard.recentActivityHint')}</p>
             </div>
             <Link
-              to="/monitoring"
+              to="/ops"
               className="min-w-0 break-words text-xs font-medium text-primary hover:underline sm:justify-self-end sm:text-end"
             >
-              {t('nav.monitoring')}
+              {t('nav.ops')}
             </Link>
           </CardHeader>
           {loading ? (
@@ -257,58 +241,11 @@ export default function Dashboard() {
           )}
         </Card>
 
-        {/* Right rail — lower density, secondary information. `min-w-0` on the
-            rail and wrapping labels let the status rows give way instead of
-            pushing a badge out of the card when the column is narrow. */}
+        {/* Right rail — lower density, secondary information. The ops summary
+            (backend reachability + adapter/message totals) moved to `/ops`;
+            all that remains here is quick actions, whose header link above is
+            the compact way into that page. */}
         <div className="stack min-w-0">
-          <Card padding="none" className="min-w-0">
-            <CardHeader>
-              <div className="min-w-0">
-                <CardTitle>{t('dashboard.systemStatus')}</CardTitle>
-                <p className="mt-1 text-xs text-text-tertiary">{t('dashboard.systemStatusHint')}</p>
-              </div>
-            </CardHeader>
-            <CardBody className="space-y-3">
-              {/* `flex-wrap` + `break-words`: on a narrow rail the badge drops
-                  to the next line instead of squeezing the label down to one
-                  letter. No fixed widths, so nothing can escape the card. */}
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                <span className="min-w-0 break-words text-sm text-text-secondary">
-                  {t('dashboard.backendStatus')}
-                </span>
-                <Badge variant={backendBadge.variant} dot>
-                  {backendBadge.label}
-                </Badge>
-              </div>
-              {backendStatus === 'offline' && (
-                <div className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-bg px-2.5 py-2 text-xs text-warning-fg">
-                  <WifiOff className="mt-px size-3.5 shrink-0" />
-                  <span className="min-w-0 break-words">{t('state.loadFailedHint')}</span>
-                </div>
-              )}
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                <span className="min-w-0 break-words text-sm text-text-secondary">
-                  {t('dashboard.totalAdapters')}
-                </span>
-                {loading ? (
-                  <Skeleton shape="line" className="h-4 w-10" />
-                ) : (
-                  <Badge variant={counts.adapters > 0 ? 'success' : 'neutral'}>{counts.adapters}</Badge>
-                )}
-              </div>
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                <span className="min-w-0 break-words text-sm text-text-secondary">
-                  {t('monitoring.totalMessages')}
-                </span>
-                {loading ? (
-                  <Skeleton shape="line" className="h-4 w-10" />
-                ) : (
-                  <Badge variant="neutral">{counts.messages}</Badge>
-                )}
-              </div>
-            </CardBody>
-          </Card>
-
           <Card padding="none" className="min-w-0">
             <CardHeader>
               <CardTitle>{t('dashboard.quickActions')}</CardTitle>
