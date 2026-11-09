@@ -39,7 +39,9 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/instances', icon: Server, labelKey: 'nav.instances', group: 'business' },
   { path: '/messages', icon: MessageSquare, labelKey: 'nav.messages', group: 'business' },
   { path: '/routes', icon: GitBranch, labelKey: 'nav.routes', group: 'business' },
-  { path: '/monitoring', icon: Monitor, labelKey: 'nav.monitoring', group: 'ops' },
+  // The `ops` group holds exactly this one entry; the dashboard rail's ops
+  // summary folded into it, so there is no second ops destination.
+  { path: '/ops', icon: Monitor, labelKey: 'nav.ops', group: 'ops' },
   { path: '/settings', icon: SettingsIcon, labelKey: 'nav.settings', group: 'settings' },
   { path: '/docs', icon: BookOpen, labelKey: 'nav.docs', group: 'settings' },
 ]

@@ -15,7 +15,6 @@
     "routes": "路由规则",
     "docs": "文档中心",
     "settings": "设置",
-    "monitoring": "运行监控",
     "primary": "主导航",
     "breadcrumb": "位置",
     "openMenu": "打开导航",
@@ -25,7 +24,8 @@
       "business": "业务",
       "ops": "运维",
       "settings": "设置"
-    }
+    },
+    "ops": "运维面板"
   },
   "common": {
     "loading": "加载中...",
@@ -72,13 +72,11 @@
     "title": "仪表盘",
     "overview": "系统概览",
     "totalPlatforms": "平台总数",
-    "totalAdapters": "接入器总数",
     "totalInstances": "实例总数",
     "totalMessages": "消息总数",
     "recentActivity": "最近活动",
     "noActivity": "暂无活动记录",
     "newMessage": "收到新消息",
-    "systemStatus": "系统状态",
     "statusOnline": "在线",
     "statusOffline": "离线",
     "statusChecking": "检查中",
@@ -87,17 +85,13 @@
     "noInstances": "暂无实例",
     "subtitle": "关键指标与最近活动一览",
     "recentActivityHint": "接入器与消息的最新动态",
-    "systemStatusHint": "后端连通性与运行摘要",
-    "backendStatus": "后端服务",
-    "backendChecking": "检测中",
-    "backendOnline": "在线",
-    "backendOffline": "离线",
     "quickActions": "快捷操作",
     "adapterCreated": "接入器已创建",
     "messageReceived": "收到新消息",
     "noRecentActivity": "暂无最近活动",
     "noRecentActivityHint": "创建接入器或收到消息后会出现在这里。",
-    "refreshed": "数据已刷新。"
+    "refreshed": "数据已刷新。",
+    "backendOffline": "离线"
   },
   "connection": {
     "lostTitle": "与后端连接已断开",
@@ -351,14 +345,23 @@
     "targetTypeRequired": "请选择目标类型。",
     "targetIdRequired": "请填写目标 ID。"
   },
-  "monitoring": {
-    "title": "运行监控",
+  "ops": {
+    "title": "运维面板",
+    "description": "每 5 秒自动刷新，也可手动刷新。",
+    "metricsHeading": "运行概览",
+    "backendConnectivity": "后端连通性",
+    "backendChecking": "检测中",
+    "backendOnline": "在线",
+    "backendOffline": "离线",
     "totalAdapters": "实例总数",
     "runningAdapters": "运行中",
+    "errorAdapters": "异常",
+    "stoppedAdapters": "已停止",
     "totalMessages": "累计消息",
-    "avgResponseTime": "平均响应",
     "adapterStatus": "实例状态",
+    "adapterStatusHint": "按实例展示连接与吞吐",
     "noAdapters": "没有可监控的实例",
+    "noAdaptersHint": "先在实例管理中创建实例。",
     "messages": "消息",
     "errors": "错误",
     "lastHeartbeat": "最后心跳",
@@ -366,13 +369,8 @@
     "messagesPerMinute": "每分钟消息",
     "errorRate": "错误率",
     "uptime": "可用率",
-    "subtitle": "实例心跳、连接状态与实时指标",
-    "description": "每 5 秒自动刷新，也可手动刷新。",
-    "stoppedAdapters": "已停止",
-    "errorAdapters": "异常",
-    "adapterStatusHint": "按实例展示连接与吞吐",
-    "noAdaptersHint": "先在实例管理中创建实例。",
-    "updatedAt": "更新于 {{time}}"
+    "updatedAt": "更新于 {{time}}",
+    "subtitle": "后端连通性、实例心跳与实时指标"
   },
   "settings": {
     "title": "设置",

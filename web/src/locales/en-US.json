@@ -15,7 +15,6 @@
     "routes": "Routes",
     "docs": "Documentation",
     "settings": "Settings",
-    "monitoring": "Monitoring",
     "primary": "Primary navigation",
     "breadcrumb": "Breadcrumb",
     "openMenu": "Open navigation",
@@ -25,7 +24,8 @@
       "business": "Business",
       "ops": "Operations",
       "settings": "Settings"
-    }
+    },
+    "ops": "Operations"
   },
   "common": {
     "loading": "Loading...",
@@ -72,13 +72,11 @@
     "title": "Dashboard",
     "overview": "System Overview",
     "totalPlatforms": "Total Platforms",
-    "totalAdapters": "Total Adapters",
     "totalInstances": "Total Instances",
     "totalMessages": "Total Messages",
     "recentActivity": "Recent Activity",
     "noActivity": "No activity yet",
     "newMessage": "New message",
-    "systemStatus": "System Status",
     "statusOnline": "Online",
     "statusOffline": "Offline",
     "statusChecking": "Checking",
@@ -87,17 +85,13 @@
     "noInstances": "No instances",
     "subtitle": "Key metrics and recent activity at a glance",
     "recentActivityHint": "Latest adapter and message events",
-    "systemStatusHint": "Backend reachability and runtime summary",
-    "backendStatus": "Backend service",
-    "backendChecking": "Checking",
-    "backendOnline": "Online",
-    "backendOffline": "Offline",
     "quickActions": "Quick actions",
     "adapterCreated": "Adapter created",
     "messageReceived": "Message received",
     "noRecentActivity": "No recent activity",
     "noRecentActivityHint": "Create an adapter or receive a message and it will show up here.",
-    "refreshed": "Data refreshed."
+    "refreshed": "Data refreshed.",
+    "backendOffline": "Offline"
   },
   "connection": {
     "lostTitle": "Connection to backend lost",
@@ -351,14 +345,23 @@
     "targetTypeRequired": "Target type is required.",
     "targetIdRequired": "Target ID is required."
   },
-  "monitoring": {
-    "title": "Monitoring",
+  "ops": {
+    "title": "Operations",
+    "description": "Auto-refreshes every 5s; manual refresh available.",
+    "metricsHeading": "Runtime overview",
+    "backendConnectivity": "Backend connectivity",
+    "backendChecking": "Checking",
+    "backendOnline": "Online",
+    "backendOffline": "Offline",
     "totalAdapters": "Total Instances",
     "runningAdapters": "Running",
+    "errorAdapters": "Errored",
+    "stoppedAdapters": "Stopped",
     "totalMessages": "Messages",
-    "avgResponseTime": "Avg Response",
     "adapterStatus": "Instance Status",
+    "adapterStatusHint": "Connection and throughput per instance",
     "noAdapters": "Nothing to monitor",
+    "noAdaptersHint": "Create an instance under Instance Management first.",
     "messages": "Messages",
     "errors": "Errors",
     "lastHeartbeat": "Last heartbeat",
@@ -366,13 +369,8 @@
     "messagesPerMinute": "Messages / min",
     "errorRate": "Error rate",
     "uptime": "Uptime",
-    "subtitle": "Instance heartbeats, connection state and live metrics",
-    "description": "Refreshes every 5 seconds; you can also refresh manually.",
-    "stoppedAdapters": "Stopped",
-    "errorAdapters": "Errored",
-    "adapterStatusHint": "Connection and throughput per instance",
-    "noAdaptersHint": "Create an instance under Instance Management first.",
-    "updatedAt": "Updated at {{time}}"
+    "updatedAt": "Updated at {{time}}",
+    "subtitle": "Backend connectivity, instance heartbeats and live metrics"
   },
   "settings": {
     "title": "Settings",
